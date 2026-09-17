@@ -1,7 +1,7 @@
 # Stargate contract
 
 Status: **32K — DRAFT, implemented for the single signed-check flow below**.
-Build 2 is a local development implementation, not an adopted or published
+Build 3 is a local development implementation, not an adopted or published
 standard. It is not a Warrant verifier.
 
 ## One temperature
@@ -114,7 +114,7 @@ promised (the inherited evaluator adjusts Python's recursion limit).
 An envelope has exactly `body` and `signature`. Its body has exactly:
 
 ```json
-{"stargate":32,"build":"2","key":"<public key hex>","check":{"term":"<hash>","atp":4,"expect":"<hash>","exit":"normal_form"},"decision":"accept"}
+{"stargate":32,"build":"3","key":"<public key hex>","check":{"term":"<hash>","atp":4,"expect":"<hash>","exit":"normal_form","environment":["<term hash>"]},"decision":"accept"}
 ```
 
 This example is explanatory, not canonical field ordering. The encoding is
@@ -142,16 +142,42 @@ computation claim in the verifier's available content environment.
 The outcome fingerprint is exactly:
 
 ```
-("stargate", 32, term, expect, expected_exit, verdict, result_hash, actual_exit)
+("stargate", 32, tuple(environment), term, expect, expected_exit, verdict, result_hash, actual_exit)
 ```
 
 ATP budget and atp_spent do not affect this identity. Each record still signs its
 own budget. A fingerprint is not an admission vote or settlement. Stargate does
 not yet implement Warrant's disagreement graph, thresholds or re-litigation.
 
-Absent demanded objects may change the canonical outcome; verification only
-attests to the local environment used. No portable environment manifest or
-snapshot proof is claimed. Corrupt addressed bytes, I/O and resource failures
+The check has exactly term, atp, expect, exit and environment. Environment is a
+sorted, duplicate-free list of lowercase SHA-256 addresses. It is signed as
+part of the body and included in the outcome fingerprint. It defines the entire
+non-intrinsic domain visible to evaluation; objects outside it are absent EVEN
+IF the local store holds them. Genesis I/K/S remain intrinsic regardless of this
+list. A demanded listed object unavailable locally is a StoreError naming its
+hash: UNVERIFIED, with no verdict or decision. Corrupt bytes are likewise local
+faults. Unused listed objects need not be fetched or locally present.
+
+Thus an explicit absence (outside the signed domain) can canonically produce
+unresolved_reference; a local missing copy (inside the domain) cannot. Two
+verifiers able to supply the demanded listed bytes evaluate the same domain,
+regardless of extra local objects. This does not assert availability elsewhere
+or prove that the author chose a domain appropriate to an external question.
+An explicit empty domain is legal, but is not a claim that a term is globally
+unresolvable. Different domains may have the same outcome; this fingerprint is
+not a settlement novelty/admissibility rule.
+
+API callers must supply the domain explicitly. CLI `record` by default first
+captures addresses actually demanded by this evaluation; any missing fetch
+aborts before signing. Then it re-executes against that bound domain and signs.
+This performs two evaluations; it is not an optimization. To intentionally
+claim absence, use `--environment FILE` with a JSON address list (possibly []).
+Each execution caches fetched bytes, checking their addresses. No signed
+local rejection is manufactured from an unobserved missing object.
+
+Raw CLI `eval` remains a diagnostic over the supplied local store, with no
+signature or decision; its unresolved_reference is not a verified record.
+Corrupt addressed bytes, I/O and resource failures during verification
 are local unverified outcomes, never fail/reject. Input decoding and reading
 object files are not charged ATP; this CLI is not a hostile-input network service.
 
@@ -161,5 +187,14 @@ object files are not charged ATP; this CLI is not a hostile-input network servic
 `record` returns both RecordID and envelope object hash; `verify` takes the latter
 and an explicit `--trust` key. Key generation creates a new mode-0600 seed file
 and refuses to overwrite any existing path. Exit 0 means the operation completed
-(including a successfully verified reject); inspect decision/verdict. Exit 2 is
-invalid input/signature/unsupported edition, exit 3 is local unverified failure.
+(including a successfully verified reject); inspect decision/verdict. Exit 1 / operation_error is an operational command failure, such as refusing
+to overwrite a key or being unable to read a key/input file during authoring.
+Exit 2 / invalid is malformed input/signature/unsupported edition. Exit 3 /
+unverified is inability to evaluate/verify the declared computation locally,
+including missing demanded domain members; no decision is returned. `eval` and
+`verify` I/O failures also use 3. Argparse syntax errors use exit 2 with its
+standard text diagnostic; JSON statuses apply after argument parsing.
+
+The record API raises InvalidRecord for malformed record fields, including
+term, expect, environment addresses and signer keys. StoreError,
+AdmissionRefused and ResourceFault remain separate local-failure exceptions.

@@ -9,7 +9,7 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from cryptography.hazmat.primitives import serialization
 
 from . import CONTRACT_STATUS, KELVIN, __version__, kernel
-from .records import canon, create_record, public_key, record_id, verify_record
+from .records import canon, capture_environment, create_record, public_key, record_id, verify_record
 from .store import Store, StoreError, hex_hash
 
 
@@ -37,6 +37,8 @@ def parser():
     q.add_argument("--expect", required=True, type=hex_hash)
     q.add_argument("--exit", required=True, choices=kernel.EXITS)
     q.add_argument("--key", required=True, type=Path)
+    q.add_argument("--environment", type=Path,
+                   help="JSON list defining the exact object domain; otherwise capture demanded objects")
     q = cmd("verify", "verify a stored signed record by independent re-execution")
     q.add_argument("object", type=hex_hash)
     q.add_argument("--trust", required=True, action="append", type=hex_hash,
@@ -70,7 +72,10 @@ def execute(args):
         return dict(stargate=KELVIN, verifier_build=__version__, **receipt.as_dict())
     if args.command == "record":
         key = Ed25519PrivateKey.from_private_bytes(bytes.fromhex(args.key.read_text().strip()))
-        check = dict(term=args.term, atp=args.atp, expect=args.expect, exit=args.exit)
+        environment = (json.loads(args.environment.read_text()) if args.environment is not None
+                       else capture_environment(args.term, args.atp, store))
+        check = dict(term=args.term, atp=args.atp, expect=args.expect, exit=args.exit,
+                     environment=environment)
         envelope = create_record(check, store, key)
         return {"record": record_id(envelope["body"]), "object": store.put(canon(envelope)),
                 "decision": envelope["body"]["decision"]}
@@ -87,7 +92,11 @@ def main(argv=None):
         return 0
     try:
         result = execute(args)
-    except (kernel.AdmissionRefused, kernel.ResourceFault, StoreError, OSError) as exc:
+    except OSError as exc:
+        status = "unverified" if args.command in ("verify", "eval") else "operation_error"
+        print(json.dumps({"status": status, "error": str(exc)}), file=sys.stderr)
+        return 3 if status == "unverified" else 1
+    except (kernel.AdmissionRefused, kernel.ResourceFault, StoreError) as exc:
         print(json.dumps({"status": "unverified", "error": str(exc)}), file=sys.stderr)
         return 3
     except (ValueError, TypeError, RecursionError) as exc:

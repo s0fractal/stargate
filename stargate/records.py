@@ -13,7 +13,7 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey,
 
 from . import KELVIN, __version__
 from . import kernel
-from .store import hex_hash
+from .store import hex_hash, StoreError
 
 DOMAIN = b"stargate-record:"
 MAX_INT = 2**53 - 1
@@ -69,10 +69,24 @@ def exact(doc, keys):
         raise InvalidRecord("unexpected fields; expected " + ", ".join(keys))
 
 
+def record_hash(value):
+    try:
+        return hex_hash(value)
+    except ValueError as exc:
+        raise InvalidRecord(str(exc)) from exc
+
+
 def validate_check(check):
-    exact(check, ("term", "atp", "expect", "exit"))
-    hex_hash(check["term"])
-    hex_hash(check["expect"])
+    exact(check, ("term", "atp", "expect", "exit", "environment"))
+    record_hash(check["term"])
+    record_hash(check["expect"])
+    env = check["environment"]
+    if not isinstance(env, list):
+        raise InvalidRecord("environment must be a sorted unique list of hashes")
+    for h in env:
+        record_hash(h)
+    if env != sorted(set(env)):
+        raise InvalidRecord("environment must be sorted and unique")
     if type(check["atp"]) is not int or not 0 <= check["atp"] <= kernel.UINT32_MAX:
         raise InvalidRecord("atp must be uint32")
     if check["exit"] not in kernel.EXITS:
@@ -91,12 +105,55 @@ class Outcome:
                     exit=self.exit, atp_spent=self.atp_spent)
 
 
+class BoundEnvironment:
+    """A signed domain: extra local objects are invisible, missing members fault."""
+    def __init__(self, store, addresses):
+        self.store = store
+        self.addresses = frozenset(bytes.fromhex(h) for h in addresses)
+        self.cache = {}
+
+    def get(self, h):
+        if h not in self.addresses:
+            return None
+        if h not in self.cache:
+            raw = self.store.get(h)
+            if raw is None:
+                raise StoreError("declared object missing: " + h.hex())
+            if not isinstance(raw, bytes) or hashlib.sha256(raw).digest() != h:
+                raise StoreError("CAS key mismatch: " + h.hex())
+            self.cache[h] = raw
+        return self.cache[h]
+
+
+def capture_environment(term, atp, store):
+    """CLI authoring convenience: discover demanded objects, never infer absence.
+
+    Missing demanded bytes abort authoring. Intentional unresolved outcomes
+    require an explicit signed domain, including an explicitly empty list.
+    """
+    seen = {}
+    class Capture:
+        def get(self, h):
+            if h not in seen:
+                raw = store.get(h)
+                if raw is None:
+                    raise StoreError("cannot capture missing object: " + h.hex())
+                if not isinstance(raw, bytes) or hashlib.sha256(raw).digest() != h:
+                    raise StoreError("CAS key mismatch: " + h.hex())
+                seen[h] = raw
+            return seen[h]
+    kernel.eval_receipt(bytes.fromhex(record_hash(term)), atp, Capture(), kernel.VERIFIER_LIMITS)
+    return sorted(h.hex() for h in seen)
+
+
 def run_check(check, store, *, limits=None):
+    check = decode(canon(check))
     validate_check(check)
     policy = dict(kernel.VERIFIER_LIMITS)
     if limits is not None:
         policy.update(limits)
-    receipt = kernel.eval_receipt(bytes.fromhex(check["term"]), check["atp"], store, policy)
+    receipt = kernel.eval_receipt(bytes.fromhex(check["term"]), check["atp"],
+                                  BoundEnvironment(store, check["environment"]), policy)
     result = receipt.result_hash.hex()
     verdict = "pass" if (result == check["expect"] and receipt.exit == check["exit"]) else "fail"
     return Outcome(verdict, result, receipt.exit, receipt.atp_spent)
@@ -105,7 +162,7 @@ def run_check(check, store, *, limits=None):
 def fingerprint(check, outcome):
     """Outcome identity, deliberately excluding budget and spent work."""
     validate_check(check)
-    return ("stargate", KELVIN, check["term"], check["expect"], check["exit"],
+    return ("stargate", KELVIN, tuple(check["environment"]), check["term"], check["expect"], check["exit"],
             outcome.verdict, outcome.result_hash, outcome.exit)
 
 
@@ -124,7 +181,7 @@ def validate_body(body):
         raise InvalidRecord("unsupported Stargate temperature")
     if not isinstance(body["build"], str) or not body["build"].isascii() or not body["build"].isdigit():
         raise InvalidRecord("build must be a decimal string")
-    hex_hash(body["key"])
+    record_hash(body["key"])
     validate_check(body["check"])
     if body["decision"] not in ("accept", "reject"):
         raise InvalidRecord("unknown decision")

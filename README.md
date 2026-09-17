@@ -3,7 +3,7 @@
 One Python system for content-addressed computation and signed, reproducible
 checks. Working successor to Sigma-Glyph and Warrant; commands `stargate` / `sg`.
 
-**Build 2 · 32K draft.** The evaluator, object store and one signed-check flow
+**Build 3 · 32K draft.** The evaluator, object store and one signed-check flow
 work. This is a development implementation, not an independently accepted
 release. Predecessor repositories remain unchanged.
 
@@ -35,6 +35,25 @@ and 4 ATP spent. An explicitly expected exhaustion can also pass; acceptance
 means agreement with the declared computation claim, not universal success.
 Keep the private key outside a shared repository.
 
+The signed check names its content environment. By default `record` captures
+the demanded object addresses and refuses missing bytes before signing. Use
+`--environment FILE` only to explicitly choose a closed domain: a JSON sorted
+unique address list; [] intentionally excludes all non-intrinsic objects.
+Verification ignores extra local objects and reports a missing demanded member
+as `unverified`, naming its hash. Adding missing declared bytes can make a record
+verifiable; adding undeclared bytes cannot change its decision.
+
+| Exit | JSON status | Meaning |
+|---|---|---|
+| 0 | operation-specific; `verified` for verification | Completed; inspect accept/reject separately |
+| 1 | `operation_error` | Operator/I/O failure, including existing key file |
+| 2 | `invalid` | Malformed record, bad signature, unsupported temperature |
+| 3 | `unverified` | Missing declared bytes, admission/resource or verification I/O failure |
+
+Argument parsing errors use exit 2 with argparse's text diagnostic. Library
+callers catch `InvalidRecord` for invalid fields, including malformed hashes;
+`StoreError` and kernel admission/resource exceptions mean local inability.
+
 ## One contract
 
 [SPEC.md](SPEC.md) defines the draft 32K wire format and semantics. Kelvin counts
@@ -56,7 +75,8 @@ Ported: current Book I evaluator, exit-aware check semantics from S2, canonical
 JSON and signature safeguards, one create → execute → sign → verify flow.
 Not ported: Warrant collective settlement/governance, policy authoring language,
 MCP, Sigma waves/federation, historical runtimes, or resume. There is no claim to
-replace all predecessor behavior. A trusted signed check is not a quorum vote.
+replace all predecessor behavior. A trusted signed check is not a quorum vote. The fingerprint is computed and
+returned, but no settlement/admissibility consumer uses it yet.
 
 ## Provenance
 
@@ -88,8 +108,8 @@ Python 3.14 is the tested environment for this port; metadata permits Python
 subprocess CLI flow, corruption, signature/decision tampering, unsupported
 editions, local refusal, and the isolated same-result/different-exit case.
 
-Local port validation: all 18 tests passed both in the checkout and against a
+Local amendment validation: all 24 tests passed both in the checkout and against a
 wheel-installed package outside the checkout, including the 49 imported kernel
-cases. Both console aliases report build 2 / 32K. An external in-memory mutation
+cases. Both console aliases report build 3 / 32K. An external in-memory mutation
 omitting actual exit from the fingerprint makes the isolating test fail by an
 assertion. These are implementation checks, not an independent review.
