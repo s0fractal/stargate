@@ -3,7 +3,7 @@
 One Python system for content-addressed computation and signed, reproducible
 checks. Working successor to Sigma-Glyph and Warrant; commands `stargate` / `sg`.
 
-**Build 5 · 32K draft (boolean authoring candidate).** The evaluator, object store and one signed-check flow
+**Build 6 · 32K draft (portable-check candidate).** The evaluator, object store and one signed-check flow
 work. This is a development implementation, not an independently accepted
 release. Predecessor repositories remain unchanged.
 
@@ -68,6 +68,7 @@ trust boundary, not an embedded self-digest or runtime registry.
 - `store.py`: atomic object writes and SHA-256-checked reads.
 - `cli.py`: both command aliases.
 - `policy.py`: small boolean WPL frontend; emits existing SKI checks.
+- `bundle.py`: portable signed checks; no archive extraction or store fallback.
 - `tests/`: semantic vectors, signature/refusal controls and end-to-end CLI.
 
 ## Scope of this transfer
@@ -109,9 +110,9 @@ Python 3.14 is the tested environment for this port; metadata permits Python
 subprocess CLI flow, corruption, signature/decision tampering, unsupported
 editions, local refusal, and the isolated same-result/different-exit case.
 
-Local resume validation: all 40 tests passed both in the checkout and against a
+Local resume validation: all 48 tests passed both in the checkout and against a
 wheel-installed package outside the checkout, including the 49 imported kernel
-cases. Both console aliases report build 5 / 32K. An external in-memory mutation
+cases. Both console aliases report build 6 / 32K. An external in-memory mutation
 omitting actual exit from the fingerprint makes the isolating test fail by an
 assertion. These are implementation checks, not an independent review.
 
@@ -199,3 +200,40 @@ Boolean lowering follows Warrant `impl/ski_policy.py` at
 `16a3fae39af46222ff31f5fe10a717cb9ba8e39b`: TRUE=K, FALSE=K I,
 NOT p=p FALSE TRUE, p AND q=p q FALSE, p OR q=p TRUE q. This frontend uses the
 current local kernel directly, with no old runtime tag, loader or compiler gate.
+
+## Give someone a check they can verify offline
+
+After `sg policy` or `sg record`, export the returned envelope object:
+
+```sh
+sg export ENVELOPE_OBJECT_HASH check.sg.json --trust PUBLIC_KEY
+```
+
+Send `check.sg.json`. The recipient independently selects the key they trust and
+runs, even in an empty directory:
+
+```sh
+sg verify-bundle check.sg.json --trust PUBLIC_KEY
+```
+
+Only the file and an installed Stargate package are needed. The verifier does
+not create or consult `.stargate`, fetch objects over the network, extract files,
+or accept trust declarations inside the bundle. It produces the same record
+verification report as `sg verify` on a complete store, including verified/reject.
+Public-key delivery/authentication remains the recipient's responsibility.
+
+Export first verifies the signature, explicit trust and computation. It bundles
+the exact envelope and only the bytes actually fetched by that run. Intrinsic
+I/K/S and unused declared objects need no payload; absent unused entries do not
+prevent export. The original signed environment and record identity stay intact.
+Removing a demanded object produces unverified (3); hash/encoding/signature
+corruption is invalid (2). A declared absence stays absent regardless of local
+files. The container is canonical JSON, with a local 16 MiB file limit. Export
+refuses to overwrite an existing file and publishes only a fully written file.
+
+This is portability of the existing computation claim, not signed policy-source
+provenance: the unsigned source_object from `sg policy` is not included. Nor is
+it a self-executing package: Python dependencies must be installed beforehand.
+There is no bundle signature or new trust system; integrity comes from the
+existing signed record and content hashes. An export key is never embedded as
+authority for the recipient.

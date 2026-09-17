@@ -1,7 +1,7 @@
 # Stargate contract
 
 Status: **32K — DRAFT, implemented for the single signed-check flow below**.
-Build 5 is a local development implementation, not an adopted or published
+Build 6 is a local development implementation, not an adopted or published
 standard. It is not a Warrant verifier.
 
 ## One temperature
@@ -248,7 +248,7 @@ failure behavior. A caller requiring grant-schedule-independent local outcomes
 must not assume this interface provides them. No changes to the signed check format follow from this
 process-local API.
 
-## Boolean authoring frontend (build 5 candidate)
+## Boolean authoring frontend
 
 This is an authoring convenience, not a second runtime or signed record format.
 Grammar: zero or more `fact NAME: bool = true|false` declarations followed by
@@ -276,3 +276,35 @@ It is not a signed record field and no authenticated source-to-term linkage is
 claimed. The signed term binds the substituted input values computationally,
 not their real-world truth or their original names. This frontend does not use
 fingerprints for settlement and introduces no migration or compatibility layer.
+
+## Portable check container (build 6 candidate)
+
+A bundle is canonical JSON with exactly stargate_bundle (integer 32), envelope
+(the existing signed record envelope), and objects (hash → lowercase hex bytes).
+It adds no new record identity or signature domain. Other temperatures, unknown
+fields, noncanonical JSON, malformed object keys/hex and object/hash mismatches
+are invalid. Every included object must belong to the signed environment.
+
+Export verifies the record with caller-supplied trust and captures the ordered
+execution's fetched objects into a hash map. Only fetched bytes are included;
+the signed environment itself is not shortened. Unused environment members may
+be omitted, including ones absent on the exporter. Canonical JSON makes this
+export deterministic for a fixed envelope and successful execution.
+
+Verification uses exclusively the included objects, with the existing signed
+BoundEnvironment semantics: omitted demanded members mean unverified, outside-
+domain members are invisible, and intrinsic genesis nodes need no object. It
+checks signature/trust and re-executes through the existing verify_record path.
+No local-store/network fallback, extraction or persisted import is performed.
+A bundle cannot grant trust in its author. Signature/hash malformation is
+invalid; missing demanded bytes or local resource inability is unverified.
+
+The CLI reader reads at most 16 MiB + 1 byte and refuses larger files as a local
+StoreError. The API applies the same cap to supplied bytes before parsing.
+This is an operational limit, not the contract's data-domain limit or an exact
+RSS bound. Export's cap is checked during capture and on final encoding; reading
+objects from the exporter's local store retains that store's existing allocation
+behavior. Export publishes through an exclusive hard link to a completed temp
+file and never overwrites; unsupported filesystem operations are operation_error.
+No source-object provenance, application truth, quorum or global availability
+claim is introduced by this container.
