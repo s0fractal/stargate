@@ -224,7 +224,12 @@ With positive credit the machine may prepare one next action before knowing
 its full cost, like the original materialization path. If unaffordable, it
 retains the pending action without committing or charging it; live and pending
 terms are guarded by local resource limits. Resuming does not repeat its fetch
-or contraction preparation. At zero credit it performs no new demanded fetch.
+or contraction preparation. At zero credit it performs no new demanded fetch,
+but probing for an already-normal term re-traverses the search spine at each
+zero-credit boundary reached during execution. This traversal can repeat and
+cost CPU without spending ATP. Explicit resume(state, 0) remains a no-op;
+these probes occur within start or a positive-credit resume. No-repeat claims
+cover fetch and prepared contraction work, not all step5 calls or elapsed time.
 Snapshot copying, Python traversal overhead and transient pending work are
 not an exact CPU/memory accounting model for ATP. Snapshot allocation is outside
 ATP; the interface is not a hostile-input service.
@@ -234,7 +239,11 @@ finish without local faults agree on exit, result hash and cumulative spent
 when total grant is equal. At insufficient total grant the resumable API is
 suspended, while fixed-budget eval_receipt returns canonical atp_exhausted.
 Suspension must not be coerced into that receipt or a pass/fail verdict.
-Additional suspension-time guards may cause a local refusal where a one-shot
-execution would not sample the same transient state; equality is not claimed
-for local-fault behavior. No changes to the signed check format follow from this
+Suspension is an additional resource-sampling point: small credit increments
+can cause ResourceFault where the SAME term, environment, total grant and
+limits complete in one shot. Such a state is terminal (status=faulted,
+receipt=None); resume refuses it, and its accumulated work cannot be recovered
+through this API. Splitting is therefore NOT a refinement of one-shot local
+failure behavior. A caller requiring grant-schedule-independent local outcomes
+must not assume this interface provides them. No changes to the signed check format follow from this
 process-local API.

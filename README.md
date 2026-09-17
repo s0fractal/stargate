@@ -137,7 +137,18 @@ has no canonical receipt and cannot serve as a completed check.
 For S I I (I K), 21 grants of one ATP produce the same result, 21 ATP spent,
 and exactly the same object-fetch and successful-contraction sequence as one
 21-ATP run. This demonstrates retained work on that case, not a general speed
-claim: Python traversal overhead and elapsed time were not benchmarked.
+claim. Zero-credit normal-form probes can repeat the search-spine traversal;
+no-repeat applies to fetches and prepared contractions, not all Python work.
+Independent review measured inner step5 calls rising from 36 to 72 on its
+control term with 1-ATP slicing. This is a case-specific observation, not a
+universal overhead bound or wall-clock benchmark.
+
+**Local-failure caveat:** with the same term, environment, total ATP and limits,
+small increments can fault where one-shot completes, because every suspension
+checks live and pending resource usage. A faulted state is terminal and cannot
+be resumed; its work is lost through this API. Review reproduced one-shot
+normal_form at 46 ATP versus sliced ResourceFault("term depth") under
+max_node_depth=4. Do not assume splitting preserves local-failure behavior.
 
 No CLI session service, checkpoint files, signed continuations or serialized
 state are added. Objects are trusted in-process state; mutating private fields
