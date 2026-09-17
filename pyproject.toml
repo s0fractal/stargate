@@ -1,0 +1,21 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "stargate"
+dynamic = ["version"]
+description = "A single-contract Python successor to Sigma-Glyph and Warrant"
+readme = "README.md"
+requires-python = ">=3.11"
+license = "MIT"
+
+[project.scripts]
+stargate = "stargate.cli:main"
+sg = "stargate.cli:main"
+
+[tool.setuptools]
+packages = ["stargate"]
+
+[tool.setuptools.dynamic]
+version = {attr = "stargate.__version__"}
