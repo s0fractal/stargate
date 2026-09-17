@@ -336,6 +336,127 @@ def _eval_hash_raw(h, atp, store, limits=None):
 
 
 
+# ---------- In-process continuation ----------
+class Evaluation:
+    """An owned, in-process continuation; not a portable or trusted receipt.
+
+    Use start()/resume(). A copied byte mapping fixes the content environment.
+    The pending priced action is retained when its cost exceeds current credit.
+    Only committed actions increase spent. No legacy evaluator is involved.
+    """
+    def __init__(self, h, atp, env, limits=None):
+        from collections.abc import Mapping
+        if not isinstance(h, bytes) or len(h) != 32:
+            raise ValueError("term_hash must be exactly 32 bytes")
+        self._limits = dict(VERIFIER_LIMITS)
+        if limits is not None:
+            self._limits.update(limits)
+        admit(atp, self._limits)
+        if not isinstance(env, Mapping):
+            raise TypeError("start requires a mapping of hash bytes to immutable bytes")
+        # Copy now, not lazily across resumes. Reject mutable values even on dead
+        # branches: this API promises a fixed input snapshot, not a live store.
+        self._env = dict(env)
+        if any(not isinstance(k, bytes) or len(k) != 32 or not isinstance(v, bytes)
+               for k, v in self._env.items()):
+            raise ValueError("environment must map 32-byte hashes to immutable bytes")
+        self._term = ("thunk", h)
+        self._granted = atp
+        self._spent = 0
+        self._stats = {"fetches": 0}
+        self._steps = 0
+        self._pending = None
+        self._receipt = None
+        self._status = "suspended"
+        self._drive()
+
+    @property
+    def status(self):
+        return self._status
+
+    @property
+    def atp_spent(self):
+        return self._spent
+
+    @property
+    def atp_remaining(self):
+        return self._granted - self._spent
+
+    @property
+    def receipt(self):
+        # A suspension is NOT atp_exhausted and carries no canonical receipt.
+        return self._receipt
+
+    def _drive(self):
+        old_rl = sys.getrecursionlimit()
+        sys.setrecursionlimit(max(old_rl, 3 * self._limits["max_node_depth"] + 2000))
+        try:
+            while True:
+                remaining = self.atp_remaining
+                if self._pending is None:
+                    self._steps += 1
+                    if self._steps % 256 == 0:
+                        resource_check(self._term, self._limits)
+                    try:
+                        # Preserve zero-budget no-fetch behavior. With positive
+                        # credit, prepare ONE action, caching any fetched object
+                        # and computed contraction rather than repeating it.
+                        step = step5(self._term, UINT32_MAX if remaining else 0,
+                                     self._env, self._stats, self._limits)
+                    except BudgetExhausted:
+                        resource_check(self._term, self._limits)
+                        return
+                    except Unresolved:
+                        self._receipt = Receipt(("dis", R_UNRES), self._spent,
+                                                "unresolved_reference")
+                        self._status = "unresolved_reference"
+                        return
+                    if step is None:
+                        resource_check(self._term, self._limits)
+                        self._receipt = Receipt(self._term, self._spent, "normal_form")
+                        self._status = "normal_form"
+                        return
+                    self._pending = step
+                next_term, cost = self._pending
+                if cost > remaining:
+                    # Pending work is transient and uncharged until committed;
+                    # guard it too. It stays in this process, never serialized.
+                    resource_check(self._term, self._limits)
+                    resource_check(next_term, self._limits)
+                    return
+                self._term = next_term
+                self._spent += cost
+                self._pending = None
+        except RecursionError:
+            self._status = "faulted"
+            raise ResourceFault("python recursion depth") from None
+        except Exception:
+            self._status = "faulted"
+            raise
+        finally:
+            sys.setrecursionlimit(old_rl)
+
+
+def start(h, atp, env, limits=None):
+    """Start resumable reduction against a copied mapping. Returns Evaluation."""
+    return Evaluation(h, atp, env, limits)
+
+
+def resume(state, additional_atp):
+    """Add credit and advance the SAME continuation. No copy or re-execution."""
+    if not isinstance(state, Evaluation):
+        raise TypeError("resume requires an Evaluation")
+    if state.status != "suspended":
+        raise ValueError("only a suspended evaluation can be resumed")
+    admit(additional_atp, state._limits)
+    admit(state._granted + additional_atp, state._limits)
+    if additional_atp == 0:
+        return state
+    state._granted += additional_atp
+    state._drive()
+    return state
+
+
 # ---------- Canonical Lambda->SKI Compiler, Profile C1 ----------
 # lambda term := ("var", name) | ("lam", name, body) | ("lapp", f, a) | SKI term (passthrough)
 IG, KG, SG = ("lit", sha(b"I")), ("lit", sha(b"K")), ("lit", sha(b"S"))
