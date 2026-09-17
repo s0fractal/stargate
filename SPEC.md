@@ -1,7 +1,7 @@
 # Stargate contract
 
 Status: **32K — DRAFT, implemented for the single signed-check flow below**.
-Build 4 is a local development implementation, not an adopted or published
+Build 5 is a local development implementation, not an adopted or published
 standard. It is not a Warrant verifier.
 
 ## One temperature
@@ -199,7 +199,7 @@ The record API raises InvalidRecord for malformed record fields, including
 term, expect, environment addresses and signer keys. StoreError,
 AdmissionRefused and ResourceFault remain separate local-failure exceptions.
 
-## In-process continuation (build 4 candidate)
+## In-process continuation
 
 `start(term_hash, atp, env, limits=None)` returns an Evaluation.
 `resume(state, additional_atp)` advances that same object. The state is internal
@@ -247,3 +247,32 @@ through this API. Splitting is therefore NOT a refinement of one-shot local
 failure behavior. A caller requiring grant-schedule-independent local outcomes
 must not assume this interface provides them. No changes to the signed check format follow from this
 process-local API.
+
+## Boolean authoring frontend (build 5 candidate)
+
+This is an authoring convenience, not a second runtime or signed record format.
+Grammar: zero or more `fact NAME: bool = true|false` declarations followed by
+exactly one `check EXPR`. Whitespace separates tokens; # starts a line comment.
+Identifiers match ASCII letters/underscore followed by letters/digits/underscore,
+with optional dot-separated identifier components. Reserved words cannot name
+facts. Unused/duplicate/unknown facts are errors. No statement terminators.
+Expression precedence is ! (highest), &&, ||; binary operators associate left;
+parentheses group expressions. Only explicit boolean values are accepted.
+
+Facts become Church booleans, TRUE=K and FALSE=K I. Negation lowers to p FALSE
+TRUE, conjunction to p q FALSE, disjunction to p TRUE q. Each APPLY is stored
+by its canonical kernel hash; no source interpreter runs in verification.
+Compiler evaluation must finish in normal_form within its local cap and agree
+with the direct boolean interpreter. The emitted canonical check ALWAYS
+expects K/normal_form, even when the source evaluates false. Its budget equals
+measured spend; its environment is the sorted generated object set. Before
+emission that serialized check is re-run through the record check path, then
+creation executes it again before signing. Compiler disagreement raises
+CompilerBug (CLI exit 1 / compiler_error). Source errors raise PolicyError,
+a ValueError (CLI exit 2 / invalid); resource faults remain unverified.
+
+Source text is a separate stored blob, referenced in authoring output only.
+It is not a signed record field and no authenticated source-to-term linkage is
+claimed. The signed term binds the substituted input values computationally,
+not their real-world truth or their original names. This frontend does not use
+fingerprints for settlement and introduces no migration or compatibility layer.
