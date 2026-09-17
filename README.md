@@ -3,7 +3,7 @@
 One Python system for content-addressed computation and signed, reproducible
 checks. Working successor to Sigma-Glyph and Warrant; commands `stargate` / `sg`.
 
-**Build 4 · 32K draft (resume candidate).** The evaluator, object store and one signed-check flow
+**Build 5 · 32K draft (boolean authoring candidate).** The evaluator, object store and one signed-check flow
 work. This is a development implementation, not an independently accepted
 release. Predecessor repositories remain unchanged.
 
@@ -67,13 +67,14 @@ trust boundary, not an embedded self-digest or runtime registry.
 - `records.py`: canonical bytes, Ed25519, checks and outcome fingerprints.
 - `store.py`: atomic object writes and SHA-256-checked reads.
 - `cli.py`: both command aliases.
+- `policy.py`: small boolean WPL frontend; emits existing SKI checks.
 - `tests/`: semantic vectors, signature/refusal controls and end-to-end CLI.
 
 ## Scope of this transfer
 
 Ported: current Book I evaluator, exit-aware check semantics from S2, canonical
 JSON and signature safeguards, one create → execute → sign → verify flow.
-Not ported: Warrant collective settlement/governance, policy authoring language,
+Not ported: Warrant collective settlement/governance, the full WPL language,
 MCP, Sigma waves/federation, historical runtimes, or persistent checkpoints. In-process resume is described below. There is no claim to
 replace all predecessor behavior. A trusted signed check is not a quorum vote. The fingerprint is computed and
 returned, but no settlement/admissibility consumer uses it yet.
@@ -108,9 +109,9 @@ Python 3.14 is the tested environment for this port; metadata permits Python
 subprocess CLI flow, corruption, signature/decision tampering, unsupported
 editions, local refusal, and the isolated same-result/different-exit case.
 
-Local resume validation: all 32 tests passed both in the checkout and against a
+Local resume validation: all 40 tests passed both in the checkout and against a
 wheel-installed package outside the checkout, including the 49 imported kernel
-cases. Both console aliases report build 4 / 32K. An external in-memory mutation
+cases. Both console aliases report build 5 / 32K. An external in-memory mutation
 omitting actual exit from the fingerprint makes the isolating test fail by an
 assertion. These are implementation checks, not an independent review.
 
@@ -155,3 +156,46 @@ state are added. Objects are trusted in-process state; mutating private fields
 or passing them between threads is unsupported. Discarding a suspended object
 abandons the computation. Existing fixed-budget `eval_receipt` and signed-record
 verification retain their canonical atp_exhausted behavior.
+
+## Author a readable boolean rule
+
+Save this as `rule.wpl` (also available in `tests/eligibility.wpl`):
+
+```text
+fact within_window: bool = true
+fact retroactive: bool = false
+check within_window && !retroactive
+```
+
+```sh
+sg keygen signing.key
+sg policy rule.wpl --key signing.key
+sg verify ENVELOPE_OBJECT_HASH --trust PUBLIC_KEY_FROM_KEYGEN
+```
+
+`policy` compiles the rule, verifies the exact-budget check and signs it. TRUE
+means accept; FALSE means reject. Change `retroactive` to true and author again:
+the new record verifies as reject; the earlier record remains unchanged.
+The JSON result reports the check, policy value, measured ATP, record/object
+IDs and a separately stored source_object.
+
+Only boolean facts, true/false, !, &&, || and parentheses are supported. WPL
+integer/string comparisons, membership and multiple checks are refused.
+One check per file, no unused or duplicate facts, no implicit truthiness.
+`--max-atp` controls the authoring measurement ceiling (default 100000), not
+an unchecked budget written into the record. Emission pins measured spend and
+re-runs the serialized check under that exact budget before storing artifacts.
+Compiler disagreement emits no record. Source bounds are 8192 UTF-8 bytes,
+256 tokens and 32 nested parentheses/negations.
+
+The verifier runs SKI, not the source parser. The compiler checks SKI against a
+separate direct boolean interpreter for this closed input; this is not a formal
+compiler proof. Source bytes are stored for reproducibility, but source_object
+is authoring metadata, NOT a signed source-to-term binding. Verifying the record
+alone does not authenticate source text or establish that facts are true in the
+world. No statement about settlement follows from a policy decision.
+
+Boolean lowering follows Warrant `impl/ski_policy.py` at
+`16a3fae39af46222ff31f5fe10a717cb9ba8e39b`: TRUE=K, FALSE=K I,
+NOT p=p FALSE TRUE, p AND q=p q FALSE, p OR q=p TRUE q. This frontend uses the
+current local kernel directly, with no old runtime tag, loader or compiler gate.

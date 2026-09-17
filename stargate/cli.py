@@ -11,6 +11,7 @@ from cryptography.hazmat.primitives import serialization
 from . import CONTRACT_STATUS, KELVIN, __version__, kernel
 from .records import canon, capture_environment, create_record, public_key, record_id, verify_record
 from .store import Store, StoreError, hex_hash
+from .policy import author_policy, CompilerBug, DEFAULT_MAX_ATP
 
 
 def parser():
@@ -39,6 +40,10 @@ def parser():
     q.add_argument("--key", required=True, type=Path)
     q.add_argument("--environment", type=Path,
                    help="JSON list defining the exact object domain; otherwise capture demanded objects")
+    q = cmd("policy", "compile a boolean WPL file and sign its decision")
+    q.add_argument("source", type=Path)
+    q.add_argument("--key", required=True, type=Path)
+    q.add_argument("--max-atp", type=int, default=DEFAULT_MAX_ATP)
     q = cmd("verify", "verify a stored signed record by independent re-execution")
     q.add_argument("object", type=hex_hash)
     q.add_argument("--trust", required=True, action="append", type=hex_hash,
@@ -79,6 +84,9 @@ def execute(args):
         envelope = create_record(check, store, key)
         return {"record": record_id(envelope["body"]), "object": store.put(canon(envelope)),
                 "decision": envelope["body"]["decision"]}
+    if args.command == "policy":
+        key = Ed25519PrivateKey.from_private_bytes(bytes.fromhex(args.key.read_text().strip()))
+        return author_policy(args.source.read_text(encoding="utf-8"), store, key, max_atp=args.max_atp)
     if args.command == "verify":
         return verify_record(store.read(args.object), store, set(args.trust))
     raise ValueError("unknown operation")
@@ -92,6 +100,9 @@ def main(argv=None):
         return 0
     try:
         result = execute(args)
+    except CompilerBug as exc:
+        print(json.dumps({"status": "compiler_error", "error": str(exc)}), file=sys.stderr)
+        return 1
     except OSError as exc:
         status = "unverified" if args.command in ("verify", "eval") else "operation_error"
         print(json.dumps({"status": status, "error": str(exc)}), file=sys.stderr)

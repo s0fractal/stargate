@@ -1,0 +1,4 @@
+# Permit only a timely request that does not apply retroactively.
+fact within_window: bool = true
+fact retroactive: bool = false
+check within_window && !retroactive
