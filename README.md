@@ -3,7 +3,7 @@
 One Python system for content-addressed computation and signed, reproducible
 checks. Working successor to Sigma-Glyph and Warrant; commands `stargate` / `sg`.
 
-**Build 3 · 32K draft.** The evaluator, object store and one signed-check flow
+**Build 4 · 32K draft (resume candidate).** The evaluator, object store and one signed-check flow
 work. This is a development implementation, not an independently accepted
 release. Predecessor repositories remain unchanged.
 
@@ -74,7 +74,7 @@ trust boundary, not an embedded self-digest or runtime registry.
 Ported: current Book I evaluator, exit-aware check semantics from S2, canonical
 JSON and signature safeguards, one create → execute → sign → verify flow.
 Not ported: Warrant collective settlement/governance, policy authoring language,
-MCP, Sigma waves/federation, historical runtimes, or resume. There is no claim to
+MCP, Sigma waves/federation, historical runtimes, or persistent checkpoints. In-process resume is described below. There is no claim to
 replace all predecessor behavior. A trusted signed check is not a quorum vote. The fingerprint is computed and
 returned, but no settlement/admissibility consumer uses it yet.
 
@@ -108,8 +108,50 @@ Python 3.14 is the tested environment for this port; metadata permits Python
 subprocess CLI flow, corruption, signature/decision tampering, unsupported
 editions, local refusal, and the isolated same-result/different-exit case.
 
-Local amendment validation: all 24 tests passed both in the checkout and against a
+Local resume validation: all 32 tests passed both in the checkout and against a
 wheel-installed package outside the checkout, including the 49 imported kernel
-cases. Both console aliases report build 3 / 32K. An external in-memory mutation
+cases. Both console aliases report build 4 / 32K. An external in-memory mutation
 omitting actual exit from the fingerprint makes the isolating test fail by an
 assertion. These are implementation checks, not an independent review.
+
+## Continue a reduction (Python only)
+
+```python
+from stargate import kernel as k
+
+raw = k.ser(k.APPLY, 6, left=k.I_H, right=k.K_H)
+h = k.sha(raw)
+state = k.start(h, 1, {h: raw})
+assert state.status == "suspended" and state.receipt is None
+k.resume(state, 2)  # total grant 3: materialization paid; I contraction waits
+k.resume(state, 1)  # total grant 4
+assert state.receipt.result_hash == k.K_H
+assert state.receipt.atp_spent == 4
+```
+
+`resume` adds credit to the same process-owned object. The input mapping is
+copied once; later edits to the caller's mapping cannot change execution.
+Pending work and cumulative resource counters survive suspension. A suspension
+has no canonical receipt and cannot serve as a completed check.
+
+For S I I (I K), 21 grants of one ATP produce the same result, 21 ATP spent,
+and exactly the same object-fetch and successful-contraction sequence as one
+21-ATP run. This demonstrates retained work on that case, not a general speed
+claim. Zero-credit normal-form probes can repeat the search-spine traversal;
+no-repeat applies to fetches and prepared contractions, not all Python work.
+Independent review measured inner step5 calls rising from 36 to 72 on its
+control term with 1-ATP slicing. This is a case-specific observation, not a
+universal overhead bound or wall-clock benchmark.
+
+**Local-failure caveat:** with the same term, environment, total ATP and limits,
+small increments can fault where one-shot completes, because every suspension
+checks live and pending resource usage. A faulted state is terminal and cannot
+be resumed; its work is lost through this API. Review reproduced one-shot
+normal_form at 46 ATP versus sliced ResourceFault("term depth") under
+max_node_depth=4. Do not assume splitting preserves local-failure behavior.
+
+No CLI session service, checkpoint files, signed continuations or serialized
+state are added. Objects are trusted in-process state; mutating private fields
+or passing them between threads is unsupported. Discarding a suspended object
+abandons the computation. Existing fixed-budget `eval_receipt` and signed-record
+verification retain their canonical atp_exhausted behavior.

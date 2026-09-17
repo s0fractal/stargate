@@ -1,7 +1,7 @@
 # Stargate contract
 
 Status: **32K — DRAFT, implemented for the single signed-check flow below**.
-Build 3 is a local development implementation, not an adopted or published
+Build 4 is a local development implementation, not an adopted or published
 standard. It is not a Warrant verifier.
 
 ## One temperature
@@ -61,7 +61,7 @@ computation result. Operational improvements must preserve signed bytes and
 semantic results for successfully executed supported inputs.
 
 The implementation scope and wire format below define the initial flow.
-There is no collective settlement, historical-runtime routing, resume, wave
+There is no collective settlement, historical-runtime routing, persisted resume, wave
 layer or federation in this draft.
 
 ## Origin of the version approach
@@ -198,3 +198,52 @@ standard text diagnostic; JSON statuses apply after argument parsing.
 The record API raises InvalidRecord for malformed record fields, including
 term, expect, environment addresses and signer keys. StoreError,
 AdmissionRefused and ResourceFault remain separate local-failure exceptions.
+
+## In-process continuation (build 4 candidate)
+
+`start(term_hash, atp, env, limits=None)` returns an Evaluation.
+`resume(state, additional_atp)` advances that same object. The state is internal
+Python memory, not a wire format, record or new canonical exit. Default local
+limits are VERIFIER_LIMITS. Environment must be a mapping of 32-byte keys to
+immutable bytes, copied at start; resume accepts no replacement environment or
+limits. Content/address mismatch remains checked when a node is demanded.
+
+Grant is cumulative uint32 credit. Both each increment and the cumulative grant
+must satisfy admission limits, before advancing state. Unspent credit carries
+over so several small increments can fund one expensive action. Spent counts
+only committed priced actions and never resets. Fetch counters and resource
+limits likewise do not reset. An invalid/refused increment leaves state alone;
+a resource fault while running marks the state faulted and it cannot resume.
+
+Status suspended carries receipt=None. Normal completion or canonical unresolved
+reference carries the corresponding Receipt with cumulative spent. Completed
+or faulted objects cannot be resumed. A zero increment on an already suspended
+object is a no-op. Initial genesis at zero credit can finish immediately.
+
+With positive credit the machine may prepare one next action before knowing
+its full cost, like the original materialization path. If unaffordable, it
+retains the pending action without committing or charging it; live and pending
+terms are guarded by local resource limits. Resuming does not repeat its fetch
+or contraction preparation. At zero credit it performs no new demanded fetch,
+but probing for an already-normal term re-traverses the search spine at each
+zero-credit boundary reached during execution. This traversal can repeat and
+cost CPU without spending ATP. Explicit resume(state, 0) remains a no-op;
+these probes occur within start or a positive-credit resume. No-repeat claims
+cover fetch and prepared contraction work, not all step5 calls or elapsed time.
+Snapshot copying, Python traversal overhead and transient pending work are
+not an exact CPU/memory accounting model for ATP. Snapshot allocation is outside
+ATP; the interface is not a hostile-input service.
+
+For a fixed snapshot and unchanged limits, split and one-shot executions that
+finish without local faults agree on exit, result hash and cumulative spent
+when total grant is equal. At insufficient total grant the resumable API is
+suspended, while fixed-budget eval_receipt returns canonical atp_exhausted.
+Suspension must not be coerced into that receipt or a pass/fail verdict.
+Suspension is an additional resource-sampling point: small credit increments
+can cause ResourceFault where the SAME term, environment, total grant and
+limits complete in one shot. Such a state is terminal (status=faulted,
+receipt=None); resume refuses it, and its accumulated work cannot be recovered
+through this API. Splitting is therefore NOT a refinement of one-shot local
+failure behavior. A caller requiring grant-schedule-independent local outcomes
+must not assume this interface provides them. No changes to the signed check format follow from this
+process-local API.
