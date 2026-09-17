@@ -9,6 +9,7 @@ description = "A single-contract Python successor to Sigma-Glyph and Warrant"
 readme = "README.md"
 requires-python = ">=3.11"
 license = "MIT"
+dependencies = ["cryptography>=43"]
 
 [project.scripts]
 stargate = "stargate.cli:main"
