@@ -11,6 +11,7 @@ from cryptography.hazmat.primitives import serialization
 from . import CONTRACT_STATUS, KELVIN, __version__, kernel
 from .records import canon, capture_environment, create_record, public_key, record_id, verify_record
 from .store import Store, StoreError, hex_hash
+from .bundle import export_bundle, verify_bundle, read_bundle, write_bundle
 from .policy import author_policy, CompilerBug, DEFAULT_MAX_ATP
 
 
@@ -48,11 +49,24 @@ def parser():
     q.add_argument("object", type=hex_hash)
     q.add_argument("--trust", required=True, action="append", type=hex_hash,
                    help="explicitly trusted public key; repeat for multiple keys")
+    q = cmd("export", "verify and export one portable signed check")
+    q.add_argument("object", type=hex_hash)
+    q.add_argument("output", type=Path)
+    q.add_argument("--trust", required=True, action="append", type=hex_hash)
+    q = cmd("verify-bundle", "verify a file without any local object store")
+    q.add_argument("path", type=Path)
+    q.add_argument("--trust", required=True, action="append", type=hex_hash)
     return p
 
 
 def execute(args):
     store = Store(args.store)
+    if args.command == "verify-bundle":
+        return verify_bundle(read_bundle(args.path), set(args.trust))
+    if args.command == "export":
+        raw, report = export_bundle(store.read(args.object), store, set(args.trust))
+        write_bundle(args.output, raw)
+        return dict(bundle=str(args.output), record=report["record"], decision=report["decision"])
     if args.command == "init":
         store.path.mkdir(parents=True, exist_ok=True)
         return {"store": str(store.path)}
@@ -104,7 +118,7 @@ def main(argv=None):
         print(json.dumps({"status": "compiler_error", "error": str(exc)}), file=sys.stderr)
         return 1
     except OSError as exc:
-        status = "unverified" if args.command in ("verify", "eval") else "operation_error"
+        status = "unverified" if args.command in ("verify", "verify-bundle", "eval") else "operation_error"
         print(json.dumps({"status": status, "error": str(exc)}), file=sys.stderr)
         return 3 if status == "unverified" else 1
     except (kernel.AdmissionRefused, kernel.ResourceFault, StoreError) as exc:
