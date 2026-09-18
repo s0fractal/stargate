@@ -1,0 +1,5 @@
+# What the operator can confirm locally about the artifact's bytes.
+fact is_text: bool
+fact at_least_10k: bool
+fact at_most_1m: bool
+check !is_text && at_least_10k && at_most_1m
