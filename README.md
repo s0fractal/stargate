@@ -3,7 +3,7 @@
 One Python system for content-addressed computation and signed, reproducible
 checks. Working successor to Sigma-Glyph and Warrant; commands `stargate` / `sg`.
 
-**Build 12 · 32K draft (joint admission candidate).** The evaluator, object store and one signed-check flow
+**Build 13 · 32K draft (counterexample packets candidate).** The evaluator, object store and one signed-check flow
 work. This is a development implementation, not an independently accepted
 release. Predecessor repositories remain unchanged.
 
@@ -483,3 +483,46 @@ Each request uses the same keys, with bundle **bytes**, rule **text**, facts or
 derive **dictionaries**, and a nonempty collection of trusted public keys. The
 single-request `admit_bundle` shares the implementation. The release-gate example
 now uses joint admission for its reviewer judgment and byte measurements.
+
+### Carry a counterexample into the next session
+
+Build 13 adds **inert evidence packets**, with source bytes, a claim, scope,
+limitations and reproduction instructions. The first two are real review cases:
+[M1](examples/case-m1.json) (an unfed UTF-8 deriver still returns true) and
+[M2](examples/case-m2.json) (the old test never mutated asserted facts).
+
+```sh
+sg case-inspect examples/case-m1.json
+sg case-unpack examples/case-m1.json --output /tmp/received-m1
+```
+
+`intact` means hashes and structure match; `materialized` means the files were
+written. Neither means the claim was checked, the author authenticated, or the
+included code is safe. These commands never execute packet contents. The whole
+packet's `case_id` changes if someone rewrites its data and hashes together.
+
+After reading the extracted README and code, an operator can explicitly run:
+
+```sh
+python -I /tmp/received-m1/replay.py
+```
+
+This executes included Python with your permissions; `-I` is **not a sandbox**.
+The two supplied cases require Python with cryptography>=43 installed. They carry
+the relevant Stargate source, tests and mutation; no checkout, network fetch or
+chat transcript is needed. The runner requires four outcomes: both control tests
+pass, the old test misses the mutant, and the new test fails for the stated reason.
+It emits `reproduced` only after observing that matrix. This demonstrates one
+counterexample, not general correctness. Both cases were exercised on Python 3.14.
+
+To make your own packet, supply a JSON document with `manifest` (title, claim,
+scope, limits, source:{repository,commit}, entrypoint, expected) and `files` (a list
+of relative paths), then run `sg case-pack manifest.json --root directory --output
+case.json`. The directory must remain under your control while reading. Existing
+outputs refuse; unpacking requires a new directory and is not an atomic multi-file
+transaction. `examples/counterexamples.py` rebuilds our two packets from pinned Git
+commits. Rebuilding requires those commits; receiving/replaying the packets does not.
+
+[Dependency direction and filename coordinates](ARCHITECTURE.md) records the
+Trinity-inspired architecture recommendation. No module renaming or new import
+layer enforcement is part of this build.
