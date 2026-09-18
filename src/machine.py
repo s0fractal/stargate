@@ -13,14 +13,19 @@ Each next rule is WPL over ALL state and event names; invariant is WPL over ALL
 state names. Every name must be declared; expressions may ignore irrelevant names.
 All next bits read the SAME old state and event. Every event valuation is possible
 at every reached state; initial is the complete listed initial-state set.
-Check safety on every reachable state, including initial states. A counterexample
+Check safety on every reachable state, including initial states. goals is a list
+of full Boolean state assignments; each must be reachable from at least one initial
+state under some finite event sequence. This is existential reachability, not
+inevitable progress or liveness. A complete safe graph missing a goal gives
+goal_unreachable, with the unreachable targets and no successor. Incomplete work
+proves no goal absent. Proposals inherit goals unchanged along with the invariant. A counterexample
 is an initial state followed by event/next-state steps, not an unreachable row.
 Budget or graph-quota exhaustion is incomplete, never established. No liveness,
 fairness, external environment assumptions or implicit assumptions about a real system.
 Use machine-check or replay --machine --expect-machine ID --max-edges N.
 To propose new behavior, send only {"parent":"COPY_MACHINE_ID","next":{NAME:WPL,...}}.
-Define every next bit. Do not include state/events/initial/invariant/budget/proofs.
-The change checker recomputes BOTH parent and candidate safety. A broken parent
+Define every next bit. Do not include state/events/initial/invariant/goals/budget/proofs.
+The change checker recomputes BOTH parent and candidate safety and goals. A broken parent
 cannot be repaired through admission; choose a new root explicitly. Safe changes
 may have different reachable graphs and need not be equivalent or cheaper.
 Use machine-change PARENT PROPOSAL --expect-machine ID --output CHILD; offline
@@ -36,7 +41,7 @@ equality of two bits, and left implies right (not left OR right) at every reache
 state. machine-claim takes {"parent":"COPY_MACHINE_ID","property":PROPERTY}.
 PROPERTY is {"kind":"bit","name":NAME,"value":BOOL} or
 {"kind":"equal"|"implies","left":NAME,"right":OTHER_NAME}.
-These observations do not check, replace or strengthen the declared invariant.
+These observations do not check, replace or strengthen the declared invariant or goals.
 Incomplete observation establishes nothing. Offline --machine-discover takes the
 machine file; --machine-claim takes a claim and uses adjacent machine.json.
 Neither mode admits a successor. Every refutation includes a shortest trace.
@@ -57,8 +62,10 @@ def inspect(raw):
     if not isinstance(raw, bytes) or len(raw) > MAX_MACHINE:
         raise InvalidRecord('machine exceeds size limit or is not bytes')
     doc = decode(raw)
+    if not isinstance(doc, dict): raise InvalidRecord('machine must be an object')
+    lab._runtime(doc.get('sources'))  # foreign schemas are unavailable, not invalid
     exact(doc, ('stargate_machine', 'state', 'events', 'initial', 'next', 'invariant',
-                'max_atp', 'sources', 'guide', 'license'))
+                'max_atp', 'sources', 'guide', 'license', 'goals'))
     if type(doc['stargate_machine']) is not int or doc['stargate_machine'] != 32:
         raise InvalidRecord('unsupported machine contract')
     lab._inputs(doc['state']); lab._inputs(doc['events'])
@@ -74,6 +81,13 @@ def inspect(raw):
             raise InvalidRecord('initial state must give every state bit as a boolean')
     if len({canon(s) for s in doc['initial']}) != len(doc['initial']):
         raise InvalidRecord('duplicate initial state')
+    goals = doc['goals']
+    if not isinstance(goals, list) or len(goals) > 2**len(doc['state']):
+        raise InvalidRecord('goals must be a bounded list of state assignments')
+    for goal in goals:
+        if not isinstance(goal, dict) or set(goal) != set(doc['state']) or any(type(v) is not bool for v in goal.values()):
+            raise InvalidRecord('goal must give every state bit as a boolean')
+    if len({canon(g) for g in goals}) != len(goals): raise InvalidRecord('duplicate reachability goal')
     if not isinstance(doc['next'], dict) or set(doc['next']) != set(doc['state']):
         raise InvalidRecord('next must define exactly every state bit')
     names = sorted(doc['state'] + doc['events'])
@@ -83,7 +97,8 @@ def inspect(raw):
 
 def create(spec):
     spec = decode(canon(spec))
-    exact(spec, ('state', 'events', 'initial', 'next', 'invariant', 'max_atp'))
+    if isinstance(spec, dict): spec.setdefault('goals', [])
+    exact(spec, ('state', 'events', 'initial', 'next', 'invariant', 'max_atp', 'goals'))
     raw = canon(dict(spec, stargate_machine=32, sources=lab.runtime_sources(), guide=GUIDE, license=lab.LICENSE))
     inspect(raw)
     return raw
@@ -189,6 +204,13 @@ def verify(raw, expected_machine, *, max_edges=256):
         return dict(report, status='checker_error', reason=str(exc))
     except (compiler.CompileIncomplete, kernel.ResourceFault, kernel.AdmissionRefused) as exc:
         return dict(report, reason=str(exc))
+    try:
+        report['goal_witnesses'] = [dict(goal=goal, trace=_witness(key(goal), states, parents))
+                                    for goal in doc['goals'] if key(goal) in states]
+    except compiler.CompilerBug as exc:
+        return dict(report, status='checker_error', reason=str(exc))
+    missing = [goal for goal in doc['goals'] if key(goal) not in states]
+    if missing: return dict(report, status='goal_unreachable', unreached_goals=missing)
     return dict(report, status='established')
 
 
@@ -233,7 +255,7 @@ def verify_change(raw, proposal, expected_parent, *, max_edges=256):
         result = verify(packet, lab.identity(packet), max_edges=max_edges)
         report['checks'][role] = result
         if result['status'] != 'established':
-            status = 'parent_rejected' if role == 'parent' and result['status'] == 'counterexample' else result['status']
+            status = 'parent_rejected' if role == 'parent' and result['status'] in ('counterexample', 'goal_unreachable') else result['status']
             report.update(status=status, program=role)
             return report, None
     report.update(status='safety_preserved', admitted=True, successor=lab.identity(candidate))
@@ -312,7 +334,7 @@ def _observed_graph(raw, expected_machine, max_edges):
     # Observation-only view: never admit or return these machine bytes.
     source = ''.join('fact '+n+': bool\n' for n in doc['state'])
     source += 'check true'
-    observed = canon(dict(doc, invariant=source))
+    observed = canon(dict(doc, invariant=source, goals=[]))
     graph = verify(observed, lab.identity(observed), max_edges=max_edges)
     base = dict(machine_id=expected_machine, runtime_digest=lab.runtime_digest(doc['sources']),
                 observation=graph, results=[])

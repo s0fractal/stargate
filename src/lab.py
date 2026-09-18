@@ -113,13 +113,7 @@ def inspect_world(raw):
         record_hash(doc['predecessor'])
     if not isinstance(doc['guide'], str) or not isinstance(doc['license'], str):
         raise InvalidRecord('world guide and license must be text')
-    if not isinstance(doc['sources'], dict):
-        raise InvalidRecord('world runtime sources must be a map')
-    if any(not isinstance(name, str) or not isinstance(source, str)
-           for name, source in doc['sources'].items()):
-        raise InvalidRecord('world runtime source names and contents must be text')
-    if doc['sources'] != runtime_sources():
-        raise RuntimeMismatch('world requires different runtime bytes')
+    _runtime(doc['sources'])
     if doc['guide'] != GUIDE or doc['license'] != LICENSE:
         raise InvalidRecord('world guide or license mismatch')
     if property_mode:
@@ -130,6 +124,15 @@ def inspect_world(raw):
 
 class RuntimeMismatch(Exception):
     """This verifier cannot establish the packet's contract; not a false claim."""
+
+
+def _runtime(sources):
+    if not isinstance(sources, dict):
+        raise InvalidRecord('world runtime sources must be a map')
+    if any(not isinstance(name, str) or not isinstance(source, str) for name, source in sources.items()):
+        raise InvalidRecord('world runtime source names and contents must be text')
+    if sources != runtime_sources():
+        raise RuntimeMismatch('world requires different runtime bytes')
 
 
 def read_proposal(raw):

@@ -1,4 +1,6 @@
 import itertools
+import tempfile
+from pathlib import Path
 import unittest
 from unittest.mock import patch
 from stargate import compiler,boolean,lab,machine,search,policy,records
@@ -17,9 +19,26 @@ class LabInputs(unittest.TestCase):
             self.assertEqual(boolean.evaluate(boolean.program(SOURCE,['a','b'],allow_unused=True),facts),a)
         self.assertEqual(costs,[3,3,0,0])
         for method in [lambda:compiler.compile_source(SOURCE,facts=dict(a=True,b=False)),
-                       lambda:boolean.program(SOURCE,['a','b']),
-                       lambda:policy.author_policy(SOURCE,dict(a=True,b=False),None,None)]:
+                       lambda:boolean.program(SOURCE,['a','b'])]:
             with self.assertRaises((compiler.PolicyError,boolean.BooleanSyntax)):method()
+
+    def test_authoring_refuses_unused_facts_before_record_creation(self):
+        from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+        from stargate.store import Store
+        key=Ed25519PrivateKey.generate()
+        with tempfile.TemporaryDirectory() as tmp:
+            store=Store(tmp)
+            # Positive control: real signing and storage work with these fixtures.
+            accepted=policy.author_policy('fact a: bool\ncheck a',dict(a=True),store,key)
+            self.assertEqual(accepted['decision'],'accept')
+            before={p.name:p.read_bytes() for p in Path(tmp).iterdir()}
+            with patch.object(policy,'create_record',wraps=policy.create_record) as create:
+                with self.assertRaises(ValueError) as refusal:
+                    policy.author_policy(SOURCE,dict(a=True,b=False),store,key)
+                self.assertIsInstance(refusal.exception,compiler.PolicyError)
+                self.assertIn('unused',str(refusal.exception))
+                create.assert_not_called()
+            self.assertEqual({p.name:p.read_bytes() for p in Path(tmp).iterdir()},before)
 
     def test_both_lab_parsers_still_require_exact_declarations(self):
         for source in ['fact a: bool\ncheck a','fact a: bool\nfact b: bool\nfact c: bool\ncheck a',
