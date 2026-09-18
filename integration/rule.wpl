@@ -1,0 +1,5 @@
+# The reviewer's release rule for a published wheel.
+fact tests_passed: bool
+fact reviewed_by_second_party: bool
+fact known_advisories: bool
+check tests_passed && reviewed_by_second_party && !known_advisories
