@@ -17,6 +17,10 @@ Both are bound to the wheel's SHA-256 as their signed subject.
 
 ## Run it
 
+Install the current checkout first (`python3 -m pip install -e .`) and use that
+environment’s Python/sg. Sources live in `src/`; adding the repository root to
+sys.path no longer selects them.
+
 Reviewer side (once):
 
 ```sh

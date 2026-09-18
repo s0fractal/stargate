@@ -2,8 +2,8 @@
 import codecs
 import re
 
-from .records import canon, decode, InvalidRecord
-from .policy import PolicyError, RESERVED
+from .canonical import canon, decode, InvalidRecord
+from .compiler import PolicyError, RESERVED
 
 
 class FactDeriver:

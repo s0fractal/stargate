@@ -1,0 +1,4 @@
+include architecture.py ARCHITECTURE.md SPEC.md
+recursive-include tests *.py *.json *.wpl
+recursive-include examples *.py *.json
+recursive-include integration *.py *.md

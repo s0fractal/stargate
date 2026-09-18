@@ -78,8 +78,8 @@ def admit_all(requirements, *, subject, output):
     are ordered; an unsatisfied request stops the run, and exceptions propagate.
     No partial success publishes. The output directory must be caller-controlled.
     """
-    from .records import canon, decode
-    from .policy import parse
+    from .canonical import canon, decode
+    from .compiler import parse
     from .store import hex_hash
 
     if not isinstance(requirements, (list, tuple)) or not 1 <= len(requirements) <= 32:

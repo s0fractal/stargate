@@ -6,7 +6,7 @@ import re
 import shutil
 
 from . import KELVIN
-from .records import canon, decode, exact, InvalidRecord
+from .canonical import canon, decode, exact, InvalidRecord
 from .store import StoreError
 
 MAX_CASE_BYTES = 16 * 1024 * 1024

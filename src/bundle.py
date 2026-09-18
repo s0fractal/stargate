@@ -97,7 +97,7 @@ def require_bundle(raw, trusted_keys, *, rule, facts, subject=None):
     Returns satisfied/unsatisfied for verified records only. Verification failures
     retain their existing exceptions; they never become an unsatisfied verdict.
     """
-    from .policy import parse, PolicyError
+    from .compiler import parse, PolicyError
     if not isinstance(rule, str):
         raise PolicyError('expected rule must be text')
     if not isinstance(facts, dict) or not all(

@@ -3,7 +3,7 @@
 One Python system for content-addressed computation and signed, reproducible
 checks. Working successor to Sigma-Glyph and Warrant; commands `stargate` / `sg`.
 
-**Build 13 · 32K draft (counterexample packets candidate).** The evaluator, object store and one signed-check flow
+**Build 14 · 32K draft (flat src and checked layers candidate).** The evaluator, object store and one signed-check flow
 work. This is a development implementation, not an independently accepted
 release. Predecessor repositories remain unchanged.
 
@@ -64,15 +64,24 @@ not reinterpreted or routed to a historical evaluator. No dynamic plugin or
 evaluator loading is present; installed package integrity is the normal code
 trust boundary, not an embedded self-digest or runtime registry.
 
-- `kernel.py`: canonical nodes, reduction, ATP and explicit exits; C1 compiler.
-- `records.py`: canonical bytes, Ed25519, checks and outcome fingerprints.
-- `store.py`: atomic object writes and SHA-256-checked reads.
-- `cli.py`: both command aliases.
-- `policy.py`: small boolean WPL frontend; emits existing SKI checks.
-- `bundle.py`: portable signed checks; no archive extraction or store fallback.
-- `artifact.py`: streaming subject hashing and publication of admitted copies.
-- `facts.py`: bounded profiles of deterministic byte predicates.
-- `tests/`: semantic vectors, signature/refusal controls and end-to-end CLI.
+Python source lives directly in `src/`; packaging maps that directory to the
+public `stargate` import package. Commands remain `sg` and `stargate`. There is no
+second source copy or compatibility directory.
+
+- `src/kernel.py`, `src/store.py`: reduction and content-addressed storage.
+- `src/canonical.py`: canonical JSON, data errors and address validation.
+- `src/checks.py`: bounded checks, declared environments and fingerprints.
+- `src/compiler.py`: pure boolean WPL compilation; no record authoring.
+- `src/records.py`: signatures and record verification, including provenance.
+- `src/policy.py`: policy authoring above compilation and records.
+- `src/bundle.py`, `src/artifact.py`, `src/facts.py`: transport and admission.
+- `src/case.py`: inert counterexample packets.
+- `src/cli.py`: both command aliases; `tests/`: executable controls.
+
+`architecture.py` owns layer assignments and checks real imports, including
+function-local imports and cycles. **x0 is reserved and empty**, for possible
+future generators of fixed-point parameters (such as Q10–Q20) or LUT data.
+No present constant was moved into x0. See [ARCHITECTURE.md](ARCHITECTURE.md).
 
 ## Scope of this transfer
 
@@ -105,7 +114,9 @@ returned, but no settlement/admissibility consumer uses it yet.
 ## Test
 
 ```sh
-python3 -m unittest discover -s tests -v
+.venv/bin/python -m pip install -e .
+.venv/bin/python architecture.py
+.venv/bin/python -m unittest discover -s tests -v
 ```
 
 Python 3.14 is the tested environment for this port; metadata permits Python
@@ -524,5 +535,5 @@ transaction. `examples/counterexamples.py` rebuilds our two packets from pinned 
 commits. Rebuilding requires those commits; receiving/replaying the packets does not.
 
 [Dependency direction and filename coordinates](ARCHITECTURE.md) records the
-Trinity-inspired architecture recommendation. No module renaming or new import
-layer enforcement is part of this build.
+Trinity-inspired architecture recommendation. Build 14 relocates Python sources to `src/`, breaks the records/policy cycle
+and enforces the layer table; coordinate filename prefixes remain a later choice.
