@@ -480,7 +480,9 @@ every requested derivation. In plan order, require_bundle receives that SAME
 digest, the request's own trust/rule/facts and bundle. Only when ALL reports are
 satisfied is the stage exclusively linked to output (0600, no replacement).
 Source changes after staging cannot change either request's subject or the
-published bytes. The caller must control the output directory, as for admit.
+published bytes. A source change detected while reading is instead an unverified
+refusal, as with single admission; no snapshot of a concurrently changing source
+is promised. The caller must control the output directory, as for admit.
 
 Success is {status:admitted, artifact:{path,sha256}, requirements:[{name,report}]}.
 First unsatisfied stops the run and returns {status:unsatisfied, failed:NAME,

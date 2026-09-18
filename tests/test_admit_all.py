@@ -72,10 +72,14 @@ class AdmitAll(unittest.TestCase):
         self.requests[0] = self.request('size', 'large', 0)
         self.requests[0].pop('facts')
         self.requests[0]['derive'] = {'large': {'size_at_least': len(self.data)}}
+        self.requests[1] = self.request('measurement', 'nonempty', 1)
+        self.requests[1].pop('facts')
+        self.requests[1]['derive'] = {'nonempty': {'size_at_least': 1}}
+        # Both predicates are false on an unfed deriver's empty stream.
         report = self.run_all()
         self.assertEqual(report['status'], 'admitted')
         derived = [entry['report']['derivation'] for entry in report['requirements']]
-        self.assertEqual([d['facts'] for d in derived], [{'large': True}, {'text': True}])
+        self.assertEqual([d['facts'] for d in derived], [{'large': True}, {'nonempty': True}])
         self.assertEqual([d['subject'] for d in derived], [self.digest, self.digest])
         self.output.unlink()
         self.requests[0]['derive']['large']['size_at_least'] += 1
@@ -113,14 +117,25 @@ class AdmitAll(unittest.TestCase):
             self.run_all()
         self.clean()
 
-    def test_snapshot_requests_before_verification(self):
-        real = artifact.require_bundle
-        def change(*args, **kwargs):
-            self.requests[1]['trust'].clear()
-            self.requests[1]['derive']['text'] = {'size_at_most': 0}
-            return real(*args, **kwargs)
-        with patch.object(artifact, 'require_bundle', side_effect=change):
-            self.assertEqual(self.run_all()['status'], 'admitted')
+    def test_snapshot_requests_before_reading(self):
+        chunks = artifact._subject_chunks
+        changed = []
+        def change_during_read(path):
+            for chunk in chunks(path):
+                self.requests[0]['facts']['reviewed'] = False
+                self.requests[1]['trust'].clear()
+                self.requests[1]['derive']['text'] = {'size_at_most': 0}
+                changed.append(True)
+                yield chunk
+        with patch.object(artifact, '_subject_chunks', side_effect=change_during_read):
+            report = self.run_all()
+        self.assertTrue(changed, 'the mutation fixture never ran')
+        self.assertFalse(self.requests[0]['facts']['reviewed'])
+        self.assertEqual(report['status'], 'admitted')
+        self.assertEqual(report['requirements'][0]['report']['expected']['facts'],
+                         hashlib.sha256(canon({'reviewed': True})).hexdigest())
+        self.assertEqual(report['requirements'][1]['report']['derivation']['facts'], {'text': True})
+        self.assertEqual(self.output.read_bytes(), self.data)
 
     def test_invalid_plan_never_reads_subject(self):
         original = self.requests

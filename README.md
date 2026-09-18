@@ -466,7 +466,8 @@ sg admit-all plan.json --subject candidate.whl --output approved.whl
 ```
 
 The source is read once. Every derivation and every subject check uses those
-same staged bytes. Publication occurs only after all named requests pass;
+same staged bytes. A change detected during that read causes an unverified/3
+refusal; the original-byte guarantee applies after staging has completed. Publication occurs only after all named requests pass;
 refusal or a missing/corrupt second proof leaves no output or temporary stage.
 An existing output is never overwritten. The usual 0/1/2/3/4 exit meanings apply.
 
