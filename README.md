@@ -3,7 +3,7 @@
 One Python system for content-addressed computation and signed, reproducible
 checks. Working successor to Sigma-Glyph and Warrant; commands `stargate` / `sg`.
 
-**Build 9 · 32K draft (artifact subject candidate).** The evaluator, object store and one signed-check flow
+**Build 10 · 32K draft (artifact admission candidate).** The evaluator, object store and one signed-check flow
 work. This is a development implementation, not an independently accepted
 release. Predecessor repositories remain unchanged.
 
@@ -70,6 +70,7 @@ trust boundary, not an embedded self-digest or runtime registry.
 - `cli.py`: both command aliases.
 - `policy.py`: small boolean WPL frontend; emits existing SKI checks.
 - `bundle.py`: portable signed checks; no archive extraction or store fallback.
+- `artifact.py`: streaming subject hashing and publication of admitted copies.
 - `tests/`: semantic vectors, signature/refusal controls and end-to-end CLI.
 
 ## Scope of this transfer
@@ -111,7 +112,7 @@ Python 3.14 is the tested environment for this port; metadata permits Python
 subprocess CLI flow, corruption, signature/decision tampering, unsupported
 editions, local refusal, and the isolated same-result/different-exit case.
 
-Local artifact-subject validation: all 76 tests passed both in the checkout and against a
+Local artifact-admission validation: all 84 tests passed both in the checkout and against a
 wheel-installed package outside the checkout, including the 49 imported kernel
 cases. Both console aliases report build 7 / 32K. An external in-memory mutation
 omitting actual exit from the fingerprint makes the isolating test fail by an
@@ -326,7 +327,49 @@ without checking artifact availability; `require --subject` compares local bytes
 No filename, filesystem permission, safety, freshness or single-use guarantee is
 implied. The result concerns bytes read during hashing: it does not lock a path
 or guarantee what a later upload/execution will read. Use an immutable artifact
-when connecting this check to another action. Stargate performs no such action.
+when connecting this check to another action. `require` performs no such action;
+`admit` below publishes a copy of the bytes it checked.
 
 This replaces the current unreleased draft shape: bodies missing subject are
 invalid. There is no compatibility branch or temperature freeze.
+
+
+## Publish only the artifact bytes that passed
+
+```sh
+sg admit proof.json --trust PUBLIC_KEY --rule rule.wpl --facts facts.json \
+  --subject candidate.bin --output approved.bin
+```
+
+`admit` streams the candidate into a private temporary file next to the output,
+hashing the same chunks it writes. It runs the recipient requirement against
+that digest, then publishes that staged file only on `satisfied`. It never reopens
+the original for publication. Replacing or editing the original after copying
+cannot alter the admitted copy. The output is a separate file with mode 0600;
+source names, permissions and symlinks are not copied.
+
+Exit 0 / `admitted` means publication completed. JSON includes
+`artifact: {path, sha256}` and the satisfied report under `requirement`.
+Exit 4 / `unsatisfied` returns the requirement report with `artifact: null` and
+publishes nothing. Invalid inputs/proofs remain 2; unavailable source/proof
+material and verifier resource failure remain 3. Output I/O errors (including
+an occupied destination) are `operation_error` / 1. Existing destinations,
+including symlinks and a destination created concurrently, are never replaced.
+A different output path is required even when source and output bytes match.
+
+Python: `stargate.artifact.admit_bundle(raw, trusted_keys, rule=source,
+facts=inputs, subject=input_path, output=output_path)`. Verification exceptions
+are preserved; source read I/O raises StoreError, destination I/O raises OSError.
+It uses no local object store. Temporary files are removed on ordinary success
+and failures before publication; abrupt process termination can leave a temporary
+file. This is exclusive atomic publication, not crash-durable storage: there is
+no fsync guarantee, and a cleanup failure after publication may leave an output
+while reporting an error. Do not treat an error as proof that no output exists.
+
+The output directory must be controlled by the caller. This is not a sandbox
+against another process with access to that directory or the admitted file.
+It does not prevent later writes to the output, enforce one-time use, execute
+an artifact, or upload it. File size/disk use is not capped; hashing uses bounded
+memory. The signed subject still expresses the signer's association with the
+facts, not proof of their real-world truth. The record and bundle formats and
+32K temperature are unchanged by this stage.
