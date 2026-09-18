@@ -180,7 +180,9 @@ def execute(args):
                 write_bundle(args.output, successor)
             return report
         doc = lab.inspect_world(raw)
-        return dict(status='intact', world_id=lab.identity(raw), guide=doc['guide'],
+        return dict(status='intact', world_id=lab.identity(raw),
+                    runtime_digest=lab.runtime_digest(doc['sources']),
+                    replay_digest=lab.identity(lab.REPLAY.encode()), guide=doc['guide'],
                     rule=doc['rule'], inputs=doc['inputs'], max_atp=doc['max_atp'],
                     objective=doc['objective'], predecessor=doc['predecessor'])
     if args.command == "case-inspect":

@@ -39,6 +39,11 @@ def runtime_sources():
     return {name: (root / name).read_bytes().decode('utf-8') for name in RUNTIME}
 
 
+def runtime_digest(sources):
+    """Identity of the canonical filename-to-source map, not self-authentication."""
+    return identity(canon(sources))
+
+
 def _inputs(names):
     if (not isinstance(names, list) or len(names) > 8 or
             not all(isinstance(n, str) and re.fullmatch(
@@ -117,7 +122,7 @@ def verify_transition(raw, proposal):
     if proposal['parent'] != parent:
         raise InvalidRecord('proposal parent mismatch')
     codes = [_program(source, doc['inputs']) for source in (doc['rule'], proposal['candidate'])]
-    report = dict(status='incomplete', parent=parent,
+    report = dict(status='incomplete', parent=parent, runtime_digest=runtime_digest(doc['sources']),
                   candidate=identity(proposal['candidate'].encode('utf-8')),
                   rows=[], total_rows=2**len(doc['inputs']), admitted=False)
     maxima = [0, 0]
@@ -164,18 +169,41 @@ def read_world(path):
     return raw
 
 
-REPLAY = '''"""Explicit execution of the included checker. -I is not a sandbox."""
+REPLAY = '''"""Explicit replay. Trust this launcher independently; -I -S is not a sandbox."""
+import argparse
+import hashlib
 import json
 from pathlib import Path
+import re
 import sys
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-from stargate.lab import read_world, read_proposal, verify_transition
+
+parser = argparse.ArgumentParser()
+parser.add_argument('proposal', type=Path)
+parser.add_argument('output', type=Path, nargs='?')
+parser.add_argument('--expect-runtime', required=True,
+                    help='runtime digest obtained independently of this packet')
+args = parser.parse_args()
+if re.fullmatch(r'[0-9a-f]{64}', args.expect_runtime) is None:
+    parser.error('expected a lowercase SHA-256 runtime digest')
 root = Path(__file__).resolve().parent
-proposal = read_proposal(Path(sys.argv[1]).read_bytes())
+names = ('__init__.py', 'store.py', 'canonical.py', 'kernel.py', 'checks.py',
+         'compiler.py', 'boolean.py', 'lab.py')
+# These filenames are ASCII, so sorted JSON keys have the canonical UTF-16 order.
+# Check before importing any packet module. The launcher itself must be trusted.
+sources = {n: (root / 'stargate' / n).read_bytes().decode('utf-8') for n in names}
+digest = hashlib.sha256(json.dumps(sources, ensure_ascii=False, sort_keys=True,
+                                  separators=(',', ':')).encode('utf-8')).hexdigest()
+if digest != args.expect_runtime:
+    print(json.dumps(dict(status='runtime_unavailable', runtime_digest=digest,
+                          expected_runtime=args.expect_runtime, admitted=False)))
+    raise SystemExit(3)
+sys.path.insert(0, str(root))
+from stargate.lab import read_world, read_proposal, verify_transition
+proposal = read_proposal(args.proposal.read_bytes())
 report, successor = verify_transition(read_world(root / 'world.json'), proposal)
 print(json.dumps(report, sort_keys=True))
-if successor is not None and len(sys.argv) == 3:
-    with open(sys.argv[2], 'xb') as stream:
+if successor is not None and args.output is not None:
+    with args.output.open('xb') as stream:
         stream.write(successor)
 raise SystemExit(0 if report['admitted'] else
                  3 if report['status'] == 'incomplete' else
@@ -196,7 +224,8 @@ def unpack_world(raw, output):
         (output / 'stargate').mkdir(mode=0o700)
         files = {'world.json': raw, 'replay.py': REPLAY.encode(), 'LICENSE': LICENSE.encode(),
                  'README.txt': (GUIDE + '\nworld_id: ' + identity(raw) +
-                    '\nAfter inspecting the code: python -I replay.py proposal.json successor.json\n'
+                    '\nUse a separately trusted replay.py and runtime digest. Then:\n'
+                    'python -I -S replay.py --expect-runtime INDEPENDENT_DIGEST proposal.json successor.json\n'
                     'Requires Python >=3.11, standard library only. No network or keys.\n').encode()}
         files.update({'stargate/' + n: s.encode('utf-8') for n, s in doc['sources'].items()})
         for name, content in files.items():
@@ -206,7 +235,8 @@ def unpack_world(raw, output):
     except BaseException:
         shutil.rmtree(output)
         raise
-    return dict(status='materialized', world_id=identity(raw), path=str(output))
+    return dict(status='materialized', world_id=identity(raw),
+                runtime_digest=runtime_digest(doc['sources']), path=str(output))
 
 
 LICENSE = 'MIT License\n\nCopyright (c) 2025-2026 s0fractal\n\nPermission is hereby granted, free of charge, to any person obtaining a copy\nof this software and associated documentation files (the "Software"), to deal\nin the Software without restriction, including without limitation the rights\nto use, copy, modify, merge, publish, distribute, sublicense, and/or sell\ncopies of the Software, and to permit persons to whom the Software is\nfurnished to do so, subject to the following conditions:\n\nThe above copyright notice and this permission notice shall be included in all\ncopies or substantial portions of the Software.\n\nTHE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR\nIMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,\nFITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE\nAUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER\nLIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,\nOUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE\nSOFTWARE.\n'

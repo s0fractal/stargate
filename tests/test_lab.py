@@ -1,4 +1,6 @@
 import itertools
+import io
+from contextlib import redirect_stdout
 import json
 import os
 from pathlib import Path
@@ -9,7 +11,7 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-from stargate import boolean, compiler, kernel, lab
+from stargate import boolean, compiler, kernel, lab, cli
 from stargate.canonical import canon, decode, InvalidRecord
 
 
@@ -35,6 +37,7 @@ class Lab(unittest.TestCase):
             expected = any(row['input'].values())
             self.assertEqual(row['parent']['value'], expected)
             self.assertEqual(row['candidate']['value'], expected)
+        self.assertEqual(decode(child)['rule'], rule(expr, names))
         self.assertEqual(decode(child)['predecessor'], lab.identity(raw))
         self.assertEqual(lab.identity(child), good['successor'])
         self.assertEqual(decode(raw)['rule'], rule('!!(' + expr + ')', names))
@@ -62,6 +65,35 @@ class Lab(unittest.TestCase):
                           report['compiled'], report['oracle'], child),
                          ('checker_error', 'independent oracle disagreement',
                           {'a': False, 'b': True}, False, True, None))
+
+    def test_parent_only_oracle_disagreement(self):
+        raw = lab.create_world(rule('a || b'), ['a', 'b'])
+        candidate = rule('!(!a && !b)')
+        original = compiler.parse
+        def broken(source, inputs=None):
+            return original(source.replace('||', '&&'), inputs)
+        with patch.object(compiler, 'parse', broken):
+            report, child = lab.verify_transition(raw, proposal(raw, candidate))
+        self.assertEqual(report['status'], 'checker_error')
+        self.assertEqual((report['program'], report['input'], child),
+                         ('parent', {'a': False, 'b': True}, None))
+
+    def test_lowering_fault_is_checker_error_through_cli(self):
+        raw = lab.create_world(rule('a && b'), ['a', 'b'])
+        original = compiler.lower
+        def broken(expr, facts):
+            return original(('or', *expr[1:]) if expr[0] == 'and' else expr, facts)
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root/'world').write_bytes(raw)
+            (root/'proposal').write_text(json.dumps(proposal(raw, rule('a && b'))))
+            output = io.StringIO()
+            with patch.object(compiler, 'lower', broken), redirect_stdout(output):
+                code = cli.main(['lab-check', str(root/'world'), str(root/'proposal'),
+                                 '--output', str(root/'child')])
+            self.assertEqual(code, 1)
+            self.assertEqual(json.loads(output.getvalue())['status'], 'checker_error')
+            self.assertFalse((root/'child').exists())
 
     def test_candidate_also_has_to_agree_with_oracle(self):
         raw = lab.create_world(rule('!(!a && !b)'), ['a', 'b'])
@@ -166,7 +198,8 @@ class Lab(unittest.TestCase):
             lab.unpack_world(raw, root)
             (root/'proposal.json').write_text(json.dumps(p))
             result = subprocess.run([sys.executable, '-I', '-S', str(root/'replay.py'),
-                                     str(root/'proposal.json'), str(root/'child.json')],
+                                     str(root/'proposal.json'), str(root/'child.json'),
+                                     '--expect-runtime', lab.runtime_digest(decode(raw)['sources'])],
                                     cwd='/', capture_output=True, text=True)
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertEqual(json.loads(result.stdout), expected)
@@ -175,6 +208,46 @@ class Lab(unittest.TestCase):
             self.assertEqual((root/'replay.py').stat().st_mode & 0o777, 0o600)
             with self.assertRaises(FileExistsError): lab.unpack_world(raw, root)
             self.assertEqual((root/'child.json').read_bytes(), successor)
+
+    def test_runtime_digest_and_replay_preflight(self):
+        import hashlib
+        raw = lab.create_world(rule('a || b'), ['a', 'b'])
+        sources = decode(raw)['sources']
+        expected = hashlib.sha256(json.dumps(sources, sort_keys=True, ensure_ascii=False,
+                                 separators=(',', ':')).encode()).hexdigest()
+        report, _ = lab.verify_transition(raw, proposal(raw, rule('a || b')))
+        self.assertEqual(report['runtime_digest'], expected)
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)/'packet'
+            lab.unpack_world(raw, root)
+            (root/'proposal.json').write_text(json.dumps(proposal(raw, rule('a && b'))))
+            argv = [sys.executable, '-I', '-S', str(root/'replay.py'),
+                    str(root/'proposal.json'), str(root/'child.json')]
+            missing = subprocess.run(argv, cwd='/', capture_output=True, text=True)
+            self.assertEqual(missing.returncode, 2)
+            self.assertFalse((root/'child.json').exists())
+            # An actually malicious packet would also replace its self-check.
+            # Keep a separately trusted launcher, and assert refusal BEFORE import.
+            marker = root/'executed'
+            bad = root/'stargate/lab.py'
+            bad.write_text("from pathlib import Path\nPath(" + repr(str(marker)) + ").touch()\n" +
+                           sources['lab.py'].replace("if results[0]['value'] != results[1]['value']:", 'if False:'))
+            # Keep packet and extracted malicious runtime mutually consistent:
+            # without independent preflight, their self-pin would pass.
+            changed = decode(raw)
+            changed['sources']['lab.py'] = bad.read_text()
+            changed_raw = canon(changed)
+            (root/'world.json').write_bytes(changed_raw)
+            (root/'proposal.json').write_text(json.dumps(proposal(changed_raw, rule('a && b'))))
+            result = subprocess.run(argv + ['--expect-runtime', expected],
+                                    cwd='/', capture_output=True, text=True)
+            self.assertEqual(result.returncode, 3, result.stderr)
+            data = json.loads(result.stdout)
+            self.assertEqual((data['status'], data['expected_runtime'], data['admitted']),
+                             ('runtime_unavailable', expected, False))
+            self.assertNotEqual(data['runtime_digest'], expected)
+            self.assertFalse(marker.exists())
+            self.assertFalse((root/'child.json').exists())
 
     def test_unpack_failure_cleanup_and_no_execution(self):
         raw = lab.create_world('check true', [])
@@ -203,6 +276,10 @@ class Lab(unittest.TestCase):
             code, created = call('lab-create', root/'rule', '--input', 'a', '--input', 'b', '--output', root/'world')
             self.assertEqual(code, 0)
             self.assertEqual(call('lab-inspect', root/'world')[1]['world_id'], created['world_id'])
+            self.assertEqual(call('lab-inspect', root/'world')[1]['runtime_digest'],
+                             lab.runtime_digest(lab.runtime_sources()))
+            self.assertEqual(call('lab-inspect', root/'world')[1]['replay_digest'],
+                             lab.identity(lab.REPLAY.encode()))
             raw = (root/'world').read_bytes()
             (root/'proposal').write_text(json.dumps(proposal(raw, rule('a && b'))))
             code, report = call('lab-check', root/'world', root/'proposal', '--output', root/'child')

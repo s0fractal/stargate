@@ -571,8 +571,25 @@ It supplies no verdicts, digests, ATP claims or signatures.
 sg lab-check experiment.json proposal.json --output successor.json
 sg lab-unpack experiment.json --output received-experiment
 # After inspecting the extracted code, explicitly execute it:
-python -I -S received-experiment/replay.py proposal.json successor-offline.json
+python -I -S received-experiment/replay.py --expect-runtime INDEPENDENT_RUNTIME_DIGEST \
+  proposal.json successor-offline.json
 ```
+
+Before executing replay, obtain `runtime_digest` and `replay_digest` from an
+independently trusted installation's `lab-inspect` output for the matching
+runtime, or derive them from a separately reviewed repository revision. This
+reference need not come from the founder. Compare `shasum -a 256
+received-experiment/replay.py` with that independent `replay_digest`; pass the
+independent `runtime_digest` as `--expect-runtime`. Neither a digest copied from
+the received packet nor a verdict's own reported digest establishes trust.
+
+The runtime digest is SHA-256 of the canonical filename-to-source map. The
+trusted launcher hashes extracted sources with standard-library code **before
+importing them**, and refuses a mismatch with exit 3 and no successor. All
+semantic reports carry the runtime digest. A malicious launcher could bypass
+this check or print a false digest; that is why its own bytes must be checked
+independently before execution. These checks assume a controlled local directory
+and interpreter, not a hostile host or concurrent replacement of verified files.
 
 The extracted copy needs only Python >=3.11, with no installed Stargate, plugins,
 keys, network or original repository. Extraction does not execute sources;

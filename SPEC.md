@@ -630,6 +630,21 @@ is not an atomic multi-file transaction, and failures attempt cleanup. It never
 runs packet code. The included `replay.py` requires an explicit invocation and
 Python >=3.11 with its standard library; neither a Stargate installation nor
 cryptography/network access is required. `-I -S` avoids site startup and installed
-packages, but is not a sandbox. Replay takes a proposal path and optionally a
-new successor path. Invalid input or local I/O errors in this minimal replay
+packages, but is not a sandbox. `lab-inspect` emits `runtime_digest = SHA256(canon(sources))` and
+`replay_digest = SHA256(replay.py bytes)`. Semantic reports carry runtime_digest.
+Replay takes a proposal path, optionally a new successor path, and requires
+`--expect-runtime` with a separately obtained digest. Before importing packet
+modules, the launcher hashes the fixed source map with standard-library JSON
+(the filenames are ASCII, so its key ordering matches canonical UTF-16 ordering).
+A mismatch gives runtime_unavailable / 3 and publishes nothing. Missing or
+malformed expected digests refuse with exit 2.
+
+The expected runtime digest AND the launcher bytes must be authenticated through
+an independent trusted installation or reviewed revision. A packet or report
+cannot authenticate its own checker. The preflight is not protection against
+replacement of the launcher itself, dishonest hosts, stale/adversarial bytecode
+caches or concurrent replacement of checked files. Local execution still assumes
+a consistent, controlled runtime.
+
+Invalid input or local I/O errors in this minimal replay
 script may print a Python traceback; it never claims admission on those errors.
