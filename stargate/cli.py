@@ -75,17 +75,20 @@ def subject_hash(path):
         return None
     # Nonblocking open lets us reject FIFOs rather than waiting for a writer.
     fd = os.open(path, os.O_RDONLY | os.O_NONBLOCK)
-    with os.fdopen(fd, 'rb') as stream:
-        before = os.fstat(stream.fileno())
+    try:
+        before = os.fstat(fd)
         if not stat.S_ISREG(before.st_mode):
             raise ValueError('subject must be a regular file')
         digest = hashlib.sha256()
-        while chunk := stream.read(1024 * 1024):
-            digest.update(chunk)
-        after = os.fstat(stream.fileno())
+        with os.fdopen(fd, 'rb', closefd=False) as stream:
+            while chunk := stream.read(1024 * 1024):
+                digest.update(chunk)
+            after = os.fstat(fd)
         if (before.st_size, before.st_mtime_ns, before.st_ctime_ns) != (
                 after.st_size, after.st_mtime_ns, after.st_ctime_ns):
             raise OSError('subject changed while hashing')
+    finally:
+        os.close(fd)
     return digest.hexdigest()
 
 
