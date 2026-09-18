@@ -19,14 +19,17 @@ would then be about different bytes. So the gate runs, in this order:
   1. `admit` the DERIVED-facts decision. That stages the candidate's bytes while
      hashing them, checks the requirement against the staged digest, and
      publishes the staged copy. Nothing after this reads the candidate again.
-  2. `require` the ASSERTED-judgment decision against the ADMITTED file. The
-     bytes it measures are the bytes step 1 published, by inode, not by path.
+  2. `require` the ASSERTED-judgment decision against the digest produced by
+     `admit`; no second read of the candidate is used.
   3. Name the admitted file from its OWN bytes. `pip` refuses a wheel whose
      filename is not `{name}-{version}-{python}-{abi}-{platform}.whl`, and a
      signed decision says nothing about names — it is about bytes. So the gate
      reads `.dist-info/METADATA` out of the admitted copy and links it to the
      name those bytes declare. An operator-chosen name is never used.
-  4. Install the admitted file, then READ THE ENVIRONMENT BACK. `pip` treats an
+  4. Before publishing/installing, pin the target root without site startup and
+     classify existing root .pth files by both name and digest. Refuse foreign
+     hooks unless the operator explicitly allows them.
+  5. Install the admitted file, then READ THE ENVIRONMENT BACK. `pip` treats an
      already-present distribution of the same version as satisfied and skips the
      install, so "pip exited 0" does not mean the admitted code is in place: the
      gate forces the install and then hashes every payload file the wheel's
@@ -255,27 +258,30 @@ def installation_root(venv):
 
 
 def startup_hooks(purelib, payload):
-    """`.pth` files in the install root that the admitted wheel did not bring.
+    """Inventory root .pth files; artifact ownership requires matching bytes.
 
-    Anything in this list executes at interpreter startup, before any import, so
-    it can change the files this gate just verified — after the gate has
-    finished. The check cannot be done by hashing, only by naming what is there.
+    This is a narrow .pth policy, not a general scan of Python startup behavior.
+    Read/list failures propagate rather than becoming an allow-able hook name.
     """
-    try:
-        present = sorted(p.name for p in Path(purelib).glob("*.pth"))
-    except OSError as exc:
-        return [f"cannot list startup hooks in {purelib}: {exc.strerror}"]
-    return [name for name in present if name not in payload]
+    own, foreign = [], []
+    for path in sorted(Path(purelib).iterdir()):
+        if path.suffix != ".pth" or not path.is_file():
+            continue
+        digest = hashlib.sha256(path.read_bytes()).hexdigest()
+        (own if payload.get(path.name) == digest else foreign).append(path.name)
+    return dict(artifact_startup_hooks=own, foreign_startup_hooks=foreign)
 
 
-def environment_holds(venv, payload):
+def environment_holds(venv, payload, *, purelib=None):
     """Every payload member, hashed where this environment actually installs.
 
     Returns a list of complaints; empty means the environment holds exactly the
     admitted bytes."""
-    purelib, problems = installation_root(venv)
-    if problems:
-        return problems
+    problems = []
+    if purelib is None:
+        purelib, problems = installation_root(venv)
+        if problems:
+            return problems
     for name, want in sorted(payload.items()):
         installed = purelib / name
         try:
@@ -323,6 +329,18 @@ def gate(args):
         #    get a name an installer will read.
         final = Path(args.output_dir) / wheel_filename(staged)
         payload = wheel_payload(staged)
+        # Before any target pip startup, pin the readback root and classify the
+        # .pth files already present. A matching NAME alone proves no ownership.
+        purelib, hooks_before = None, None
+        if args.install_into:
+            purelib, problems = installation_root(args.install_into)
+            if problems:
+                return EXIT_OPERATION, dict(status="environment_untrusted",
+                    stage="environment", problems=problems, artifact=None)
+            hooks_before = startup_hooks(purelib, payload)
+            if hooks_before["foreign_startup_hooks"] and not args.allow_startup_hooks:
+                return EXIT_OPERATION, dict(status="environment_untrusted",
+                    stage="environment", artifact=None, **hooks_before)
         os.link(staged, final)                      # refuses to replace an existing name
     finally:
         staged.unlink(missing_ok=True)
@@ -342,18 +360,16 @@ def gate(args):
     if done.returncode != 0:
         return EXIT_OPERATION, dict(report, status="install_failed",
                                     error=(done.stderr or done.stdout).strip()[:400])
-    problems = environment_holds(args.install_into, payload)
+    problems = environment_holds(args.install_into, payload, purelib=purelib)
     if problems:
         return EXIT_OPERATION, dict(report, status="install_unverified", problems=problems)
 
-    # 5. Say what else runs there. A `.pth` executes at interpreter startup,
-    #    before any import, so it can undo everything checked above once this
-    #    process exits. Hashing cannot see that; naming it can.
-    purelib, _ = installation_root(args.install_into)
-    hooks = startup_hooks(purelib, payload) if purelib else []
+    # Inventory again after the action, using the root pinned before pip.
+    hooks = startup_hooks(purelib, payload)
     report = dict(report, installed_into=str(args.install_into),
-                  payload_files_verified=len(payload), foreign_startup_hooks=hooks)
-    if hooks and not args.allow_startup_hooks:
+                  payload_files_verified=len(payload), startup_hooks_before=hooks_before,
+                  **hooks)
+    if hooks["foreign_startup_hooks"] and not args.allow_startup_hooks:
         return EXIT_OPERATION, dict(report, status="environment_untrusted")
     return EXIT_OK, dict(report, status="installed")
 
@@ -373,8 +389,8 @@ def main(argv=None):
                    help="directory the admitted wheel is written into, under the name its own bytes declare")
     p.add_argument("--install-into", type=Path, help="venv to install the admitted wheel into")
     p.add_argument("--allow-startup-hooks", action="store_true",
-                   help="certify the install even though the environment runs .pth code the "
-                        "admitted wheel did not bring (they are always reported)")
+                   help="allow pip to start with foreign root .pth files and report them; "
+                        "this explicitly trusts that startup code")
     args = p.parse_args(argv)
     try:
         code, report = gate(args)

@@ -257,3 +257,20 @@ exactly this standard from the other side of these reviews:
 Each time the gate was fine and the fixture was broken. A control that cannot
 fire proves nothing, and the only defence is to assert the fixture did its job
 before asserting anything about the subject — which these tests now do.
+
+
+## F13. Refusing a hook after running pip is too late to avoid its execution
+
+Codex took over implementation after the role exchange. The R4 path-resolution
+fix isolated the readback probe, but pip still started before the foreign-hook
+refusal. A marker-writing .pth showed that a run ending environment_untrusted
+had already executed that hook. The gate now pins the target root and inventories
+existing root .pth files before starting pip or publishing the final wheel.
+The override is explicitly permission to execute those hooks, not merely to hide
+a warning after execution. Installed payload readback uses the preflight root.
+
+A name in the candidate manifest also did not prove that a preexisting same-name
+hook belonged to the candidate. The inventory now compares actual bytes to the
+admitted digest and reports candidate-owned as well as foreign hooks. This is
+still a root-.pth policy within a trusted interpreter/installer boundary, not a
+complete startup-code detector. The README spells out that narrower contract.

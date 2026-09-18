@@ -4,9 +4,8 @@ Integrator code, not part of the Stargate contract. It answers one question —
 *what does it actually take to use Stargate for something?* — by gating a real
 artifact before a real action.
 
-**The scenario.** `sigma-glyph 0.7.0` was published to PyPI on 2026-09-17. The
-only evidence that the wheel was fit to install was "the publish workflow said
-success". Here, an operator refuses to install it unless two signed decisions
+**The scenario.** `sigma-glyph 0.7.0` was published to PyPI on 2026-09-17. This integration focuses on the step from release evidence to an installation
+action. An operator refuses to install it unless two signed decisions
 hold about **those exact bytes**:
 
 - a **judgment** record — the reviewer asserts `tests_passed`,
@@ -59,13 +58,17 @@ and the venv imports `sigma_glyph` at version `0.7.0`.
    `WHEEL`), because `pip` refuses a wheel whose filename is not
    `{name}-{version}-{python}-{abi}-{platform}.whl` and no signed decision says
    anything about names.
-4. **Install the admitted path** — forced, because `pip` skips a distribution
+4. **Preflight the target before publishing or starting pip.** Resolve the install
+   root using `pyvenv.cfg` and `python -I -S`, then inspect root `.pth` files.
+   Foreign hooks require explicit `--allow-startup-hooks`; otherwise no pip runs
+   and no final wheel is published. A hook is owned by the candidate only if its
+   name AND current bytes match the admitted payload.
+5. **Install the admitted path** — forced, because `pip` skips a distribution
    whose name and version are already present — and then **read the environment
    back**: every payload member of the wheel's **ZIP** is hashed where the
    installer put it (`RECORD` is checked for agreement with those bytes before
-   the install, and then not believed). The install root is resolved from
-   `pyvenv.cfg` and from `python -I -S`, so no code the environment installed
-   decides where the check looks. `installed` means that check passed; a mismatch is
+   the install, and then not believed). Readback uses the root pinned before pip,
+   not a fresh location supplied after installation. `installed` means that check passed; a mismatch is
    `install_unverified`, exit 1.
 
 ## Outcomes
@@ -84,8 +87,8 @@ and the venv imports `sigma_glyph` at version `0.7.0`.
 ## Tests
 
 ```sh
-python3 integration/test_release_gate.py                  # 11 tests, builds its own wheels
-python3 integration/test_release_gate.py --with-install   # 16, incl. hostile environments
+python3 integration/test_release_gate.py                  # 18 tests, 6 install tests skipped
+python3 integration/test_release_gate.py --with-install   # all 18, including real installs
 ```
 
 They cover approval and naming, a tampered artifact, an untrusted key, a missing
@@ -99,6 +102,35 @@ that rewrites the installed module at interpreter startup.
 
 ## What this cost
 
-[FINDINGS.md](FINDINGS.md) lists the twelve things I had to invent at the
+[FINDINGS.md](FINDINGS.md) lists the thirteen things I had to invent at the
 boundary between verification and action — and the four that Stargate already
-got right, which is why the gate is 150 lines and not a subsystem.
+got right, which kept the integration outside the core protocol implementation.
+
+
+## Environment boundary and hook reporting
+
+The report names `artifact_startup_hooks` and `foreign_startup_hooks` after a
+successful payload readback, plus the pre-install inventory in `startup_hooks_before`.
+These inventories cover root `.pth` files only. Matching a candidate filename is
+not enough to own a preexisting hook: its digest must match too. Inventory I/O
+failures are operational failures, not hook names that the override can waive.
+
+`--allow-startup-hooks` explicitly permits execution of the reported foreign
+`.pth` files when pip starts. Without it, preflight refuses before that startup.
+Candidate-owned hooks are allowed because their bytes were admitted, and are
+reported by name. They may execute on a later normal interpreter startup and
+change verified files. `installed` certifies the checked payload bytes at readback,
+not future imports, permanent immutability, code safety, or a sterile environment.
+
+The operator must trust the target interpreter, its standard library and pip,
+and control the environment/output directories during the operation. This gate
+is not a sandbox for an arbitrary interpreter or installer. The hook inventory
+is not an exhaustive startup-code audit: e.g. sitecustomize/usercustomize, import
+path behavior and pip configuration are not certified. A foreign-hook refusal
+must not be generalized to protection from all environment code.
+
+The supported integration target is the Unix purelib venv layout for which the
+isolated interpreter and computed layout agree; exercised here on Python 3.14.
+An unsupported/mismatched layout is refused before pip. This is separate from
+the library's Python support claim. No rollback is promised after pip begins;
+installation/readback failures may leave the admitted wheel and a modified venv.

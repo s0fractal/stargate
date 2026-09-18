@@ -305,8 +305,55 @@ def build_hook_package(path, redirect=False, name="evilhook", version="0.1.0"):
     return path
 
 
+class StartupInventory(unittest.TestCase):
+    def test_same_name_is_not_enough_to_own_a_hook(self):
+        sys.path.insert(0, str(ROOT / "integration"))
+        from release_gate import startup_hooks
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            approved = b"# approved path configuration\n"
+            payload = {"same.pth": hashlib.sha256(approved).hexdigest()}
+            (root / "same.pth").write_bytes(b"import sys; sys.different = True\n")
+            self.assertEqual(startup_hooks(root, payload),
+                             dict(artifact_startup_hooks=[], foreign_startup_hooks=["same.pth"]))
+            (root / "same.pth").write_bytes(approved)
+            self.assertEqual(startup_hooks(root, payload),
+                             dict(artifact_startup_hooks=["same.pth"], foreign_startup_hooks=[]))
+
+
 class HostileEnvironment(unittest.TestCase):
     """The artifact is honest; the environment it is installed into is not."""
+
+    @unittest.skipUnless("--with-install" in sys.argv, "needs a venv; pass --with-install")
+    def test_foreign_hook_is_refused_before_pip_can_execute_it(self):
+        sys.path.insert(0, str(ROOT / "integration"))
+        from release_gate import installation_root
+        ReleaseGate.setUpClass()
+        try:
+            case = ReleaseGate()
+            venv = ReleaseGate.dir / "preflight-venv"
+            subprocess.run([sys.executable, "-m", "venv", str(venv)], check=True,
+                           capture_output=True)
+            root, errors = installation_root(venv)
+            self.assertEqual(errors, [])
+            marker = venv / "hook-executed"
+            (root / "foreign.pth").write_text(
+                "import pathlib,sys; (pathlib.Path(sys.prefix)/'hook-executed').write_text('ran')\n")
+            code, report, files = case.run_gate(extra=("--install-into", str(venv)))
+            self.assertFalse(marker.exists(), "the refused hook ran during pip startup")
+            self.assertFalse((root / "gatedemo").exists(), "pip installed before refusal")
+            self.assertEqual((code, report["status"]), (1, "environment_untrusted"))
+            self.assertEqual(report["stage"], "environment")
+            self.assertEqual(report["foreign_startup_hooks"], ["foreign.pth"])
+            self.assertEqual(files, [], "preflight refusal published an approved wheel")
+            # Prove the fixture can execute, when the operator explicitly allows it.
+            code, report, _ = case.run_gate(extra=("--install-into", str(venv),
+                                                   "--allow-startup-hooks"))
+            self.assertTrue(marker.exists(), "fixture hook never executed")
+            self.assertEqual((code, report["status"]), (0, "installed"))
+            self.assertEqual(report["startup_hooks_before"]["foreign_startup_hooks"], ["foreign.pth"])
+        finally:
+            ReleaseGate.tmp.cleanup()
 
     @unittest.skipUnless("--with-install" in sys.argv, "needs a venv; pass --with-install")
     def test_a_startup_hook_cannot_redirect_the_readback(self):
@@ -452,6 +499,7 @@ class HostileManifest(unittest.TestCase):
         self.assertEqual((code, report["status"]), (0, "installed"))
         self.assertEqual(report["foreign_startup_hooks"], [])
         self.assertEqual(report["payload_files_verified"], 5)
+        self.assertEqual(report["artifact_startup_hooks"], ["gate_probe.pth"])
 
     def test_record_contradicting_its_own_bytes_is_refused(self):
         code, report, files = self.gate_for("lie")
