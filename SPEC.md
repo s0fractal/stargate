@@ -1000,3 +1000,77 @@ claimed progress, not a serialized continuation or a proof of previous work.
 World-budget exhaustion in NEW task rows remains ordinary incomplete (exit 3),
 with no output: those rows were never claimed as completed. This classification
 change applies only to the imported prefix.
+
+## Finite synchronous machines (Build 22)
+
+A machine is canonical JSON (<=4 MiB) with exactly stargate_machine (integer 32),
+state, events, initial, next, invariant, max_atp, sources, guide, license. state is
+1..6 sorted unique WPL names; events is 0..2 sorted unique WPL names disjoint from
+state. initial is a nonempty list of distinct complete Boolean state assignments,
+at most 2**len(state). Its ordering breaks equal-length trace ties. next maps
+exactly each state name to a WPL rule declaring and using ALL sorted state+event
+names. invariant declares/uses ALL state names, and no events. Existing WPL source,
+token/depth/type limits apply. max_atp is integer 0..10000 per expression per
+valuation; it is not an aggregate run budget.
+
+Sources and licence use the current lab runtime identity and validation rules.
+An internal equivalence-world view validates the invariant/runtime/ATP envelope;
+it is never an admitted machine successor. The machine guide must exactly match
+the current runtime. A foreign textual runtime is unavailable/3 before checking
+the current guide. Malformed sources/shape are invalid/2. MachineID is SHA256 of
+the complete canonical machine. Checking requires an independently chosen exact
+MachineID before evaluation. No root/candidate mutation or history is implicit.
+
+Semantics: for each reachable old state and EACH Boolean event valuation, next
+values are computed synchronously from the same old state+event map. Every next
+rule and invariant is evaluated by the existing SKI compiler (including its own
+source interpreter and serialized-check replay) and compared with the independent
+Boolean oracle. A disagreement is checker_error, never a counterexample. Events
+are unconstrained at every step. With zero event bits there is exactly one event,
+the empty map. Initial states are reachable by definition.
+
+The checker uses breadth-first exploration. Invariants are checked on every
+initial state before expanding edges, then on every first-discovered successor.
+The first false invariant returns counterexample with trace={initial,steps}; each
+step has event and state (the reached state). Trace is a shortest violating path,
+with zero steps for an invalid initial state. Termination on a witness requires
+no exploration of the rest of the graph. No claim is made about unreachable states.
+
+Report fields: status, machine_id, runtime_digest, reachable (discovered states),
+edges (completed state/event/next triples), checked_invariants, checked_edges.
+Counterexample adds trace. Incomplete/checker_error adds reason. In a partial
+report, discovered states need not all have finished invariant checks; only
+established claims full coverage. A successful result requires event-domain
+coverage/order, exactly one edge for every reachable state/event pair, all edge
+targets in the reached set, and checked_invariants equal to reached-state count.
+Self-loops and already discovered states are not enqueued again.
+
+max_edges is a local exact-integer quota 0..256. Before each new edge, if the quota
+has been consumed, return incomplete with reason edge_quota. Finishing the entire
+graph on the last allowed edge is established. Initial invariant violations can
+still refute with quota zero. An ATP budget failure or local resource/admission
+failure is incomplete; an internal/compiler/oracle disagreement is checker_error.
+No inability to evaluate establishes or refutes safety. Unexpected exceptions
+propagate. Quotas bound neither CPU time nor memory, and this build has no graph
+resume/portable graph progress format. Rechecking starts from the initial states.
+
+CLI machine-create SPEC_JSON --output FILE creates a pinned packet from the six
+fields state/events/initial/next/invariant/max_atp. Author JSON may have whitespace,
+not duplicate keys. machine-inspect FILE reports unchecked_machine without any
+expression evaluation. machine-check FILE --expect-machine ID [--max-edges N]
+prints a report: established=0, counterexample=4, incomplete/runtime unavailable=3,
+invalid=2, checker/operation failure=1. Create/inspect/unpack exit0 is structural
+success only. No machine-check output path or successor is accepted.
+
+machine-unpack FILE --output DIRECTORY materializes sources, machine.json and its
+guide in a new private directory without executing the packet. The embedded
+world.json is solely the invariant/runtime validation view, not the machine.
+Standalone replay --machine --expect-machine ID [--max-edges N] has the same
+report and status codes; --machine is exclusive with other modes and refuses a
+positional output path. Existing independently authenticated launcher/runtime,
+-I -S verified-source loading, and Python/stdlib trust requirements apply.
+
+This is finite-state universal-event safety, not liveness, fairness, unbounded
+integer reachability, general program verification, or an automatic gate for
+replacing machines. A passing finite model does not itself prove a physical or
+external software system implements that model.

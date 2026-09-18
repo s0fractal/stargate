@@ -14,7 +14,7 @@ from .store import Store, StoreError, hex_hash
 from .bundle import export_bundle, verify_bundle, read_bundle, write_bundle, require_bundle
 from .policy import author_policy, CompilerBug, DEFAULT_MAX_ATP
 from .case import pack_case, inspect_case, read_case, unpack_case
-from . import lab, search, invariants, lineage, labtask
+from . import lab, search, invariants, lineage, labtask, machine
 from .artifact import subject_hash, admit_bundle, admit_all, measure_subject
 
 
@@ -121,6 +121,13 @@ def parser():
     q = cmd("lab-check-invariant", "recompute a finite property claim without trusting its author")
     q.add_argument("path", type=Path)
     q.add_argument("claim", type=Path)
+    for name in ('machine-create', 'machine-inspect', 'machine-check', 'machine-unpack'):
+        q = cmd(name, 'check a finite synchronous machine on all reachable states')
+        q.add_argument('path', type=Path)
+        if name in ('machine-create', 'machine-unpack'): q.add_argument('--output', type=Path, required=True)
+        if name == 'machine-check':
+            q.add_argument('--expect-machine', required=True)
+            q.add_argument('--max-edges', type=int, default=256)
     for name in ('lab-task-start', 'lab-task-resume', 'lab-task-inspect', 'lab-task-unpack'):
         q = cmd(name, 'transfer lab work; imported progress is always recomputed')
         q.add_argument('path', type=Path)
@@ -186,6 +193,25 @@ def read_admission_plan(path):
 
 
 def execute(args):
+    if args.command.startswith('machine-'):
+        try:
+            raw = machine.read(args.path)
+        except OSError as exc:
+            raise StoreError('cannot read machine input: ' + str(exc)) from exc
+        if args.command == 'machine-create':
+            # Authoring JSON may contain whitespace, but never duplicate keys.
+            def unique(pairs):
+                result = {}
+                for key, value in pairs:
+                    if key in result: raise ValueError('duplicate machine field: ' + key)
+                    result[key] = value
+                return result
+            created = machine.create(json.loads(raw, object_pairs_hook=unique))
+            write_bundle(args.output, created)
+            return machine.describe(created)
+        if args.command == 'machine-inspect': return machine.describe(raw)
+        if args.command == 'machine-unpack': return machine.unpack(raw, args.output)
+        return machine.verify(raw, args.expect_machine, max_edges=args.max_edges)
     if args.command.startswith('lab-task-'):
         try:
             raw = lab.read_world(args.path) if args.command == 'lab-task-start' else labtask.read(args.path)
@@ -417,7 +443,7 @@ def main(argv=None):
         if result['status'] == 'verified_lineage': return 0
         if result['status'] == 'incomplete': return 3
         return 1 if result['status'] == 'checker_error' else 4
-    if args.command in ('lab-discover', 'lab-check-invariant'):
+    if args.command in ('lab-discover', 'lab-check-invariant', 'machine-check'):
         if result['status'] in ('complete', 'established'): return 0
         if result['status'] == 'checker_error': return 1
         return 3 if result['status'] == 'incomplete' else 4
