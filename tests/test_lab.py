@@ -160,7 +160,7 @@ class Lab(unittest.TestCase):
         with self.assertRaises(lab.RuntimeMismatch):
             lab.verify_transition(canon(doc), proposal(canon(doc), 'check true'))
         doc = decode(raw); doc['sources']['../../escape'] = 'oops'
-        with self.assertRaises(InvalidRecord): lab.inspect_world(canon(doc))
+        with self.assertRaises(lab.RuntimeMismatch): lab.inspect_world(canon(doc))
         with self.assertRaises(InvalidRecord): lab.inspect_world(raw + b'\n')
         for field, value in [('inputs', list('abcdefghi')), ('max_atp', True),
                              ('inputs', ['b', 'a']), ('max_atp', 10001),
@@ -187,6 +187,23 @@ class Lab(unittest.TestCase):
                 with self.assertRaises(InvalidRecord): lab.inspect_world(canon(current))
                 current['sources']['lab.py'] += '\n# other runtime'
                 with self.assertRaises(lab.RuntimeMismatch): lab.inspect_world(canon(current))
+
+    def test_different_text_source_sets_are_unavailable_not_invalid(self):
+        raw = lab.create_world('check true', [])
+        for change in ('add', 'remove', 'empty', 'rename'):
+            doc = decode(raw)
+            if change == 'add': doc['sources']['future.py'] = '# not executed'
+            elif change == 'remove': del doc['sources']['lineage.py']
+            elif change == 'empty': doc['sources'] = {}
+            else: doc['sources']['new-name.py'] = doc['sources'].pop('lineage.py')
+            with self.subTest(change=change), self.assertRaises(lab.RuntimeMismatch):
+                lab.inspect_world(canon(doc))
+        # Names are inert data; unsupported maps refuse before any extraction.
+        doc = decode(raw); doc['sources']['../../escape'] = 'raise AssertionError()'
+        with tempfile.TemporaryDirectory() as tmp:
+            output = Path(tmp)/'unpacked'
+            with self.assertRaises(lab.RuntimeMismatch): lab.unpack_world(canon(doc), output)
+            self.assertFalse(output.exists())
 
     def test_malformed_runtime_material_is_still_invalid(self):
         raw = Path(__file__).with_name('world-build17-9a52255.json').read_bytes()
