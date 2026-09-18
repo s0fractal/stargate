@@ -1,7 +1,7 @@
 # Stargate contract
 
 Status: **32K — DRAFT, implemented for the single signed-check flow below**.
-Build 9 is a local development implementation, not an adopted or published
+Build 10 is a local development implementation, not an adopted or published
 standard. It is not a Warrant verifier.
 
 ## One temperature
@@ -114,7 +114,7 @@ promised (the inherited evaluator adjusts Python's recursion limit).
 An envelope has exactly `body` and `signature`. Its body has exactly:
 
 ```json
-{"stargate":32,"build":"9","key":"<public key hex>","check":{"term":"<hash>","atp":4,"expect":"<hash>","exit":"normal_form","environment":["<term hash>"]},"decision":"accept","policy":null,"subject":null}
+{"stargate":32,"build":"10","key":"<public key hex>","check":{"term":"<hash>","atp":4,"expect":"<hash>","exit":"normal_form","environment":["<term hash>"]},"decision":"accept","policy":null,"subject":null}
 ```
 
 This example is explanatory, not canonical field ordering. The encoding is
@@ -389,3 +389,36 @@ or establish content safety. Hashing is not an atomic snapshot or a lock against
 later mutation. Consumers acting on a file must preserve the checked bytes.
 No artifact execution, publication, freshness or replay prevention is provided.
 This is one revised 32K draft body, without a legacy acceptance path.
+
+
+## Artifact admission
+
+admit_bundle(raw, trusted_keys, *, rule, facts, subject, output) accepts local
+source and destination paths. It stages the source in a mode-0600 temporary file
+in the output directory and hashes exactly the chunks written, using the same
+regular-file and detected-change rules as subject hashing. It closes the staged
+writer before invoking require_bundle with that hash as the required subject.
+
+On unsatisfied it returns the requirement report plus artifact:null and MUST NOT
+publish the output. On satisfied it exclusively hard-links the staged file to
+the output path. It MUST NOT copy or link the original source for publication,
+and MUST NOT overwrite an existing destination, including a symlink. Thus source
+replacement after staging cannot change the admitted bytes. Atomic destination
+creation, rather than a prior existence check, handles a competing creator.
+
+Success returns {status:admitted, artifact:{path,sha256}, requirement:REPORT}.
+The report is unsigned local output. CLI admit has required --subject and --output
+in addition to --trust, --rule, --facts and bundle path. It uses exit 0 for admitted,
+4 for unsatisfied, 2 for invalid input/proof, 3 for unavailable input or verifier
+inability, and 1/operation_error for destination I/O failure. API input read I/O
+becomes StoreError; output I/O remains OSError. Verification exceptions propagate.
+The temporary path is removed in a finally block on ordinary control flow.
+
+The caller controls the destination directory. Other writers with access to the
+staged or final file are outside this guarantee. Staging is not an atomic source
+snapshot; the signed digest binds the bytes actually read. There is no crash
+recovery, fsync/durability, artifact execution, upload, replay prevention or
+permanent immutability. A crash can leave staging files; failure after link (for
+example cleanup failure) can leave a published output despite an error result.
+Source file size and disk consumption are not capped. No signed format, evaluator
+semantics or temperature change is introduced.

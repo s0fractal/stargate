@@ -1,7 +1,5 @@
 """One CLI, exposed as both stargate and sg."""
 import argparse
-import hashlib
-import stat
 import json
 import os
 from pathlib import Path
@@ -15,6 +13,7 @@ from .records import canon, decode, capture_environment, create_record, public_k
 from .store import Store, StoreError, hex_hash
 from .bundle import export_bundle, verify_bundle, read_bundle, write_bundle, require_bundle
 from .policy import author_policy, CompilerBug, DEFAULT_MAX_ATP
+from .artifact import subject_hash, admit_bundle
 
 
 def parser():
@@ -67,29 +66,15 @@ def parser():
     q.add_argument("--rule", required=True, type=Path)
     q.add_argument("--facts", required=True, type=Path)
     q.add_argument("--subject", type=Path, help="require SHA-256 of this regular file; omission requires an unbound record")
+    q = cmd("admit", "publish verified artifact bytes without replacing an existing file")
+    q.add_argument("path", type=Path)
+    q.add_argument("--trust", required=True, action="append", type=hex_hash)
+    q.add_argument("--rule", required=True, type=Path)
+    q.add_argument("--facts", required=True, type=Path)
+    q.add_argument("--subject", required=True, type=Path)
+    q.add_argument("--output", required=True, type=Path)
     return p
 
-
-def subject_hash(path):
-    if path is None:
-        return None
-    # Nonblocking open lets us reject FIFOs rather than waiting for a writer.
-    fd = os.open(path, os.O_RDONLY | os.O_NONBLOCK)
-    try:
-        before = os.fstat(fd)
-        if not stat.S_ISREG(before.st_mode):
-            raise ValueError('subject must be a regular file')
-        digest = hashlib.sha256()
-        with os.fdopen(fd, 'rb', closefd=False) as stream:
-            while chunk := stream.read(1024 * 1024):
-                digest.update(chunk)
-            after = os.fstat(fd)
-        if (before.st_size, before.st_mtime_ns, before.st_ctime_ns) != (
-                after.st_size, after.st_mtime_ns, after.st_ctime_ns):
-            raise OSError('subject changed while hashing')
-    finally:
-        os.close(fd)
-    return digest.hexdigest()
 
 
 def read_facts(path):
@@ -104,6 +89,15 @@ def read_facts(path):
 
 
 def execute(args):
+    if args.command == "admit":
+        try:
+            rule = args.rule.read_bytes().decode("utf-8")
+            facts = read_facts(args.facts)
+            raw = read_bundle(args.path)
+        except OSError as exc:
+            raise StoreError('cannot read admission input: ' + str(exc)) from exc
+        return admit_bundle(raw, set(args.trust), rule=rule, facts=facts,
+                            subject=args.subject, output=args.output)
     if args.command == "require":
         rule = args.rule.read_bytes().decode("utf-8")
         facts = read_facts(args.facts)
