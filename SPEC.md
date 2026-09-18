@@ -1,7 +1,7 @@
 # Stargate contract
 
 Status: **32K — DRAFT, implemented for the flows described below**.
-Build 15 is a local development implementation, not an adopted or published
+Build 16 is a local development implementation, not an adopted or published
 standard. It is not a Warrant verifier.
 
 ## One temperature
@@ -659,3 +659,45 @@ trust the interpreter and its standard library.
 
 Invalid input or local I/O errors in this minimal replay
 script may print a Python traceback; it never claims admission on those errors.
+
+
+## Counterexample-guided neighborhood search (build 16, draft)
+
+`lab-search` is an untrusted proposal strategy above the finite lab; it does not
+change world/proposal/admission formats. It considers preorder one-node negation,
+binary operator flip, operand swap, idempotence for structurally equal operands,
+and double-negation elimination, then traverses children left-to-right. Mutated
+ASTs are printed as fully parenthesized WPL with sorted declarations. Up to
+max_candidates (integer 1..256, default 32) generated strings are considered.
+Exact repeated strings and invalid generated rules still consume attempts.
+A generator's exhaustion is local to this neighborhood, not a no-solution proof.
+
+Experience is a data object with exactly parent, runtime_digest, counterexamples.
+Each of at most 256 entries has candidate text and input (the exact boolean
+assignment for all named inputs). Both identities must match the supplied world.
+Every entry is recomputed using compiler/kernel and the independent oracle;
+non-reproducing claims refuse as invalid. Resource refusal returns incomplete,
+checker disagreement checker_error. Only the first witness per input is retained.
+Caller-owned experience is snapshotted, never edited or executed.
+
+For each new candidate, replay remembered inputs first. A completed disagreement
+produces a screened attempt with its row witness; no full check is needed to
+reject that candidate. Matching this sample grants nothing. All survivors go to
+lab.verify_transition, including its independent oracle, coverage checks and
+cost objective. Full counterexamples extend experience. Any incomplete/checker
+error stops the search rather than silently being treated as a negative example.
+
+Reports contain parent, runtime_digest, attempted, full_checks, screened, attempts
+and experience. Per-attempt status is duplicate, invalid, screened, or the full
+lab result. found includes the exact two-field proposal and successor ID, with
+successor bytes returned separately. Search returns only a successor supplied
+by the full gate; a saved report has no admission authority. Experience can be
+reused as data, but neither search reports nor heuristics authenticate themselves.
+
+Statuses: found (CLI 0), neighborhood_exhausted (4), search_incomplete with
+candidate_limit (3), incomplete (3), checker_error (1). Malformed input is 2.
+Reaching the candidate limit remains incomplete even if the iterator would be
+exhausted on its next call; the search does not look ahead beyond the limit.
+The search budget excludes incoming experience replay (separately capped at 256
+witnesses) and is not an ATP/CPU aggregate budget. Output uses the existing
+exclusive bundle writer only after found. No other files are written by search.

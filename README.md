@@ -3,7 +3,7 @@
 One Python system for content-addressed computation and signed, reproducible
 checks. Working successor to Sigma-Glyph and Warrant; commands `stargate` / `sg`.
 
-**Build 15 · 32K draft (finite boolean laboratory candidate).** The evaluator, object store and one signed-check flow
+**Build 16 · 32K draft (counterexample-guided search candidate).** The evaluator, object store and one signed-check flow
 work. This is a development implementation, not an independently accepted
 release. Predecessor repositories remain unchanged.
 
@@ -614,3 +614,45 @@ second implementation of Stargate or a formal proof of its Python verifier.
 The tests separately exercise a shared-parser fault, an internal lowering fault
 and budget exhaustion. The packet pins exact source bytes; updating the runtime
 requires an explicit new experiment rather than quietly reinterpreting an old one.
+
+
+## Search with replayable counterexamples
+
+`sg lab-search` proposes deterministic one-edit WPL mutations and runs the
+existing full admission gate on survivors. It has no authority to weaken a
+world's objective. Start with a newly created packet for this runtime:
+
+```sh
+sg lab-create examples/search-parent.wpl --input a --input b --input c \
+  --objective lower_max_atp --output search-world.json
+sg lab-search search-world.json --max-candidates 32 --output successor.json > search.json
+```
+
+The report contains every attempted candidate, full verification reports or
+single-row screening witnesses, and `experience`. Save that object as JSON
+(e.g. `jq '.experience' search.json > experience.json`) to reuse it:
+
+```sh
+sg lab-search search-world.json --experience experience.json --max-candidates 32
+```
+
+Experience is bound to the exact parent and runtime, and every alleged
+counterexample is recomputed before it can prune candidates. A saved verdict
+is never accepted as proof. A candidate matching all remembered rows must still
+pass exhaustive `lab-check`; the report's `proposal` can be given directly to
+that command or to standalone replay. The search implementation is not part of
+the portable checker closure: its proposals need no trust in the generator.
+
+This is a bounded neighborhood, not complete synthesis: preorder negations,
+operator flips, operand swaps, idempotence and double-negation elimination.
+Only identical source strings are deduplicated, not programs that happen to
+agree on a finite sample. Up to 256 candidate attempts can be requested;
+duplicates and invalid mutations count toward that limit. The first admitted
+candidate wins; it is not asserted to be globally optimal. Experience restarts
+the same search with better screening, rather than resuming an execution cursor.
+
+Exit 0 = found; 4 = this finite neighborhood exhausted; 3 = candidate limit,
+evaluation incomplete or missing material; 2 = invalid input/experience;
+1 = checker or operation error. No unsuccessful path writes a successor.
+Neither exhaustion status means that no better program exists. Candidate count
+and each world's ATP bound are distinct; neither promises a CPU time bound.

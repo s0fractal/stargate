@@ -14,7 +14,7 @@ from .store import Store, StoreError, hex_hash
 from .bundle import export_bundle, verify_bundle, read_bundle, write_bundle, require_bundle
 from .policy import author_policy, CompilerBug, DEFAULT_MAX_ATP
 from .case import pack_case, inspect_case, read_case, unpack_case
-from . import lab
+from . import lab, search
 from .artifact import subject_hash, admit_bundle, admit_all, measure_subject
 
 
@@ -109,6 +109,11 @@ def parser():
     q = cmd("lab-unpack", "extract a standalone checker for explicit offline replay")
     q.add_argument("path", type=Path)
     q.add_argument("--output", required=True, type=Path)
+    q = cmd("lab-search", "search a bounded WPL neighborhood using replayed counterexamples")
+    q.add_argument("path", type=Path)
+    q.add_argument("--max-candidates", type=int, default=32)
+    q.add_argument("--experience", type=Path, help="previous experience object, rechecked before use")
+    q.add_argument("--output", type=Path, help="write found successor; never overwrite")
     return p
 
 
@@ -157,6 +162,16 @@ def read_admission_plan(path):
 
 
 def execute(args):
+    if args.command == 'lab-search':
+        try:
+            raw = lab.read_world(args.path)
+            experience = read_facts(args.experience) if args.experience else None
+        except OSError as exc:
+            raise StoreError('cannot read search input: ' + str(exc)) from exc
+        report, successor = search.search(raw, max_candidates=args.max_candidates, experience=experience)
+        if successor is not None and args.output is not None:
+            write_bundle(args.output, successor)
+        return report
     if args.command == "lab-create":
         raw = lab.create_world(args.rule.read_bytes().decode('utf-8'), sorted(args.inputs),
                                max_atp=args.max_atp, objective=args.objective)
@@ -318,6 +333,10 @@ def main(argv=None):
         print(json.dumps({"status": "invalid", "error": str(exc)}), file=sys.stderr)
         return 2
     print(json.dumps(result, ensure_ascii=False, sort_keys=True))
+    if args.command == 'lab-search':
+        if result['status'] == 'found': return 0
+        if result['status'] == 'checker_error': return 1
+        return 4 if result['status'] == 'neighborhood_exhausted' else 3
     if args.command == 'lab-check':
         if result['status'] == 'incomplete': return 3
         if result['status'] == 'checker_error': return 1
