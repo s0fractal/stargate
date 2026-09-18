@@ -263,7 +263,16 @@ for name in ('__init__.py', 'kernel.py', 'store.py', 'canonical.py', 'checks.py'
 from stargate.lab import read_world, read_proposal, verify_transition
 if args.lineage:
     from stargate.lineage import read, verify
-    report, tip = verify(read(args.proposal), args.expect_root)
+    from stargate.lab import RuntimeMismatch
+    from stargate.canonical import InvalidRecord
+    try:
+        report, tip = verify(read(args.proposal), args.expect_root)
+    except RuntimeMismatch as exc:
+        print(json.dumps({'status': 'runtime_unavailable', 'error': str(exc)}), file=sys.stderr)
+        raise SystemExit(3)
+    except InvalidRecord as exc:
+        print(json.dumps({'status': 'invalid', 'error': str(exc)}), file=sys.stderr)
+        raise SystemExit(2)
     print(json.dumps(report, sort_keys=True))
     if tip is not None and args.output is not None:
         with args.output.open('xb') as stream:
