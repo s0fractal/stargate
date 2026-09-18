@@ -569,7 +569,7 @@ An equivalence-world canonical JSON packet has exactly: `stargate_world:32`,
 `contract:"boolean-exhaustive-1"`, `rule`, `inputs`, `max_atp`, `objective`,
 `predecessor`, `guide`, `sources`, `license`. Its ID is SHA-256 of those bytes.
 `inputs` is a sorted list of zero to eight unique non-reserved WPL names;
-all must be declared and used by both programs. Rules use unassigned
+all must be declared by both programs; expressions may ignore declared inputs. Rules use unassigned
 `fact name: bool` declarations. The existing compiler's syntax/size/depth
 admission limits apply. `max_atp` is an integer in 0..10000, per program per
 row; it does not bound wall time. `objective` is `equivalence` or
@@ -1013,8 +1013,8 @@ state, events, initial, next, invariant, max_atp, sources, guide, license. state
 1..6 sorted unique WPL names; events is 0..2 sorted unique WPL names disjoint from
 state. initial is a nonempty list of distinct complete Boolean state assignments,
 at most 2**len(state). Its ordering breaks equal-length trace ties. next maps
-exactly each state name to a WPL rule declaring and using ALL sorted state+event
-names. invariant declares/uses ALL state names, and no events. Existing WPL source,
+exactly each state name to a WPL rule declaring ALL sorted state+event
+names. invariant declares ALL state names, and no events. Existing WPL source,
 token/depth/type limits apply. max_atp is integer 0..10000 per expression per
 valuation; it is not an aggregate run budget.
 
@@ -1192,8 +1192,7 @@ An internal observation view replaces ONLY invariant with the conjunction of
 initials and per-expression ATP ceiling remain unchanged. This view is never
 returned as machine bytes, admitted, or used to alter any stored contract.
 Its full graph is checked through the existing machine verifier (SKI and the
-independent Boolean evaluator). The observation may be incomplete because this
-tautology itself exceeds a small ATP budget.
+independent Boolean evaluator). Transition evaluation can still exhaust the inherited ATP budget.
 
 Only an established observation graph is assessed. Before using it, check unique
 reachable states, initial inclusion, full edge/event closure and counters, and
@@ -1254,3 +1253,18 @@ intermixed mode. Unknown options, mutually exclusive modes and modes that forbid
 outputs still refuse. This changes launcher/runtime digests; historical packet
 bytes are not rewritten. The supported Python range is an implementation promise,
 not a claim that every stdlib behavior is part of the semantic contract.
+
+
+## Input relevance by trust model (Build 27)
+
+Finite lab and machine declarations must exactly match their domain: no missing,
+extra, duplicate or unknown names. An expression may use any subset, including
+none. The compiler and independent oracle each enforce declaration/domain equality
+separately. Lab enumeration remains over the full declared domain. Search preserves
+all declarations even when a mutation removes the final use of a name.
+
+The low-level parse/compile_source/boolean.program option allow_unused defaults to
+false. Lab validation, execution, screening and machine evaluation opt in explicitly.
+Signed policy authoring and provenance verification do not opt in and still refuse
+unused facts, even when the underlying raw computation was compiled in lab mode.
+The strict policy rule is not a restriction on a lab world's input domain.

@@ -119,7 +119,7 @@ class PropertyWorlds(unittest.TestCase):
             r,tip=check(world(),'a || b')
         self.assertEqual(r['status'],'checker_error');self.assertIsNone(tip)
         original=compiler.parse
-        def wrong(source,inputs=None):return original(source.replace('||','&&'),inputs)
+        def wrong(source,inputs=None,**kw):return original(source.replace('||','&&'),inputs,**kw)
         raw=world()
         with patch.object(compiler,'parse',wrong):r,tip=check(raw,'a || b')
         self.assertEqual((r['status'],r['program']),('checker_error','candidate'))

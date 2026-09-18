@@ -9,7 +9,7 @@ class BooleanSyntax(ValueError):
     pass
 
 
-def program(source, names):
+def program(source, names, *, allow_unused=False):
     if not isinstance(source, str) or len(source.encode('utf-8')) > 8192:
         raise BooleanSyntax('expected WPL text of at most 8192 bytes')
     tokens = []
@@ -73,7 +73,7 @@ def program(source, names):
             operators.append(token); operand = True
         else:
             raise BooleanSyntax('expected operator')
-    if operand or '(' in operators or used != set(names):
+    if operand or '(' in operators or (not allow_unused and used != set(names)):
         raise BooleanSyntax('incomplete expression or unused input')
     output.extend(reversed(operators))
     return tuple(output)

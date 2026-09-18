@@ -11,7 +11,7 @@ In the default equivalence mode, a changed answer produces a concrete
 counterexample. A cheaper equivalent rule
 can become the next world; an unfinished check establishes nothing.
 
-**Build 26 · 32K draft.** The contract can change incompatibly. This is an
+**Build 27 · 32K draft.** The contract can change incompatibly. This is an
 experimental implementation, not a stable release or a general program prover.
 Python only; commands `sg` and `stargate`. MIT licensed.
 
@@ -620,7 +620,7 @@ only the following JSON shape, copying the parent ID verbatim:
 ```
 
 The ellipses above are placeholders, not valid WPL. All eight declarations must
-be present and used. [lab-candidate.wpl](examples/lab-candidate.wpl) is a complete
+be declared; their use in the expression is optional. [lab-candidate.wpl](examples/lab-candidate.wpl) is a complete
 valid candidate for the example. Save the model's JSON response as `proposal.json`.
 It supplies no verdicts, digests, ATP claims or signatures.
 
@@ -1003,9 +1003,8 @@ sg machine-check machine.json --expect-machine "$MACHINE_ID"
 
 This example exits **4**, with the exact counterexample `00 → 01 → 11`:
 `next(a)=b`, `next(b)=!a`, invariant `!a`. An in-place implementation would
-incorrectly compute the second step as `10`. The WPL examples include tautologies
-for irrelevant inputs because the existing language requires using every declared
-fact. Next rules declare all state/event names; the invariant declares only state
+incorrectly compute the second step as `10`. Older WPL examples include tautologies for irrelevant inputs; these are now
+optional in laboratory and machine rules. Next rules declare all state/event names; the invariant declares only state
 names. No new expression syntax is introduced.
 
 The checker explores breadth-first, evaluates every initial/newly reached state,
@@ -1183,7 +1182,7 @@ claim gives `established`/0 or `counterexample`/4. Incomplete graph exploration 
 3 **with no property verdicts**, even if the partial graph already contains a bad
 state. Checker disagreement gives 1, invalid claims or anchors give 2. `--max-edges`
 applies to the observation graph; the original per-expression ATP ceiling is kept.
-The observation tautology has its own cost, so a small budget can prevent discovery.
+Transition expressions still consume ATP, so a small budget can prevent discovery.
 
 After unpacking and independently authenticating the launcher/runtime, the same
 operations work offline:
@@ -1198,3 +1197,13 @@ python -I -S machine-offline/replay.py machine-claim.json \
 Neither mode accepts an output path; reports go to stdout. These are finite
 reachable-state predicates, not liveness, fairness, inductive-invariant synthesis,
 or a guarantee that the catalog captures what matters to your application.
+
+
+Laboratory rules declare their complete input domain but may ignore inputs in the
+expression. `fact a: bool / fact b: bool / check a` needs no `(b || !b)` padding.
+The domain still includes all four input combinations. This applies to lab checks,
+search, invariants, machine transitions and observation. Signed policy authoring
+and provenance verification still reject unused facts. Low-level compiler/oracle
+APIs remain strict by default; only explicit `allow_unused=True` selects lab behavior.
+ATP remains the cost of the actual lowering/evaluation, not a semantic complexity
+measure; removing padding does not make it invariant under equivalent rewrites.

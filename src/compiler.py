@@ -33,7 +33,7 @@ class CompilerBug(RuntimeError):
     """Compiler output disagrees with the source interpreter or emission gate."""
 
 
-def parse(source, inputs=None):
+def parse(source, inputs=None, *, allow_unused=False):
     if not isinstance(source, str):
         raise PolicyError('source must be text')
     try:
@@ -109,7 +109,7 @@ def parse(source, inputs=None):
     expression = disjunction(0)
     if peek() is not None:
         raise PolicyError('expected exactly one check and no trailing tokens')
-    if used != set(facts):
+    if not allow_unused and used != set(facts):
         raise PolicyError('unused facts: ' + ', '.join(sorted(set(facts) - used)))
     if inputs is not None and set(inputs) != set(facts):
         raise PolicyError('facts must exactly match the rule declarations')
@@ -146,13 +146,13 @@ class CompiledPolicy:
     atp_spent: int
 
 
-def compile_source(source, *, max_atp=DEFAULT_MAX_ATP, facts=None, limits=None):
+def compile_source(source, *, max_atp=DEFAULT_MAX_ATP, facts=None, limits=None, allow_unused=False):
     if type(max_atp) is not int or not 0 <= max_atp <= k.VERIFIER_LIMITS['max_atp']:
         raise PolicyError('compile limit must be an integer within the verifier ATP ceiling')
     if facts is not None and (not isinstance(facts, dict)
                               or not all(isinstance(n, str) and type(v) is bool for n, v in facts.items())):
         raise PolicyError('facts must be an object of boolean values')
-    expr, facts = parse(source, facts)
+    expr, facts = parse(source, facts, allow_unused=allow_unused)
     value = interpret(expr, facts)
     term = lower(expr, facts)
     objects = {k.FALSE_H: k.FALSE_BYTES}
