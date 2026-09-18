@@ -8,7 +8,7 @@ import unittest
 from unittest.mock import patch
 
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
-from stargate import kernel as k, policy as p
+from stargate import kernel as k, compiler as p, policy
 from stargate.records import canon, decode, public_key, verify_record
 from stargate.store import Store
 
@@ -26,7 +26,7 @@ class Policy(unittest.TestCase):
                       'check within_window && !retroactive')
             with self.subTest(window=window, retro=retro), tempfile.TemporaryDirectory() as tmp:
                 store = Store(tmp)
-                result = p.author_policy(RULE, dict(within_window=window, retroactive=retro), store, key)
+                result = policy.author_policy(RULE, dict(within_window=window, retroactive=retro), store, key)
                 expected = window and not retro
                 self.assertEqual(result['policy_value'], expected)
                 self.assertEqual(result['decision'], 'accept' if expected else 'reject')
@@ -78,14 +78,14 @@ class Policy(unittest.TestCase):
         for budget in (-1, True, 1.5, 0, 2**32):
             with tempfile.TemporaryDirectory() as tmp:
                 with self.assertRaises(p.PolicyError):
-                    p.author_policy(RULE, FACTS, Store(tmp), key, max_atp=budget)
+                    policy.author_policy(RULE, FACTS, Store(tmp), key, max_atp=budget)
                 self.assertEqual(list(Path(tmp).iterdir()), [])
 
     def test_wrong_lowering_refused_before_emission(self):
         with tempfile.TemporaryDirectory() as tmp:
             with patch.object(p, 'lower', return_value=('thunk', k.K_H)):
                 with self.assertRaises(p.CompilerBug):
-                    p.author_policy('check false', {}, Store(tmp), Ed25519PrivateKey.generate())
+                    policy.author_policy('check false', {}, Store(tmp), Ed25519PrivateKey.generate())
             self.assertEqual(list(Path(tmp).iterdir()), [])
 
     def test_serialized_budget_mutation_is_caught(self):

@@ -4,8 +4,6 @@ Canonical encoding and signature patterns adapted from Warrant (MIT).
 No Warrant version registry or historical evaluator is loaded.
 """
 import hashlib
-import json
-from dataclasses import dataclass
 
 from cryptography.exceptions import InvalidSignature
 from cryptography.hazmat.primitives import serialization
@@ -13,157 +11,11 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey,
 
 from . import KELVIN, __version__
 from . import kernel
-from .store import hex_hash, StoreError
+from .store import StoreError
+from .canonical import canon, decode, exact, record_hash, InvalidRecord
+from .checks import validate_check, Outcome, BoundEnvironment, capture_environment, run_check, fingerprint
 
 DOMAIN = b"stargate-record:"
-MAX_INT = 2**53 - 1
-
-
-class InvalidRecord(ValueError):
-    """Invalid input or unsupported contract, not a canonical check failure."""
-
-
-def canon(value):
-    """Integer-domain JCS: UTF-16 key ordering, no floats or surrogate strings."""
-    def render(x):
-        if x is None:
-            return "null"
-        if type(x) is bool:
-            return "true" if x else "false"
-        if type(x) is int and -MAX_INT <= x <= MAX_INT:
-            return str(x)
-        if isinstance(x, str):
-            x.encode("utf-8", errors="strict")
-            return json.dumps(x, ensure_ascii=False, separators=(",", ":"))
-        if isinstance(x, list):
-            return "[" + ",".join(render(v) for v in x) + "]"
-        if isinstance(x, dict) and all(isinstance(k, str) for k in x):
-            keys = sorted(x, key=lambda k: k.encode("utf-16-be"))
-            return "{" + ",".join(render(k) + ":" + render(x[k]) for k in keys) + "}"
-        raise InvalidRecord("unsupported canonical JSON value")
-    try:
-        return render(value).encode("utf-8")
-    except (UnicodeError, RecursionError) as exc:
-        raise InvalidRecord("invalid JSON string or nesting") from exc
-
-
-def decode(raw):
-    def unique(pairs):
-        result = {}
-        for k, v in pairs:
-            if k in result:
-                raise InvalidRecord("duplicate JSON key")
-            result[k] = v
-        return result
-    try:
-        doc = json.loads(raw, object_pairs_hook=unique)
-        if canon(doc) != raw:
-            raise InvalidRecord("record must be canonical JSON bytes")
-        return doc
-    except (ValueError, UnicodeError, RecursionError) as exc:
-        raise InvalidRecord(str(exc)) from exc
-
-
-def exact(doc, keys):
-    if not isinstance(doc, dict) or set(doc) != set(keys):
-        raise InvalidRecord("unexpected fields; expected " + ", ".join(keys))
-
-
-def record_hash(value):
-    try:
-        return hex_hash(value)
-    except ValueError as exc:
-        raise InvalidRecord(str(exc)) from exc
-
-
-def validate_check(check):
-    exact(check, ("term", "atp", "expect", "exit", "environment"))
-    record_hash(check["term"])
-    record_hash(check["expect"])
-    env = check["environment"]
-    if not isinstance(env, list):
-        raise InvalidRecord("environment must be a sorted unique list of hashes")
-    for h in env:
-        record_hash(h)
-    if env != sorted(set(env)):
-        raise InvalidRecord("environment must be sorted and unique")
-    if type(check["atp"]) is not int or not 0 <= check["atp"] <= kernel.UINT32_MAX:
-        raise InvalidRecord("atp must be uint32")
-    if check["exit"] not in kernel.EXITS:
-        raise InvalidRecord("unknown expected exit")
-
-
-@dataclass(frozen=True)
-class Outcome:
-    verdict: str
-    result_hash: str
-    exit: str
-    atp_spent: int
-
-    def as_dict(self):
-        return dict(verdict=self.verdict, result_hash=self.result_hash,
-                    exit=self.exit, atp_spent=self.atp_spent)
-
-
-class BoundEnvironment:
-    """A signed domain: extra local objects are invisible, missing members fault."""
-    def __init__(self, store, addresses):
-        self.store = store
-        self.addresses = frozenset(bytes.fromhex(h) for h in addresses)
-        self.cache = {}
-
-    def get(self, h):
-        if h not in self.addresses:
-            return None
-        if h not in self.cache:
-            raw = self.store.get(h)
-            if raw is None:
-                raise StoreError("declared object missing: " + h.hex())
-            if not isinstance(raw, bytes) or hashlib.sha256(raw).digest() != h:
-                raise StoreError("CAS key mismatch: " + h.hex())
-            self.cache[h] = raw
-        return self.cache[h]
-
-
-def capture_environment(term, atp, store):
-    """CLI authoring convenience: discover demanded objects, never infer absence.
-
-    Missing demanded bytes abort authoring. Intentional unresolved outcomes
-    require an explicit signed domain, including an explicitly empty list.
-    """
-    seen = {}
-    class Capture:
-        def get(self, h):
-            if h not in seen:
-                raw = store.get(h)
-                if raw is None:
-                    raise StoreError("cannot capture missing object: " + h.hex())
-                if not isinstance(raw, bytes) or hashlib.sha256(raw).digest() != h:
-                    raise StoreError("CAS key mismatch: " + h.hex())
-                seen[h] = raw
-            return seen[h]
-    kernel.eval_receipt(bytes.fromhex(record_hash(term)), atp, Capture(), kernel.VERIFIER_LIMITS)
-    return sorted(h.hex() for h in seen)
-
-
-def run_check(check, store, *, limits=None):
-    check = decode(canon(check))
-    validate_check(check)
-    policy = dict(kernel.VERIFIER_LIMITS)
-    if limits is not None:
-        policy.update(limits)
-    receipt = kernel.eval_receipt(bytes.fromhex(check["term"]), check["atp"],
-                                  BoundEnvironment(store, check["environment"]), policy)
-    result = receipt.result_hash.hex()
-    verdict = "pass" if (result == check["expect"] and receipt.exit == check["exit"]) else "fail"
-    return Outcome(verdict, result, receipt.exit, receipt.atp_spent)
-
-
-def fingerprint(check, outcome):
-    """Outcome identity, deliberately excluding budget and spent work."""
-    validate_check(check)
-    return ("stargate", KELVIN, tuple(check["environment"]), check["term"], check["expect"], check["exit"],
-            outcome.verdict, outcome.result_hash, outcome.exit)
 
 
 def public_key(key):
@@ -275,7 +127,7 @@ def verify_policy(body, store, *, limits=None):
     """
     if body['policy'] is None:
         return None
-    from .policy import compile_source, PolicyError, CompilerBug
+    from .compiler import compile_source, PolicyError, CompilerBug
     policy_limits = dict(kernel.VERIFIER_LIMITS)
     if limits is not None:
         policy_limits.update(limits)

@@ -67,8 +67,6 @@ import subprocess
 import sys
 import zipfile
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-
 from stargate.artifact import admit_all                      # noqa: E402
 from stargate.bundle import read_bundle          # noqa: E402
 from stargate.policy import PolicyError                          # noqa: E402

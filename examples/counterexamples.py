@@ -8,7 +8,7 @@ import subprocess
 import sys
 
 ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT))
+# Install this checkout (editable or wheel) before running the generator.
 from stargate.case import pack_case
 
 OLD = 'aefe998f7c98dbdc4132fb464b67e17029b59c6b'

@@ -104,6 +104,6 @@ class Provenance(unittest.TestCase):
             verify_record(self.resign(envelope), self.store, self.trust)
 
     def test_untrusted_signature_does_not_invoke_compiler(self):
-        with patch.object(policy, 'compile_source', side_effect=AssertionError('untrusted compile')):
+        with patch('stargate.compiler.compile_source', side_effect=AssertionError('untrusted compile')):
             with self.assertRaisesRegex(InvalidRecord, 'trusted'):
                 verify_record(self.raw, self.store, set())
