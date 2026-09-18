@@ -1,7 +1,7 @@
 # Stargate contract
 
 Status: **32K — DRAFT, implemented for the single signed-check flow below**.
-Build 10 is a local development implementation, not an adopted or published
+Build 11 is a local development implementation, not an adopted or published
 standard. It is not a Warrant verifier.
 
 ## One temperature
@@ -114,7 +114,7 @@ promised (the inherited evaluator adjusts Python's recursion limit).
 An envelope has exactly `body` and `signature`. Its body has exactly:
 
 ```json
-{"stargate":32,"build":"10","key":"<public key hex>","check":{"term":"<hash>","atp":4,"expect":"<hash>","exit":"normal_form","environment":["<term hash>"]},"decision":"accept","policy":null,"subject":null}
+{"stargate":32,"build":"11","key":"<public key hex>","check":{"term":"<hash>","atp":4,"expect":"<hash>","exit":"normal_form","environment":["<term hash>"]},"decision":"accept","policy":null,"subject":null}
 ```
 
 This example is explanatory, not canonical field ordering. The encoding is
@@ -384,7 +384,7 @@ recipient artifact is unverified/3; a complete verified proof with a different
 subject is unsatisfied/4. Existing verification failures retain their classes.
 
 The binding authenticates that the signer associated this decision with that
-digest. It does not derive boolean facts from the artifact, prove availability,
+digest. The binding alone does not derive boolean facts from the artifact, prove availability,
 or establish content safety. Hashing is not an atomic snapshot or a lock against
 later mutation. Consumers acting on a file must preserve the checked bytes.
 No artifact execution, publication, freshness or replay prevention is provided.
@@ -422,3 +422,44 @@ permanent immutability. A crash can leave staging files; failure after link (for
 example cleanup failure) can leave a published output despite an error result.
 Source file size and disk consumption are not capped. No signed format, evaluator
 semantics or temperature change is introduced.
+
+
+## Locally derived artifact facts
+
+policy, require and admit accept exactly one of --facts FILE or --derive FILE.
+Derive requires a subject file. The profile is a JSON object of 1–32 WPL fact
+names, each mapping to exactly one predicate. The complete computed fact domain
+must match the rule's declared and used facts; no mixing with manual inputs.
+Duplicate keys are invalid. Profiles are snapshotted before measurement.
+
+Predicates: {size_at_least:N} means total byte count >= N; {size_at_most:N} means
+byte count <= N; N is an integer in [0, 2^53), excluding booleans.
+{utf8:true} means the full byte sequence decodes with strict UTF-8, including EOF.
+No other parameters or predicates are accepted. Empty bytes, NUL and BOM are
+valid UTF-8. Overlong, surrogate, out-of-range and incomplete encodings are not.
+Results must be independent of chunk boundaries. Memory use for content is
+bounded by streaming chunks and decoder state; file size/time remains uncapped.
+
+measure_subject(path, profile) returns {profile,facts,subject}; digest and facts
+must be computed from the same byte stream. Authoring passes these facts and
+subject to the unchanged signed policy flow. In derived admission, both hash and
+fact measurements MUST consume the chunks written to staging, without a second
+source read. Derived facts become the exact recipient inputs to require_bundle.
+Subject comparison, rule comparison, decision and publication rules remain in
+force. API admit_bundle accepts exactly one of facts or derive. CLI input/profile
+read errors keep the existing authoring/verification classifications.
+
+A verified signed accept whose facts disagree with measurement is unsatisfied
+with facts_mismatch; an honest false fact set that makes the rule reject is
+unsatisfied with decision_reject. Profile/domain errors are invalid, never a
+boolean false fact. Failed UTF-8 decoding is a false predicate, not a tool error.
+
+The local requirement report includes derivation:{profile,facts,subject}; the
+admitted report nests it under requirement. This is unsigned local measurement.
+The recipient MUST select the profile independently; no bundle-supplied profile
+is used as authority. Profiles are not signed, stored as provenance dependencies,
+or needed for verify-bundle. The signature continues to bind actual boolean
+facts and subject, not the method by which a signer obtained them. Thus a bundle
+alone is not evidence that any derivation was performed. Only these byte
+properties are measured; no broader content safety or real-world fact truth is
+established. Signed body/bundle formats and 32K remain unchanged.

@@ -13,7 +13,7 @@ from .records import canon, decode, capture_environment, create_record, public_k
 from .store import Store, StoreError, hex_hash
 from .bundle import export_bundle, verify_bundle, read_bundle, write_bundle, require_bundle
 from .policy import author_policy, CompilerBug, DEFAULT_MAX_ATP
-from .artifact import subject_hash, admit_bundle
+from .artifact import subject_hash, admit_bundle, measure_subject
 
 
 def parser():
@@ -45,7 +45,9 @@ def parser():
                    help="JSON list defining the exact object domain; otherwise capture demanded objects")
     q = cmd("policy", "compile a boolean WPL file and sign its decision")
     q.add_argument("source", type=Path)
-    q.add_argument("--facts", required=True, type=Path)
+    inputs = q.add_mutually_exclusive_group(required=True)
+    inputs.add_argument("--facts", type=Path)
+    inputs.add_argument("--derive", type=Path, help="derive boolean facts from subject bytes using this JSON profile")
     q.add_argument("--subject", type=Path, help="bind to SHA-256 of this regular file")
     q.add_argument("--key", required=True, type=Path)
     q.add_argument("--max-atp", type=int, default=DEFAULT_MAX_ATP)
@@ -64,13 +66,17 @@ def parser():
     q.add_argument("path", type=Path)
     q.add_argument("--trust", required=True, action="append", type=hex_hash)
     q.add_argument("--rule", required=True, type=Path)
-    q.add_argument("--facts", required=True, type=Path)
+    inputs = q.add_mutually_exclusive_group(required=True)
+    inputs.add_argument("--facts", type=Path)
+    inputs.add_argument("--derive", type=Path, help="derive boolean facts from subject bytes using this JSON profile")
     q.add_argument("--subject", type=Path, help="require SHA-256 of this regular file; omission requires an unbound record")
     q = cmd("admit", "publish verified artifact bytes without replacing an existing file")
     q.add_argument("path", type=Path)
     q.add_argument("--trust", required=True, action="append", type=hex_hash)
     q.add_argument("--rule", required=True, type=Path)
-    q.add_argument("--facts", required=True, type=Path)
+    inputs = q.add_mutually_exclusive_group(required=True)
+    inputs.add_argument("--facts", type=Path)
+    inputs.add_argument("--derive", type=Path, help="derive boolean facts from subject bytes using this JSON profile")
     q.add_argument("--subject", required=True, type=Path)
     q.add_argument("--output", required=True, type=Path)
     return p
@@ -88,21 +94,32 @@ def read_facts(path):
     return json.loads(path.read_text(encoding="utf-8"), object_pairs_hook=unique)
 
 
+def selected_facts(args):
+    if args.derive:
+        measurement = measure_subject(args.subject, read_facts(args.derive))
+        return measurement['facts'], measurement['subject'], measurement
+    return read_facts(args.facts), subject_hash(args.subject), None
+
+
 def execute(args):
     if args.command == "admit":
         try:
             rule = args.rule.read_bytes().decode("utf-8")
-            facts = read_facts(args.facts)
+            facts = read_facts(args.facts) if args.facts else None
+            derive = read_facts(args.derive) if args.derive else None
             raw = read_bundle(args.path)
         except OSError as exc:
             raise StoreError('cannot read admission input: ' + str(exc)) from exc
         return admit_bundle(raw, set(args.trust), rule=rule, facts=facts,
-                            subject=args.subject, output=args.output)
+                            subject=args.subject, output=args.output, derive=derive)
     if args.command == "require":
         rule = args.rule.read_bytes().decode("utf-8")
-        facts = read_facts(args.facts)
+        facts, h, measurement = selected_facts(args)
         raw = read_bundle(args.path)
-        return require_bundle(raw, set(args.trust), rule=rule, facts=facts, subject=subject_hash(args.subject))
+        report = require_bundle(raw, set(args.trust), rule=rule, facts=facts, subject=h)
+        if measurement is not None:
+            report['derivation'] = measurement
+        return report
     store = Store(args.store)
     if args.command == "verify-bundle":
         return verify_bundle(read_bundle(args.path), set(args.trust))
@@ -143,9 +160,12 @@ def execute(args):
                 "decision": envelope["body"]["decision"]}
     if args.command == "policy":
         key = Ed25519PrivateKey.from_private_bytes(bytes.fromhex(args.key.read_text().strip()))
-        facts = read_facts(args.facts)
-        return author_policy(args.source.read_bytes().decode("utf-8"), facts, store, key,
-                             max_atp=args.max_atp, subject=subject_hash(args.subject))
+        facts, h, measurement = selected_facts(args)
+        report = author_policy(args.source.read_bytes().decode("utf-8"), facts, store, key,
+                               max_atp=args.max_atp, subject=h)
+        if measurement is not None:
+            report['derivation'] = measurement
+        return report
     if args.command == "verify":
         return verify_record(store.read(args.object), store, set(args.trust))
     raise ValueError("unknown operation")

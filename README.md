@@ -3,7 +3,7 @@
 One Python system for content-addressed computation and signed, reproducible
 checks. Working successor to Sigma-Glyph and Warrant; commands `stargate` / `sg`.
 
-**Build 10 · 32K draft (artifact admission candidate).** The evaluator, object store and one signed-check flow
+**Build 11 · 32K draft (derived artifact facts candidate).** The evaluator, object store and one signed-check flow
 work. This is a development implementation, not an independently accepted
 release. Predecessor repositories remain unchanged.
 
@@ -71,6 +71,7 @@ trust boundary, not an embedded self-digest or runtime registry.
 - `policy.py`: small boolean WPL frontend; emits existing SKI checks.
 - `bundle.py`: portable signed checks; no archive extraction or store fallback.
 - `artifact.py`: streaming subject hashing and publication of admitted copies.
+- `facts.py`: bounded profiles of deterministic byte predicates.
 - `tests/`: semantic vectors, signature/refusal controls and end-to-end CLI.
 
 ## Scope of this transfer
@@ -112,7 +113,7 @@ Python 3.14 is the tested environment for this port; metadata permits Python
 subprocess CLI flow, corruption, signature/decision tampering, unsupported
 editions, local refusal, and the isolated same-result/different-exit case.
 
-Local artifact-admission validation: all 84 tests passed both in the checkout and against a
+Local derived-fact validation: all 92 tests passed both in the checkout and against a
 wheel-installed package outside the checkout, including the 49 imported kernel
 cases. Both console aliases report build 7 / 32K. An external in-memory mutation
 omitting actual exit from the fingerprint makes the isolating test fail by an
@@ -320,8 +321,9 @@ The verified report exposes the signed subject, and the requirement report also
 contains the recipient's expected subject. A changed subject changes Record ID
 and needs a new signature; the computational fingerprint is unaffected.
 
-The subject is a statement of what the decision concerns, not evidence that the
-boolean facts describe that file correctly. Its bytes are not bundled, stored,
+The subject alone is a statement of what the decision concerns, not evidence that
+the boolean facts describe that file correctly. The optional derivation below
+checks a limited set of byte properties independently. Its bytes are not bundled, stored,
 or fetched by the evaluator. `verify-bundle` authenticates the subject claim
 without checking artifact availability; `require --subject` compares local bytes.
 No filename, filesystem permission, safety, freshness or single-use guarantee is
@@ -373,3 +375,63 @@ an artifact, or upload it. File size/disk use is not capped; hashing uses bounde
 memory. The signed subject still expresses the signer's association with the
 facts, not proof of their real-world truth. The record and bundle formats and
 32K temperature are unchanged by this stage.
+
+
+## Derive facts from the actual artifact
+
+The recipient can compute byte properties instead of trusting supplied booleans.
+Use a rule whose declarations match a locally selected derivation profile:
+
+```text
+fact nonempty: bool
+fact small: bool
+fact text: bool
+check nonempty && small && text
+```
+
+Save `profile.json`:
+
+```json
+{"nonempty":{"size_at_least":1},"small":{"size_at_most":1048576},"text":{"utf8":true}}
+```
+
+```sh
+sg policy rule.wpl --derive profile.json --subject candidate.txt --key signing.key
+sg export ENVELOPE_OBJECT_HASH proof.json --trust PUBLIC_KEY
+sg admit proof.json --trust PUBLIC_KEY --rule rule.wpl --derive profile.json \
+  --subject candidate.txt --output approved.txt
+```
+
+`--derive` replaces `--facts` on policy, require and admit; they are mutually
+exclusive. Derivation requires a subject file. A profile contains 1–32 named
+facts, each with exactly one predicate: inclusive `size_at_least`, inclusive
+`size_at_most` (nonnegative integer byte thresholds below 2^53), or `utf8: true`
+(strict UTF-8 validity). Boolean thresholds, unknown predicates, duplicate JSON
+keys and nonmatching/unused fact domains are invalid. No external commands or
+plugins are loaded. All rule facts must be derived in this mode; manual and
+derived facts cannot be mixed.
+
+Size means byte count, not character count. UTF-8 is checked incrementally,
+including a final decoder flush; malformed sequences and incomplete tails give
+false. Empty content is valid UTF-8 (use size_at_least to require nonempty).
+BOM and NUL are valid UTF-8; validity does not imply safe markup or safe execution.
+
+Authoring signs the measured facts and subject through the existing record.
+The recipient selects its own profile independently of the sender. In admit,
+measurement sees exactly the chunks written to the staged file, in the same pass
+as subject hashing. The computed facts become the expected facts for require.
+A signed lie gives facts_mismatch/4; honest false facts that make the rule false
+give decision_reject/4. Neither publishes. Changing the original after staging
+cannot change the measured facts or admitted bytes.
+
+The local report adds `derivation: {profile, facts, subject}` (under requirement
+for admitted output). This measurement report is unsigned. The profile is local
+configuration, not signed or transported: it defines what the recipient measures,
+not a portable proof of how the author obtained facts. verify-bundle still checks
+only signed compilation/computation, without inspecting artifact bytes.
+
+Python: `measure_subject(path, profile)` returns the measurement in one read;
+`admit_bundle(..., derive=profile, subject=path, output=path)` computes it during
+staging. Exactly one of facts or derive is required. Manual --facts mode remains
+an assertion supplied by the caller. No claim is made about properties beyond
+these three byte predicates, and no signed format or Kelvin change is added.
