@@ -3,7 +3,7 @@
 One Python system for content-addressed computation and signed, reproducible
 checks. Working successor to Sigma-Glyph and Warrant; commands `stargate` / `sg`.
 
-**Build 16 · 32K draft (counterexample-guided search candidate).** The evaluator, object store and one signed-check flow
+**Build 17 · 32K draft (finite property discovery candidate).** The evaluator, object store and one signed-check flow
 work. This is a development implementation, not an independently accepted
 release. Predecessor repositories remain unchanged.
 
@@ -663,3 +663,58 @@ exit is 3 rather than 4. Checker errors stop immediately; unresolved incoming
 experience is refused before search. Neither exhaustion status means that no
 better program exists. Candidate count
 and each world's ATP bound are distinct; neither promises a CPU time bound.
+
+## Discover finite input/output properties
+
+Build 17 adds a small hypothesis generator and a separate recomputing checker:
+
+```sh
+sg lab-create examples/invariants-parent.wpl --input a --input b \
+  --objective lower_max_atp --output properties-world.json
+sg lab-discover properties-world.json --output properties.json
+```
+
+For `a && (b || !b)` this establishes independence from `b` and monotonicity in
+both inputs. Independence from `a` is refuted by two assignments that differ only
+in `a`. The catalog tries exactly `2 + 2N` hypotheses: constant false/true,
+independence from each input, and monotonicity in each input. This is exhaustive
+checking of this catalog, not discovery of every possible invariant.
+
+A participant can copy one `results[].claim` into a JSON file, or propose it in
+chat without running anything. Its entire format is:
+
+```json
+{"parent":"COPY_WORLD_ID","property":{"kind":"independent","input":"b"}}
+```
+
+Other properties are `{"kind":"monotone","input":"a"}` and
+`{"kind":"constant","value":true}`. No claimed answer, digest or proof is
+accepted in this format. Check it with:
+
+```sh
+sg lab-check-invariant properties-world.json claim.json
+```
+
+The checker recomputes every input row through SKI and the independent Boolean
+oracle, then checks the property over that table. Monotone means false-to-true
+input changes cannot turn a true output into false. These are properties of the
+finite Boolean function, **not loop invariants, causality, or facts about external
+artifacts**. A small ATP budget gives `incomplete`, establishing nothing. Even a
+counterexample is reported only after the whole table is checked in this version.
+The world's optimization objective is irrelevant to property checking.
+
+Claims are also supported by portable replay. Follow the existing `lab-unpack`
+and independent launcher/runtime digest verification instructions above, then:
+
+```sh
+python -I -S replay.py claim.json --invariant --expect-runtime RUNTIME_DIGEST
+```
+
+Exit 0 means `established` for a claim, or `complete` for discovery (including
+refuted hypotheses); 4 means `counterexample`; 3 means incomplete or unavailable
+runtime; 2 invalid input; 1 checker/operation error. Reports include checked rows,
+a table digest and concrete counterexample witnesses. They are unsigned
+observations to recompute, not new authority or automatically adopted constraints.
+Neither command emits a successor. `--output` exclusively writes a completed
+catalog, never a partial one. Build 17 adds the property checker to the pinned
+runtime closure; create a new packet for it, rather than altering historical ones.

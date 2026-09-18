@@ -91,3 +91,12 @@ Neighbor concepts used for this step (original implementation, no copied code):
 - Sigma-Glyph's receipt-based reduction is already present in `kernel.py`.
   Search reuses the existing compiler/kernel path and its normal-form/ATP checks;
   it does not substitute an optimizer's predicted answer for a receipt.
+
+Build 17 adds `invariants` at x4, depending on `lab` and `canonical`. It reuses
+the established finite evaluator via self-comparison rather than adding another
+evaluation path. Hypothesis discovery has no admission authority. The property
+checker is included in the portable hashed closure and loaded from verified
+source snapshots after `lab`; the ordinary lab module does not import it.
+x0 remains empty. This extends the counterexample/refinement approach borrowed
+conceptually from Black-Heart: a guessed property is a claim to recheck, not a
+saved verdict to adopt. No neighboring implementation code is copied here.

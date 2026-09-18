@@ -14,7 +14,7 @@ from .store import Store, StoreError, hex_hash
 from .bundle import export_bundle, verify_bundle, read_bundle, write_bundle, require_bundle
 from .policy import author_policy, CompilerBug, DEFAULT_MAX_ATP
 from .case import pack_case, inspect_case, read_case, unpack_case
-from . import lab, search
+from . import lab, search, invariants
 from .artifact import subject_hash, admit_bundle, admit_all, measure_subject
 
 
@@ -114,6 +114,12 @@ def parser():
     q.add_argument("--max-candidates", type=int, default=32)
     q.add_argument("--experience", type=Path, help="previous experience object, rechecked before use")
     q.add_argument("--output", type=Path, help="write found successor; never overwrite")
+    q = cmd("lab-discover", "enumerate and check finite input/output properties")
+    q.add_argument("path", type=Path)
+    q.add_argument("--output", type=Path, help="write complete discovery report; never overwrite")
+    q = cmd("lab-check-invariant", "recompute a finite property claim without trusting its author")
+    q.add_argument("path", type=Path)
+    q.add_argument("claim", type=Path)
     return p
 
 
@@ -162,6 +168,20 @@ def read_admission_plan(path):
 
 
 def execute(args):
+    if args.command in ('lab-discover', 'lab-check-invariant'):
+        try:
+            raw = lab.read_world(args.path)
+            if args.command == 'lab-check-invariant':
+                with args.claim.open('rb') as stream:
+                    claim = lab.read_proposal(stream.read(lab.MAX_PROPOSAL + 1))
+        except OSError as exc:
+            raise StoreError('cannot read invariant input: ' + str(exc)) from exc
+        if args.command == 'lab-check-invariant':
+            return invariants.verify_claim(raw, claim)
+        report = invariants.discover(raw)
+        if report['status'] == 'complete' and args.output is not None:
+            write_bundle(args.output, canon(report))
+        return report
     if args.command == 'lab-search':
         try:
             raw = lab.read_world(args.path)
@@ -333,6 +353,10 @@ def main(argv=None):
         print(json.dumps({"status": "invalid", "error": str(exc)}), file=sys.stderr)
         return 2
     print(json.dumps(result, ensure_ascii=False, sort_keys=True))
+    if args.command in ('lab-discover', 'lab-check-invariant'):
+        if result['status'] in ('complete', 'established'): return 0
+        if result['status'] == 'checker_error': return 1
+        return 3 if result['status'] == 'incomplete' else 4
     if args.command == 'lab-search':
         if result['status'] == 'found': return 0
         if result['status'] == 'checker_error': return 1
