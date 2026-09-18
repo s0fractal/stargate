@@ -21,6 +21,10 @@ class PolicyError(ValueError):
     """Unsupported or invalid author input; no record should be emitted."""
 
 
+class CompileIncomplete(PolicyError):
+    """Valid source did not finish; distinct from malformed source."""
+
+
 class CompilerBug(RuntimeError):
     """Compiler output disagrees with the source interpreter or emission gate."""
 
@@ -160,7 +164,7 @@ def compile_source(source, *, max_atp=DEFAULT_MAX_ATP, facts=None, limits=None):
         evaluator_limits.update(limits)
     receipt = k.eval_receipt(h, max_atp, objects, evaluator_limits)
     if receipt.exit != 'normal_form':
-        raise PolicyError('policy did not finish within the compile budget')
+        raise CompileIncomplete('policy did not finish within the compile budget')
     expected_value_hash = k.K_H if value else k.FALSE_H
     if receipt.result_hash != expected_value_hash:
         raise CompilerBug('SKI result disagrees with source interpreter')

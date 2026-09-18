@@ -1,7 +1,7 @@
 # Stargate contract
 
-Status: **32K — DRAFT, implemented for the single signed-check flow below**.
-Build 11 is a local development implementation, not an adopted or published
+Status: **32K — DRAFT, implemented for the flows described below**.
+Build 15 is a local development implementation, not an adopted or published
 standard. It is not a Warrant verifier.
 
 ## One temperature
@@ -552,3 +552,110 @@ missing/unreadable inputs or local size refusal 3. There is no automatic replay
 command and no transfer from expected text into a verified/satisfied decision.
 Executing an extracted reproducer is a separate operator action with the operator's
 permissions. Python -I is import isolation, not a sandbox.
+
+## Finite boolean laboratory (build 15, draft)
+
+This unsigned mode is separate from signed judgments and artifact admission.
+No trust set, key or founder service participates in `lab-check`. It establishes
+only a finite computation claim, not author identity or facts about external
+artifacts. Existing signed-record trust requirements are unchanged.
+
+A canonical JSON packet has exactly: `stargate_world:32`,
+`contract:"boolean-exhaustive-1"`, `rule`, `inputs`, `max_atp`, `objective`,
+`predecessor`, `guide`, `sources`, `license`. Its ID is SHA-256 of those bytes.
+`inputs` is a sorted list of zero to eight unique non-reserved WPL names;
+all must be declared and used by both programs. Rules use unassigned
+`fact name: bool` declarations. The existing compiler's syntax/size/depth
+admission limits apply. `max_atp` is an integer in 0..10000, per program per
+row; it does not bound wall time. `objective` is `equivalence` or
+`lower_max_atp`. `predecessor` is null for a created root or the parent ID
+for a computed successor. A predecessor field alone is not proof of a transition.
+
+The packet carries exact UTF-8 source bytes for the installed checker closure,
+the MIT license and a fixed guide. This implementation requires equality with
+its own source files before checking; different bytes give `runtime_unavailable`,
+not a counterexample. Files in `sources` are never automatically loaded or
+executed. The installed runtime and its source files must remain consistent
+and under the operator's control. Matching source bytes are not a proof that
+an interpreter, host or manually modified checker behaves correctly.
+
+A proposal has exactly `parent` (copied packet ID) and `candidate` (WPL text).
+There are no caller-supplied computed claims or trust fields. Human JSON spacing
+is allowed; duplicate keys and extra fields refuse. Both programs are parsed
+before enumeration; malformed source is invalid. Compiler budget failure has a
+distinct `CompileIncomplete` subclass of `PolicyError`, retaining compatibility
+with existing callers while allowing this mode to classify exhaustion separately.
+
+In sorted input order, enumerate tuples from all-false to all-true. Each program
+is compiled into a separate closed SKI term for each row. The existing compiler
+cross-checks the kernel result against its source interpreter. A second checker
+uses a separate character lexer and shunting-yard parser, without importing that
+parser, AST, interpreter or lowering. Both programs' results must agree with
+this oracle before any row becomes evidence of equivalence or difference.
+
+Semantic results are:
+
+- `equivalent`: all 2^N rows completed and matched. Maxima are computed over the
+  full domain. Before declaring equivalence, the checker requires exactly 2^N
+  rows and checks each row's input against the bit pattern of its index, computed
+  without the enumeration iterator. Missing, repeated or out-of-order inputs are
+  checker_error, never equivalence. Admission additionally requires strictly smaller candidate maximum
+  ATP if the objective is `lower_max_atp`; equality is not improvement.
+- `counterexample`: the first completed, oracle-checked row with different
+  parent/candidate boolean results. No successor is emitted.
+- `incomplete`: no counterexample was established before budget/resource refusal.
+  Completed rows are retained, but no successor is emitted.
+
+`checker_error` is a separate operational failure for internal compiler or
+cross-checker disagreement, never an accusation against the candidate. A run
+stops at the first counterexample, incomplete row or checker error. It need not
+search later rows after a refusal. Reports are recomputed, unsigned observations;
+there is no API that admits a saved report as evidence without re-execution.
+
+On admission, the successor retains the parent's contract, source closure,
+inputs, budget and objective, replaces `rule` with candidate text, and sets
+`predecessor` to the exact parent ID. Parent bytes remain unchanged. The result
+is deterministic for a fixed runtime/packet/proposal; multiple valid successors
+are allowed. No repository merge or external deployment occurs.
+
+CLI: `lab-check` exits 0 for admitted, 4 for a counterexample or equivalent but
+not improved, 3 for incomplete/runtime unavailable, 2 for malformed inputs, and
+1 for checker/operation errors. `--output` writes only admitted successor bytes,
+refusing an occupied destination through the existing bundle writer. Reports
+include row inputs, boolean results, term hashes and ATP, plus the successor ID
+when admitted. Missing experiment/proposal files give `unverified` / 3; failure to write an
+output remains an operation error / 1.
+
+`lab-unpack` checks structure and local runtime correspondence, then writes fixed
+paths in a fresh directory (0700, files 0600). Existing files, directories and
+symlinks refuse. Its parent directory must be controlled by the caller; extraction
+is not an atomic multi-file transaction, and failures attempt cleanup. It never
+runs packet code. The included `replay.py` requires an explicit invocation and
+Python >=3.11 with its standard library; neither a Stargate installation nor
+cryptography/network access is required. `-I -S` avoids site startup and installed
+packages, but is not a sandbox. `lab-inspect` emits `runtime_digest = SHA256(canon(sources))` and
+`replay_digest = SHA256(replay.py bytes)`. Semantic reports carry runtime_digest.
+Replay takes a proposal path, optionally a new successor path, and requires
+`--expect-runtime` with a separately obtained digest. Before importing packet
+modules, the launcher hashes the fixed source map with standard-library JSON
+(the filenames are ASCII, so its key ordering matches canonical UTF-16 ordering).
+A mismatch gives runtime_unavailable / 3 and publishes nothing. Replay requires
+-I -S, checked using builtin sys before importing other modules. After preflight,
+a private loader compiles exactly the verified source snapshot in dependency
+order, with an empty package search path. No packet directory is added to sys.path
+and no pyc is loaded. The runtime_sources accessor uses loader.get_data: in replay
+this returns snapshot bytes, while the normal installed loader reads its source
+files. No packet source is reread after its digest check. Missing or
+malformed expected digests refuse with exit 2.
+
+The expected runtime digest AND the launcher bytes must be authenticated through
+an independent trusted installation or reviewed revision. A packet or report
+cannot authenticate its own checker. The preflight is not protection against
+replacement of the independently checked launcher itself or dishonest hosts.
+The snapshot loader excludes adjacent modules and stale/adversarial packet
+bytecode caches, and source-file changes after hashing do not change execution.
+Ordinary installed sg still assumes a consistent trusted installation. Both paths
+trust the interpreter and its standard library.
+
+Invalid input or local I/O errors in this minimal replay
+script may print a Python traceback; it never claims admission on those errors.
