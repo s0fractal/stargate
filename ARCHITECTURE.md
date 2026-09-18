@@ -72,3 +72,22 @@ lexer and shunting-yard evaluator and imports no compiler or kernel code. `lab`
 compares it against compiled SKI results, carries the exact runtime closure as
 inert data, and constructs finite-program successors. Neither imports records,
 policy, bundle or CLI. x0 remains empty.
+
+Build 16 adds `search` at x4, above `lab`. Its generator and remembered-input
+screening have no admission authority: every successful successor comes from
+`lab.verify_transition`. It is outside the replay runtime closure. x0 stays empty.
+
+Neighbor concepts used for this step (original implementation, no copied code):
+
+- Black-Heart `cegis_kernel.py` at `3893fad4bc1cbfa6152a5cecd967c73471a38fde`:
+  counterexample-guided candidate refinement and explicit inconclusive outcomes.
+  We do not copy its AGPL implementation, SMT integration or observational
+  equivalence pruning; finite-sample equality is not full equivalence.
+- Black-Heart `docs/LIVING-LIBRARY-INTERACTION.md`, same revision: re-evaluate
+  saved evidence before using it, and preserve the parent when making a successor.
+- Warrant SPEC §3.1/§7 at `5c8ed0d338d88ce465c1540f195394e2ed81fa8e`:
+  distinguish refusal from verdict and evidence identity from useful novelty.
+  This step deduplicates exact proposal strings only; it adds no settlement rules.
+- Sigma-Glyph's receipt-based reduction is already present in `kernel.py`.
+  Search reuses the existing compiler/kernel path and its normal-form/ATP checks;
+  it does not substitute an optimizer's predicted answer for a receipt.

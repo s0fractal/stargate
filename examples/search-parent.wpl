@@ -1,0 +1,4 @@
+fact a: bool
+fact b: bool
+fact c: bool
+check !!(a || b) || c
