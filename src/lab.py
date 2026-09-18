@@ -36,7 +36,8 @@ def identity(raw):
 
 def runtime_sources():
     root = Path(__file__).resolve().parent
-    return {name: (root / name).read_bytes().decode('utf-8') for name in RUNTIME}
+    # Normal imports use SourceFileLoader; replay uses its verified byte snapshot.
+    return {name: __loader__.get_data(str(root / name)).decode('utf-8') for name in RUNTIME}
 
 
 def runtime_digest(sources):
@@ -151,6 +152,15 @@ def verify_transition(raw, proposal):
         if results[0]['value'] != results[1]['value']:
             report.update(status='counterexample', input=facts)
             return report, None
+    if len(report['rows']) != report['total_rows']:
+        report.update(status='checker_error', reason='enumeration did not cover full domain')
+        return report, None
+    for index, row in enumerate(report['rows']):
+        expected = {name: bool(index & (1 << (len(doc['inputs']) - position - 1)))
+                    for position, name in enumerate(doc['inputs'])}
+        if row['input'] != expected:
+            report.update(status='checker_error', reason='enumeration order or coverage mismatch')
+            return report, None
     report.update(status='equivalent', max_atp=dict(parent=maxima[0], candidate=maxima[1]))
     if doc['objective'] == 'lower_max_atp' and maxima[1] >= maxima[0]:
         report['reason'] = 'not_strictly_cheaper'
@@ -170,12 +180,15 @@ def read_world(path):
 
 
 REPLAY = '''"""Explicit replay. Trust this launcher independently; -I -S is not a sandbox."""
+import sys
+if not sys.flags.isolated or not sys.flags.no_site:
+    raise SystemExit('replay requires python -I -S')
 import argparse
 import hashlib
+import importlib.util
 import json
 from pathlib import Path
 import re
-import sys
 
 parser = argparse.ArgumentParser()
 parser.add_argument('proposal', type=Path)
@@ -197,7 +210,32 @@ if digest != args.expect_runtime:
     print(json.dumps(dict(status='runtime_unavailable', runtime_digest=digest,
                           expected_runtime=args.expect_runtime, admitted=False)))
     raise SystemExit(3)
-sys.path.insert(0, str(root))
+# Execute the exact preflight bytes. No packet directory enters sys.path;
+# no import reads adjacent modules, rereads source files, or loads cached pyc.
+class VerifiedLoader:
+    def get_data(self, path):
+        name = Path(path).name
+        if str(root / 'stargate' / name) != path or name not in sources:
+            raise OSError('outside verified source snapshot')
+        return sources[name].encode('utf-8')
+    def create_module(self, spec):
+        return None
+    def exec_module(self, module):
+        exec(compile(self.get_data(module.__file__), module.__file__, 'exec'), module.__dict__)
+
+loader = VerifiedLoader()
+for name in ('__init__.py', 'kernel.py', 'store.py', 'canonical.py', 'checks.py',
+             'compiler.py', 'boolean.py', 'lab.py'):
+    fullname = 'stargate' if name == '__init__.py' else 'stargate.' + name[:-3]
+    if fullname in sys.modules:
+        raise SystemExit('unexpected preloaded packet module')
+    spec = importlib.util.spec_from_loader(fullname, loader, is_package=name == '__init__.py')
+    module = importlib.util.module_from_spec(spec)
+    module.__file__ = str(root / 'stargate' / name)
+    sys.modules[fullname] = module
+    loader.exec_module(module)
+    if name != '__init__.py':
+        setattr(sys.modules['stargate'], name[:-3], module)
 from stargate.lab import read_world, read_proposal, verify_transition
 proposal = read_proposal(args.proposal.read_bytes())
 report, successor = verify_transition(read_world(root / 'world.json'), proposal)

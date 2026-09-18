@@ -596,7 +596,10 @@ this oracle before any row becomes evidence of equivalence or difference.
 Semantic results are:
 
 - `equivalent`: all 2^N rows completed and matched. Maxima are computed over the
-  full domain. Admission additionally requires strictly smaller candidate maximum
+  full domain. Before declaring equivalence, the checker requires exactly 2^N
+  rows and checks each row's input against the bit pattern of its index, computed
+  without the enumeration iterator. Missing, repeated or out-of-order inputs are
+  checker_error, never equivalence. Admission additionally requires strictly smaller candidate maximum
   ATP if the objective is `lower_max_atp`; equality is not improvement.
 - `counterexample`: the first completed, oracle-checked row with different
   parent/candidate boolean results. No successor is emitted.
@@ -636,15 +639,23 @@ Replay takes a proposal path, optionally a new successor path, and requires
 `--expect-runtime` with a separately obtained digest. Before importing packet
 modules, the launcher hashes the fixed source map with standard-library JSON
 (the filenames are ASCII, so its key ordering matches canonical UTF-16 ordering).
-A mismatch gives runtime_unavailable / 3 and publishes nothing. Missing or
+A mismatch gives runtime_unavailable / 3 and publishes nothing. Replay requires
+-I -S, checked using builtin sys before importing other modules. After preflight,
+a private loader compiles exactly the verified source snapshot in dependency
+order, with an empty package search path. No packet directory is added to sys.path
+and no pyc is loaded. The runtime_sources accessor uses loader.get_data: in replay
+this returns snapshot bytes, while the normal installed loader reads its source
+files. No packet source is reread after its digest check. Missing or
 malformed expected digests refuse with exit 2.
 
 The expected runtime digest AND the launcher bytes must be authenticated through
 an independent trusted installation or reviewed revision. A packet or report
 cannot authenticate its own checker. The preflight is not protection against
-replacement of the launcher itself, dishonest hosts, stale/adversarial bytecode
-caches or concurrent replacement of checked files. Local execution still assumes
-a consistent, controlled runtime.
+replacement of the independently checked launcher itself or dishonest hosts.
+The snapshot loader excludes adjacent modules and stale/adversarial packet
+bytecode caches, and source-file changes after hashing do not change execution.
+Ordinary installed sg still assumes a consistent trusted installation. Both paths
+trust the interpreter and its standard library.
 
 Invalid input or local I/O errors in this minimal replay
 script may print a Python traceback; it never claims admission on those errors.

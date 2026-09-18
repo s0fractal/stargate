@@ -585,11 +585,16 @@ the received packet nor a verdict's own reported digest establishes trust.
 
 The runtime digest is SHA-256 of the canonical filename-to-source map. The
 trusted launcher hashes extracted sources with standard-library code **before
-importing them**, and refuses a mismatch with exit 3 and no successor. All
+importing them**, and refuses a mismatch with exit 3 and no successor. It then
+compiles that same in-memory snapshot into modules. The packet directory never
+enters `sys.path`; adjacent modules and `__pycache__` are not loaded. Source files
+are not reread during execution. `-I -S` is required before any non-builtin
+launcher import. All
 semantic reports carry the runtime digest. A malicious launcher could bypass
 this check or print a false digest; that is why its own bytes must be checked
-independently before execution. These checks assume a controlled local directory
-and interpreter, not a hostile host or concurrent replacement of verified files.
+independently before execution. The interpreter and independently checked launcher remain trusted. Source-file
+changes after the snapshot cannot change the executed modules; this is not a
+sandbox against arbitrary changes to the process or interpreter.
 
 The extracted copy needs only Python >=3.11, with no installed Stargate, plugins,
 keys, network or original repository. Extraction does not execute sources;

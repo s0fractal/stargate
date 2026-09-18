@@ -5,6 +5,7 @@ import json
 import os
 from pathlib import Path
 import random
+import py_compile
 import subprocess
 import sys
 import tempfile
@@ -248,6 +249,82 @@ class Lab(unittest.TestCase):
             self.assertNotEqual(data['runtime_digest'], expected)
             self.assertFalse(marker.exists())
             self.assertFalse((root/'child.json').exists())
+
+    def test_replay_ignores_adjacent_modules_and_valid_poisoned_pyc(self):
+        names = list('abcdefgh')
+        raw = lab.create_world(rule(' || '.join(names), names), names)
+        expected = lab.runtime_digest(decode(raw)['sources'])
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)/'packet'
+            lab.unpack_world(raw, root)
+            marker = root/'executed'
+            payload = ("from pathlib import Path\nPath(" + repr(str(marker)) + ").touch()\n"
+                       "import itertools\nitertools.product = lambda *a, **kw: [(False,)*kw['repeat']]\n")
+            # Both top-level shadowing and a timestamp-valid module cache are
+            # outside the source-map digest. Test each with a fresh process.
+            for attack in ('neighbor', 'bytecode'):
+                with self.subTest(attack=attack):
+                    marker.unlink(missing_ok=True)
+                    if attack == 'neighbor':
+                        (root/'tempfile.py').write_text(payload)
+                    else:
+                        (root/'tempfile.py').unlink()
+                        target = root/'stargate/boolean.py'
+                        original = target.read_bytes()
+                        original_stat = target.stat()
+                        poisoned = payload.encode() + original
+                        poisoned += b' ' * ((len(original)-len(poisoned)) % 4)
+                        # Timestamp pyc validity checks source size and mtime.
+                        # Write a header with the original size after compilation.
+                        target.write_bytes(poisoned)
+                        os.utime(target, ns=(original_stat.st_atime_ns, original_stat.st_mtime_ns))
+                        cache = Path(py_compile.compile(str(target), doraise=True,
+                                    invalidation_mode=py_compile.PycInvalidationMode.TIMESTAMP))
+                        cached = bytearray(cache.read_bytes())
+                        cached[12:16] = len(original).to_bytes(4, 'little')
+                        cache.write_bytes(cached)
+                        target.write_bytes(original)
+                        os.utime(target, ns=(original_stat.st_atime_ns, original_stat.st_mtime_ns))
+                    for expr, status, code in [(' || '.join(names), 'equivalent', 0),
+                                               (' && '.join(names), 'counterexample', 4)]:
+                        (root/'proposal.json').write_text(json.dumps(proposal(raw, rule(expr, names))))
+                        result = subprocess.run([sys.executable, '-I', '-S', str(root/'replay.py'),
+                                      '--expect-runtime', expected, str(root/'proposal.json')],
+                                      cwd='/', capture_output=True, text=True)
+                        self.assertEqual(result.returncode, code, result.stderr)
+                        report = json.loads(result.stdout)
+                        self.assertEqual(report['status'], status)
+                        if code == 0:
+                            self.assertEqual(len(report['rows']), 256)
+                        self.assertFalse(marker.exists())
+
+    def test_replay_executes_snapshot_not_later_disk_contents(self):
+        raw = lab.create_world(rule('a || b'), ['a', 'b'])
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)/'packet'
+            lab.unpack_world(raw, root)
+            (root/'proposal.json').write_text(json.dumps(proposal(raw, rule('a || b'))))
+            # Harness instrumentation of the trusted launcher simulates a file
+            # changing after hashing. It is not a packet-provided hook.
+            trigger = 'from stargate.lab import read_world, read_proposal, verify_transition'
+            injection = "(root / 'stargate' / 'boolean.py').write_text('raise RuntimeError(123)')\n"
+            # On the new loader, mutate before loading, not after module execution.
+            anchor = 'loader = VerifiedLoader()' if 'loader = VerifiedLoader()' in lab.REPLAY else trigger
+            (root/'replay.py').write_text(lab.REPLAY.replace(anchor, injection + anchor))
+            result = subprocess.run([sys.executable, '-I', '-S', str(root/'replay.py'),
+                           '--expect-runtime', lab.runtime_digest(decode(raw)['sources']),
+                           str(root/'proposal.json')], cwd='/', capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(json.loads(result.stdout)['status'], 'equivalent')
+            self.assertEqual((root/'stargate/boolean.py').read_text(), 'raise RuntimeError(123)')
+
+    def test_incomplete_or_duplicate_enumeration_is_checker_error(self):
+        raw = lab.create_world(rule('a || b'), ['a', 'b'])
+        p = proposal(raw, rule('a || b'))
+        for rows in [[(False, False)], [(False, False)]*4]:
+            with self.subTest(rows=rows), patch.object(lab.itertools, 'product', return_value=rows):
+                report, child = lab.verify_transition(raw, p)
+                self.assertEqual((report['status'], report['admitted'], child), ('checker_error', False, None))
 
     def test_unpack_failure_cleanup_and_no_execution(self):
         raw = lab.create_world('check true', [])
