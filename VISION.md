@@ -243,3 +243,12 @@ expression still passes SKI and an independent Boolean oracle. This makes
 counterexamples paths through behavior, not merely single input rows. It does
 not yet admit machine replacements, persist traversal progress, express liveness,
 or compose independently developed machines. Those require their own contracts.
+
+
+Build 23 admits changes to the transition rules of those finite machines. The
+initial states, event domain and invariant are inherited exactly; both parent
+and candidate must establish safety, including states reached only by the new
+rules. This lets a proposal change behavior over time without granting its author
+permission to weaken the safety question. The gate provides an independently
+recomputable admission edge, not a machine-history protocol or a proof that the
+chosen invariant captures everything the recipient cares about.
