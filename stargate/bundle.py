@@ -89,3 +89,35 @@ def write_bundle(path, raw):
         os.link(tmp, path)  # exclusive publication, no overwrite or symlink following
     finally:
         Path(tmp).unlink(missing_ok=True)
+
+
+def require_bundle(raw, trusted_keys, *, rule, facts):
+    """Verify transport and require the recipient's exact rule and boolean facts.
+
+    Returns satisfied/unsatisfied for verified records only. Verification failures
+    retain their existing exceptions; they never become an unsatisfied verdict.
+    """
+    from .policy import parse, PolicyError
+    if not isinstance(rule, str):
+        raise PolicyError('expected rule must be text')
+    if not isinstance(facts, dict) or not all(
+            isinstance(n, str) and type(v) is bool for n, v in facts.items()):
+        raise PolicyError('expected facts must be an object of boolean values')
+    facts_raw = canon(facts)
+    parse(rule, decode(facts_raw))  # validate the recipient's request independently
+    expected = dict(rule=hashlib.sha256(rule.encode('utf-8')).hexdigest(),
+                    facts=hashlib.sha256(facts_raw).hexdigest())
+    report = verify_bundle(raw, set(trusted_keys))
+    policy = report['policy']
+    if policy is None:
+        reason = 'policy_missing'
+    elif policy['rule'] != expected['rule']:
+        reason = 'rule_mismatch'
+    elif policy['facts'] != expected['facts']:
+        reason = 'facts_mismatch'
+    elif report['decision'] != 'accept':
+        reason = 'decision_reject'
+    else:
+        reason = None
+    return dict(status='satisfied' if reason is None else 'unsatisfied',
+                reason=reason, expected=expected, verification=report)

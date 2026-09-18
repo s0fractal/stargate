@@ -1,7 +1,7 @@
 # Stargate contract
 
 Status: **32K — DRAFT, implemented for the single signed-check flow below**.
-Build 7 is a local development implementation, not an adopted or published
+Build 8 is a local development implementation, not an adopted or published
 standard. It is not a Warrant verifier.
 
 ## One temperature
@@ -114,7 +114,7 @@ promised (the inherited evaluator adjusts Python's recursion limit).
 An envelope has exactly `body` and `signature`. Its body has exactly:
 
 ```json
-{"stargate":32,"build":"7","key":"<public key hex>","check":{"term":"<hash>","atp":4,"expect":"<hash>","exit":"normal_form","environment":["<term hash>"]},"decision":"accept","policy":null}
+{"stargate":32,"build":"8","key":"<public key hex>","check":{"term":"<hash>","atp":4,"expect":"<hash>","exit":"normal_form","environment":["<term hash>"]},"decision":"accept","policy":null}
 ```
 
 This example is explanatory, not canonical field ordering. The encoding is
@@ -331,3 +331,29 @@ behavior. Export publishes through an exclusive hard link to a completed temp
 file and never overwrites; unsupported filesystem operations are operation_error.
 The container transports authenticated policy material where referenced; it
 does not introduce application truth, quorum or global availability claims.
+
+
+## Recipient requirement
+
+`require_bundle(raw, trusted_keys, *, rule, facts)` accepts an independently
+provided UTF-8 rule string and exact-domain boolean fact dictionary. It validates
+the request with the current rule grammar and hashes exact rule bytes and
+canonical facts. It then performs full bundle verification. Verification errors
+retain their original classes; no requirement verdict is produced on failure.
+
+For a verified record, evaluate these predicates in order: policy is non-null,
+policy.rule equals expected rule hash, policy.facts equals expected facts hash,
+and decision is accept. The first failed predicate gives, respectively,
+policy_missing, rule_mismatch, facts_mismatch or decision_reject. All predicates
+must hold for status satisfied with reason null; otherwise status is unsatisfied.
+The report includes expected {rule, facts} hashes and the original verification
+report under verification. It is local output, not a signed record.
+
+`sg require BUNDLE --trust KEY --rule FILE --facts FILE` exposes this operation.
+It returns 0 for satisfied, 4 for unsatisfied, 2 for malformed inputs or invalid
+proofs, and 3 for missing material, I/O or local admission/resource inability.
+Duplicate fact keys are rejected before canonicalization. Request validation
+precedes proof verification. Raw policy:null records cannot satisfy a request.
+The command has no store fallback and executes no subsequent external action.
+This imposes no freshness or anti-replay property and makes no claim about
+real-world truth of the expected inputs. Existing wire shapes remain unchanged.

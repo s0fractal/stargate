@@ -11,7 +11,7 @@ from cryptography.hazmat.primitives import serialization
 from . import CONTRACT_STATUS, KELVIN, __version__, kernel
 from .records import canon, decode, capture_environment, create_record, public_key, record_id, verify_record
 from .store import Store, StoreError, hex_hash
-from .bundle import export_bundle, verify_bundle, read_bundle, write_bundle
+from .bundle import export_bundle, verify_bundle, read_bundle, write_bundle, require_bundle
 from .policy import author_policy, CompilerBug, DEFAULT_MAX_ATP
 
 
@@ -57,10 +57,31 @@ def parser():
     q = cmd("verify-bundle", "verify a file without any local object store")
     q.add_argument("path", type=Path)
     q.add_argument("--trust", required=True, action="append", type=hex_hash)
+    q = cmd("require", "require a verified accept for the recipient's rule and facts")
+    q.add_argument("path", type=Path)
+    q.add_argument("--trust", required=True, action="append", type=hex_hash)
+    q.add_argument("--rule", required=True, type=Path)
+    q.add_argument("--facts", required=True, type=Path)
     return p
 
 
+def read_facts(path):
+    def unique(pairs):
+        out = {}
+        for name, value in pairs:
+            if name in out:
+                raise ValueError("duplicate fact: " + name)
+            out[name] = value
+        return out
+    return json.loads(path.read_text(encoding="utf-8"), object_pairs_hook=unique)
+
+
 def execute(args):
+    if args.command == "require":
+        rule = args.rule.read_bytes().decode("utf-8")
+        facts = read_facts(args.facts)
+        raw = read_bundle(args.path)
+        return require_bundle(raw, set(args.trust), rule=rule, facts=facts)
     store = Store(args.store)
     if args.command == "verify-bundle":
         return verify_bundle(read_bundle(args.path), set(args.trust))
@@ -101,15 +122,7 @@ def execute(args):
                 "decision": envelope["body"]["decision"]}
     if args.command == "policy":
         key = Ed25519PrivateKey.from_private_bytes(bytes.fromhex(args.key.read_text().strip()))
-        # Accept a readable JSON file, but reject duplicate keys before canonicalizing.
-        def unique(pairs):
-            out = {}
-            for name, value in pairs:
-                if name in out:
-                    raise ValueError("duplicate fact: " + name)
-                out[name] = value
-            return out
-        facts = json.loads(args.facts.read_text(encoding="utf-8"), object_pairs_hook=unique)
+        facts = read_facts(args.facts)
         return author_policy(args.source.read_bytes().decode("utf-8"), facts, store, key,
                              max_atp=args.max_atp)
     if args.command == "verify":
@@ -129,7 +142,7 @@ def main(argv=None):
         print(json.dumps({"status": "compiler_error", "error": str(exc)}), file=sys.stderr)
         return 1
     except OSError as exc:
-        status = "unverified" if args.command in ("verify", "verify-bundle", "eval") else "operation_error"
+        status = "unverified" if args.command in ("verify", "verify-bundle", "eval", "require") else "operation_error"
         print(json.dumps({"status": status, "error": str(exc)}), file=sys.stderr)
         return 3 if status == "unverified" else 1
     except (kernel.AdmissionRefused, kernel.ResourceFault, StoreError) as exc:
@@ -139,4 +152,4 @@ def main(argv=None):
         print(json.dumps({"status": "invalid", "error": str(exc)}), file=sys.stderr)
         return 2
     print(json.dumps(result, ensure_ascii=False, sort_keys=True))
-    return 0
+    return 4 if result.get("status") == "unsatisfied" else 0
