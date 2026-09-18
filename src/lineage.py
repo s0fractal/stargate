@@ -50,7 +50,7 @@ def verify(raw, expected_root):
         report['transitions'].append(result)
         report['checked_steps'] += 1
         if not result['admitted']:
-            status = result['status'] if result['status'] in ('incomplete', 'checker_error') else 'not_admitted'
+            status = result['status'] if result['status'] in ('incomplete', 'checker_error', 'parent_rejected') else 'not_admitted'
             report.update(status=status, failed_step=index)
             return report, None
         if successor is None:

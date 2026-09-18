@@ -779,7 +779,8 @@ of the anchored root; existing successor construction preserves these fields.
 
 verified_lineage requires checked_steps == total_steps and returns the exact tip
 world bytes separately. Each checked step contributes its complete lab report.
-At the first semantic/cost refusal return not_admitted, at resource refusal
+When a parent violates its own property contract return parent_rejected.
+At the first candidate semantic/cost refusal return not_admitted, at resource refusal
 incomplete, at checker failure checker_error; include failed_step (zero-based),
 return no tip and no report tip field. Malformed parent links raise InvalidRecord.
 A successful prefix grants no success to a failed tail. Empty history is a
@@ -797,7 +798,7 @@ CLI lineage-start WORLD --output HISTORY; lineage-append HISTORY PROPOSAL
 --expect-root ID --output NEW_HISTORY; lineage-check HISTORY --expect-root ID
 [--output TIP]; lineage-unpack HISTORY --output DIRECTORY. Writes are exclusive.
 Start/unpack make no semantic verification claim. Append/check exit 0 on
-verified_lineage, 4 not_admitted, 3 incomplete or unavailable runtime/material,
+verified_lineage, 4 not_admitted or parent_rejected, 3 incomplete or unavailable runtime/material,
 2 invalid input/binding and 1 checker/operation error. Missing file reads are
 unverified/3; failed output writes are operation_error/1.
 
