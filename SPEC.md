@@ -885,3 +885,46 @@ experience is refused before search. A parent_rejected stops search with CLI 4.
 Other search budgeting/incomplete rules remain as before. Candidate generation
 has no added authority. Minimal/constant programs can satisfy weak contracts;
 this mode makes no implicit nontriviality, novelty, usefulness or safety promise.
+
+## In-process row continuation (Build 20)
+
+lab.start_transition(world_bytes, proposal, rows=0) validates and snapshots its
+inputs eagerly and returns an owned Transition. lab.resume_transition(state,
+rows=N) advances that same object. N MUST be an integer (not bool) in 0..256;
+invalid quotas fail before execution and do not consume state. Resume accepts
+only a suspended Transition, never a serialized report. This is a single-owner,
+single-process API: copying, concurrent calls and private state mutation are
+outside its contract. Loaded runtime code must remain unchanged between calls.
+
+Each positive call attempts at most N further input rows in canonical binary
+order. A row includes parent and candidate compilation, existing compiler
+cross-checks, and independent Boolean-oracle comparisons. Completed rows and
+cost maxima are retained. No compiler/evaluator/oracle call for those rows is
+repeated by resumption. The existing compiler's exact-budget replay within a row
+is unchanged. At an early terminal result the call stops without consuming the
+remaining row quota. At the last row the same call performs full coverage/order,
+property and objective checks; it never defers finalization to an extra call.
+
+state.status is suspended between calls until a terminal lab status is reached.
+state.report is a detached JSON snapshot: edits cannot alter the continuation.
+A suspended report has status suspended, admitted false, completed rows and the
+original total_rows; state.successor is None. Only normal complete admission
+provides successor bytes. Terminal reports have the existing verify_transition
+shape; verify_transition runs this engine with quota 256. For deterministic
+execution under unchanged local conditions, slicing preserves the final report,
+successor and ordered compiler/evaluator/oracle work sequence.
+
+The session row quota MUST NOT change world.max_atp, which remains the ceiling
+per program per row. No mid-row kernel continuation is introduced. A resource
+refusal or CompileIncomplete produces terminal incomplete, not suspended; an
+oracle/compiler disagreement produces terminal checker_error, not invalid.
+All terminal states refuse resume, including zero-quota resume. Unexpected
+exceptions (including interruption) propagate and fault the continuation; it
+cannot be resumed. Zero quota on a suspended state makes no evaluation calls.
+Validation and report copying still cost CPU; row quotas bound neither CPU time
+nor memory, and a process killed between checkpoints loses its in-process work.
+
+This API grants no trust to imported progress. There is no serialization,
+portable verified prefix, persisted checkpoint or CLI resume command. A future
+transport must define how another process establishes the correctness of work
+it did not execute; integrity hashes alone are not that evidence.

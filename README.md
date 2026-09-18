@@ -11,7 +11,7 @@ In the default equivalence mode, a changed answer produces a concrete
 counterexample. A cheaper equivalent rule
 can become the next world; an unfinished check establishes nothing.
 
-**Build 19 · 32K draft.** The contract can change incompatibly. This is an
+**Build 20 · 32K draft.** The contract can change incompatibly. This is an
 experimental implementation, not a stable release or a general program prover.
 Python only; commands `sg` and `stargate`. MIT licensed.
 
@@ -886,3 +886,40 @@ A differing answer is permitted, so screening against remembered parent/candidat
 differences would be unsound. Nonempty equivalence experience is rejected for
 property worlds; empty experience is harmless. Existing equivalence-world search
 keeps its previous screening. This is an explicit opt-in mode, not a weaker default.
+
+### Continue a lab check between rows (Build 20)
+
+A Python caller can keep a check alive across bounded calls without recomputing
+completed rows:
+
+```python
+from stargate import lab
+
+state = lab.start_transition(world_bytes, proposal, rows=2)
+while state.status == 'suspended':
+    progress = state.report  # detached snapshot; never a resume input
+    state = lab.resume_transition(state, rows=2)
+report, successor_bytes = state.report, state.successor
+```
+
+Each call completes at most `rows` input pairs (parent and candidate). Quotas
+are integers 0–256; zero does no evaluation. The default start quota is zero:
+it validates and snapshots the world/proposal but evaluates no rows. The last
+row also finishes the property/cost checks, without needing an extra call.
+`verify_transition` uses the same engine to run to completion.
+
+This is an **owned state in the same Python process**, not a transferable proof
+or a file checkpoint. Keep the object itself; dictionaries, report snapshots,
+copies, private-field edits and concurrent calls are not supported continuations.
+A suspended check has no successor and cannot authorize a transition. Final
+reports and successor bytes match an uninterrupted check under the same runtime
+and environment. Both equivalence and property worlds are supported.
+
+A row quota is not ATP, wall time or a memory limit. Each program in each row
+still has the world's fixed `max_atp`; its exhaustion or a local resource refusal
+ends the check as `incomplete`, which cannot be resumed. Oracle disagreement ends
+it as `checker_error`. Unexpected exceptions propagate and leave the state
+`faulted`, also non-resumable. Restarting after a terminal failure is a new check.
+No `lab-resume` CLI or serialized checkpoint is claimed: a new process must
+recompute work it did not itself verify. The compiler's existing within-row
+exact-budget replay remains; slicing adds no repeat of completed rows.

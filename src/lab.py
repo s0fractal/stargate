@@ -141,8 +141,7 @@ def read_proposal(raw):
     return decode(canon(json.loads(raw, object_pairs_hook=unique)))
 
 
-def verify_transition(raw, proposal):
-    """Return recomputed report and optional successor bytes; never execute sources."""
+def _prepare_transition(raw, proposal):
     doc = inspect_world(raw)
     proposal = decode(canon(proposal))  # snapshot caller-owned data
     exact(proposal, ('parent', 'candidate'))
@@ -154,6 +153,81 @@ def verify_transition(raw, proposal):
     report = dict(status='incomplete', parent=parent, runtime_digest=runtime_digest(doc['sources']),
                   candidate=identity(proposal['candidate'].encode('utf-8')),
                   rows=[], total_rows=2**len(doc['inputs']), admitted=False)
+    return doc, proposal, parent, codes, report
+
+
+class Transition:
+    """Owned in-process work; not a portable checkpoint or a trusted receipt.
+
+    Use start_transition/resume_transition. No concurrent calls or private-field
+    mutation are supported. Reports are detached snapshots, never resume inputs.
+    """
+    def __init__(self, raw, proposal):
+        args = _prepare_transition(raw, proposal)
+        self._report = args[-1]
+        self._steps = _transition_steps(*args)
+        self._status = 'suspended'
+        self._successor = None
+
+    @property
+    def status(self):
+        return self._status
+
+    @property
+    def report(self):
+        report = decode(canon(self._report))
+        if self._status in ('suspended', 'faulted'):
+            report.update(status=self._status, admitted=False)
+        return report
+
+    @property
+    def successor(self):
+        return self._successor
+
+    def _advance(self, rows):
+        try:
+            for _ in range(rows):
+                try:
+                    next(self._steps)
+                except StopIteration as done:
+                    self._report, self._successor = done.value
+                    self._status = self._report['status']
+                    break
+        except BaseException:
+            self._status = 'faulted'
+            self._steps.close()
+            raise
+        return self
+
+
+def _row_quota(rows):
+    if type(rows) is not int or not 0 <= rows <= 256:
+        raise InvalidRecord('row quota must be an integer from 0 to 256')
+
+
+def start_transition(raw, proposal, *, rows=0):
+    """Validate and snapshot inputs, then complete at most rows input pairs."""
+    _row_quota(rows)
+    return Transition(raw, proposal)._advance(rows)
+
+
+def resume_transition(state, *, rows):
+    """Continue the same owned object; zero rows does no execution."""
+    _row_quota(rows)
+    if not isinstance(state, Transition):
+        raise InvalidRecord('resume requires an in-process Transition')
+    if state.status != 'suspended':
+        raise InvalidRecord('only a suspended transition can be resumed')
+    return state._advance(rows)
+
+
+def verify_transition(raw, proposal):
+    """Return recomputed report and optional successor bytes; never execute sources."""
+    state = start_transition(raw, proposal, rows=256)
+    return state.report, state.successor
+
+
+def _transition_steps(doc, proposal, parent, codes, report):
     maxima = [0, 0]
     for bits in itertools.product((False, True), repeat=len(doc['inputs'])):
         facts = dict(zip(doc['inputs'], bits))
@@ -180,6 +254,8 @@ def verify_transition(raw, proposal):
         if doc['contract'] == 'boolean-exhaustive-1' and results[0]['value'] != results[1]['value']:
             report.update(status='counterexample', input=facts)
             return report, None
+        if len(report['rows']) < report['total_rows']:
+            yield
     if len(report['rows']) != report['total_rows']:
         report.update(status='checker_error', reason='enumeration did not cover full domain')
         return report, None
