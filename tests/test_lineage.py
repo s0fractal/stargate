@@ -176,6 +176,40 @@ class Lineage(unittest.TestCase):
             replay=subprocess.run(args,cwd='/',capture_output=True,text=True)
             self.assertEqual(replay.returncode,2)
 
+    def test_offline_invalid_anchor_is_not_a_checker_failure(self):
+        raw, root, _, _ = history()
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp)/'offline'
+            lineage.unpack(raw, path)
+            output = Path(tmp)/'no-tip.json'
+            runtime = lab.runtime_digest(decode(root)['sources'])
+            def replay(anchor, digest=runtime):
+                return subprocess.run([sys.executable,'-I','-S',str(path/'replay.py'),
+                    str(path/'lineage.json'),str(output),'--lineage','--expect-root',anchor,
+                    '--expect-runtime',digest],cwd='/',capture_output=True,text=True)
+            for anchor in ('0'*64, 'not-a-hash'):
+                r = replay(anchor)
+                self.assertEqual(r.returncode, 2, r.stderr)
+                self.assertEqual(json.loads(r.stderr)['status'], 'invalid')
+                self.assertEqual(r.stdout, '')
+                self.assertNotIn('Traceback', r.stderr)
+                self.assertFalse(output.exists())
+            # A genuine checker exception must not be relabelled as invalid input.
+            # The test deliberately authenticates this broken runtime's new digest.
+            doc = decode(raw)
+            source = doc['root']['sources']['lineage.py']
+            old = '    record_hash(expected_root)'
+            self.assertEqual(source.count(old), 1)
+            source = source.replace(old, "    raise RuntimeError('planted checker failure')")
+            doc['root']['sources']['lineage.py'] = source
+            (path/'stargate/lineage.py').write_text(source)
+            (path/'lineage.json').write_bytes(canon(doc))
+            r = replay(lab.identity(canon(doc['root'])), lab.runtime_digest(doc['root']['sources']))
+            self.assertEqual(r.returncode, 1)
+            self.assertIn('RuntimeError: planted checker failure', r.stderr)
+            self.assertNotIn('"status": "invalid"', r.stderr)
+            self.assertFalse(output.exists())
+
     def test_cli_distinguishes_incomplete_invalid_and_checker_failure(self):
         raw, root, _, _ = history()
         with tempfile.TemporaryDirectory() as tmp:

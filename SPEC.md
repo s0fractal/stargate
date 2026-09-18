@@ -810,3 +810,9 @@ lineage.py loaded after lab.py from verified source snapshots. Standalone replay
 as --expect-runtime, and emits a tip only on success. Runtime/launcher digests
 must be authenticated independently; the root anchor chooses the world, not the
 checker implementation. Python and its standard library remain trusted.
+
+In standalone --lineage mode, InvalidRecord validation failures (including a
+wrong or malformed expected root ID) print an invalid JSON error on stderr and
+exit 2 without writing a tip. Only that exception class is translated; unexpected
+checker exceptions remain failures, not claims that the input is invalid. Other
+minimal-replay exception limitations above remain in force.
