@@ -1176,3 +1176,65 @@ found=0; neighborhood_exhausted/parent_rejected=4; search_incomplete/incomplete/
 runtime unavailable/missing material=3; invalid=2; checker/operation failure=1.
 Offline generation is not provided; the emitted proposal is independently checked
 by offline machine-change. Sender-provided experience cannot certify a successor.
+
+
+## Reachable-state property discovery (Build 25)
+
+machine-discover and machine-claim observe a machine independently of whether its
+declared invariant holds. They anchor the exact original MachineID before evaluation.
+An internal observation view replaces ONLY invariant with the conjunction of
+(n || !n) for every state name. The inherited runtime, next rules, event domain,
+initials and per-expression ATP ceiling remain unchanged. This view is never
+returned as machine bytes, admitted, or used to alter any stored contract.
+Its full graph is checked through the existing machine verifier (SKI and the
+independent Boolean evaluator). The observation may be incomplete because this
+tautology itself exceeds a small ATP budget.
+
+Only an established observation graph is assessed. Before using it, check unique
+reachable states, initial inclusion, full edge/event closure and counters, and
+reconstruct BFS discovery order from the initial set and event order. Disconnected
+extra states, missing edges or different discovery order yield checker_error.
+Reconstruction preserves the first predecessor. A property refutation names the
+first violating state in BFS order and uses the existing bounded witness builder,
+so it gives a shortest trace; ties retain initial-list/Boolean-event order.
+
+Catalog properties (exact JSON shapes):
+- {kind:bit,name:NAME,value:BOOL}: this state bit always has this value.
+- {kind:equal,left:NAME,right:OTHER_NAME}: the bits are equal in every reached state.
+- {kind:implies,left:NAME,right:OTHER_NAME}: !left || right in every reached state.
+Names must be state bits, not event bits; pair members must differ. equal accepts
+either order when checking a claim, but discovery lists only lexically ordered pairs.
+Discovery enumerates both bit values per name, then equal pairs, then ordered
+implication pairs. With n bits there are 2*n + 3*n*(n-1)/2 hypotheses (2..57).
+The complete catalog count is checked. Every established property must account for
+all reachable states; counterexample stops at its first violation.
+
+A claim is exactly {parent,property}; parent must match the input MachineID, and the
+recipient supplies an independent expected_machine anchor. Claims are validated
+before graph evaluation. CLI claim files use bounded 64-KiB author JSON, allowing
+whitespace but rejecting duplicate fields. No claimed outcome or witness field is
+accepted. verify_property recomputes the graph rather than consuming discovery output.
+
+Report fields include machine_id (original), runtime_digest, observation (the full
+existing graph report, identifying its different observation-view MachineID), and
+results. Discovery adds status=complete and hypotheses only after all checks pass;
+results contains property/status/checked_states and trace on refutation. A single
+claim adds claim and its assessment fields at top level. Its results list is empty.
+On incomplete graph work, results is empty and no property status is issued;
+top-level status is incomplete. This deliberately does not salvage partial refutations.
+A counterexample from the tautological observation view is checker_error, as is
+an internal graph/coverage disagreement. No observation claims that the original
+machine is safe under its own invariant.
+
+CLI machine-discover MACHINE --expect-machine ID [--max-edges N] returns complete=0.
+machine-claim MACHINE CLAIM --expect-machine ID [--max-edges N] returns established=0,
+counterexample=4. Both use incomplete/runtime-unavailable/missing-material=3,
+invalid=2, checker/operation-failure=1. No output option is provided. Offline
+--machine-discover takes a machine path; --machine-claim takes a claim path and
+uses adjacent machine.json. Both require --expect-machine and --expect-runtime,
+refuse positional output, and run under the existing -I -S source-authentication
+contract. Successful/unsuccessful reports match the installed CLI.
+
+Properties quantify reachable states of this finite model only. They are neither
+inductive over all valuations, temporal liveness claims, nor automatically adopted
+admission contracts. Strengthening a contract still requires choosing a new root.

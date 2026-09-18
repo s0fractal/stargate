@@ -121,10 +121,11 @@ def parser():
     q = cmd("lab-check-invariant", "recompute a finite property claim without trusting its author")
     q.add_argument("path", type=Path)
     q.add_argument("claim", type=Path)
-    for name in ('machine-create', 'machine-inspect', 'machine-check', 'machine-unpack', 'machine-change', 'machine-search'):
+    for name in ('machine-create', 'machine-inspect', 'machine-check', 'machine-unpack', 'machine-change', 'machine-search', 'machine-discover', 'machine-claim'):
         q = cmd(name, 'check a finite synchronous machine on all reachable states')
         q.add_argument('path', type=Path)
         if name in ('machine-create', 'machine-unpack'): q.add_argument('--output', type=Path, required=True)
+        if name == 'machine-claim': q.add_argument('claim', type=Path)
         if name == 'machine-change':
             q.add_argument('proposal', type=Path)
             q.add_argument('--output', type=Path)
@@ -132,7 +133,7 @@ def parser():
             q.add_argument('--max-candidates', type=int, default=32)
             q.add_argument('--experience', type=Path)
             q.add_argument('--output', type=Path)
-        if name in ('machine-check', 'machine-change', 'machine-search'):
+        if name in ('machine-check', 'machine-change', 'machine-search', 'machine-discover', 'machine-claim'):
             q.add_argument('--expect-machine', required=True)
             q.add_argument('--max-edges', type=int, default=256)
     for name in ('lab-task-start', 'lab-task-resume', 'lab-task-inspect', 'lab-task-unpack'):
@@ -203,6 +204,7 @@ def execute(args):
     if args.command.startswith('machine-'):
         try:
             raw = machine.read(args.path)
+            if args.command == 'machine-claim': claim = machine.read_change(args.claim)
             if args.command == 'machine-change': proposal = machine.read_change(args.proposal)
             if args.command == 'machine-search':
                 experience = read_facts(args.experience) if args.experience else None
@@ -221,6 +223,8 @@ def execute(args):
             created = machine.create(json.loads(raw, object_pairs_hook=unique))
             write_bundle(args.output, created)
             return machine.describe(created)
+        if args.command == 'machine-discover': return machine.discover_properties(raw, args.expect_machine, max_edges=args.max_edges)
+        if args.command == 'machine-claim': return machine.verify_property(raw, claim, args.expect_machine, max_edges=args.max_edges)
         if args.command == 'machine-inspect': return machine.describe(raw)
         if args.command == 'machine-unpack': return machine.unpack(raw, args.output)
         if args.command == 'machine-search':
@@ -464,7 +468,7 @@ def main(argv=None):
         if result['status'] == 'verified_lineage': return 0
         if result['status'] == 'incomplete': return 3
         return 1 if result['status'] == 'checker_error' else 4
-    if args.command in ('lab-discover', 'lab-check-invariant', 'machine-check'):
+    if args.command in ('lab-discover', 'lab-check-invariant', 'machine-check', 'machine-discover', 'machine-claim'):
         if result['status'] in ('complete', 'established'): return 0
         if result['status'] == 'checker_error': return 1
         return 3 if result['status'] == 'incomplete' else 4
