@@ -333,14 +333,18 @@ def gate(args):
         # .pth files already present. A matching NAME alone proves no ownership.
         purelib, hooks_before = None, None
         if args.install_into:
-            purelib, problems = installation_root(args.install_into)
+            pending_artifact = dict(path=None, sha256=admitted["artifact"]["sha256"])
+            try:
+                purelib, problems = installation_root(args.install_into)
+            except (OSError, UnicodeError) as exc:
+                purelib, problems = None, [f"cannot resolve the installation root: {exc}"]
             if problems:
-                return EXIT_OPERATION, dict(status="environment_untrusted",
-                    stage="environment", problems=problems, artifact=None)
+                return EXIT_OPERATION, dict(status="environment_unresolved",
+                    stage="environment", problems=problems, artifact=pending_artifact)
             hooks_before = startup_hooks(purelib, payload)
             if hooks_before["foreign_startup_hooks"] and not args.allow_startup_hooks:
                 return EXIT_OPERATION, dict(status="environment_untrusted",
-                    stage="environment", artifact=None, **hooks_before)
+                    stage="environment", artifact=pending_artifact, **hooks_before)
         os.link(staged, final)                      # refuses to replace an existing name
     finally:
         staged.unlink(missing_ok=True)

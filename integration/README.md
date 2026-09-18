@@ -76,7 +76,9 @@ and the venv imports `sigma_glyph` at version `0.7.0`.
 | exit | status | meaning |
 |---|---|---|
 | 0 | `approved` / `installed` | both decisions hold for these bytes |
-| 1 | `operation_error` / `install_unverified` / `environment_untrusted` | local I/O: target name taken, missing directory, install failed; the environment does not hold the admitted payload; or it runs `.pth` startup code the wheel did not bring (`--allow-startup-hooks` overrides) |
+| 1 | `operation_error` / `install_failed` / `install_unverified` | local I/O or installer failure; or payload readback failed |
+| 1 | `environment_unresolved` | the installation root could not be established; inspect `problems` and repair the environment/layout |
+| 1 | `environment_untrusted` | foreign root `.pth` files were detected; remove them or explicitly permit them with `--allow-startup-hooks` |
 | 2 | `invalid` / `artifact_not_a_wheel` | malformed or untrusted input, or verified bytes that are not installable |
 | 3 | `unverified` | material missing or unreadable — **nothing was decided** |
 | 4 | `unsatisfied` | a decision was reached and it does not admit this artifact |
@@ -87,8 +89,8 @@ and the venv imports `sigma_glyph` at version `0.7.0`.
 ## Tests
 
 ```sh
-python3 integration/test_release_gate.py                  # 18 tests, 6 install tests skipped
-python3 integration/test_release_gate.py --with-install   # all 18, including real installs
+python3 integration/test_release_gate.py                  # 19 tests, 6 install tests skipped
+python3 integration/test_release_gate.py --with-install   # all 19, including real installs
 ```
 
 They cover approval and naming, a tampered artifact, an untrusted key, a missing
@@ -117,6 +119,13 @@ failures are operational failures, not hook names that the override can waive.
 
 `--allow-startup-hooks` explicitly permits execution of the reported foreign
 `.pth` files when pip starts. Without it, preflight refuses before that startup.
+The override never bypasses `environment_unresolved`. With `--install-into`,
+either preflight refusal also withholds the final approved wheel from
+`--output-dir`, even though both artifact decisions passed. These reports retain
+`artifact.sha256` from the admitted bytes with `artifact.path: null`: no final
+copy was published, and the temporary stage was removed. Without `--install-into`,
+the gate publishes the approved copy without checking an installation environment.
+
 Candidate-owned hooks are allowed because their bytes were admitted, and are
 reported by name. They may execute on a later normal interpreter startup and
 change verified files. `installed` certifies the checked payload bytes at readback,

@@ -168,6 +168,26 @@ class ReleaseGate(unittest.TestCase):
         self.assertEqual((done.returncode, report["status"]), (2, "artifact_not_a_wheel"))
         self.assertEqual(sorted(p.name for p in out.iterdir()), [])
 
+    def test_unresolved_environment_is_distinct_and_retains_admitted_digest(self):
+        target = self.dir / "no-environment-config"
+        target.mkdir(exist_ok=True)
+        for config in (None, b"\xff", b"version = 3.14\n"):
+            config_path = target / "pyvenv.cfg"
+            if config is not None:
+                config_path.write_bytes(config)
+            for override in ((), ("--allow-startup-hooks",)):
+                with self.subTest(config=config, override=override):
+                    code, report, files = self.run_gate(
+                        extra=("--install-into", str(target), *override))
+                    self.assertEqual((code, report["status"]), (1, "environment_unresolved"))
+                    self.assertEqual(report["stage"], "environment")
+                    self.assertTrue(report["problems"])
+                    self.assertEqual(report["artifact"], dict(path=None,
+                        sha256=hashlib.sha256(self.wheel.read_bytes()).hexdigest()))
+                    self.assertEqual(files, [])
+                    self.assertEqual(sorted(p.name for p in target.iterdir()),
+                                     [] if config is None else ["pyvenv.cfg"])
+
     def test_existing_target_name_is_never_replaced(self):
         out = Path(tempfile.mkdtemp(dir=self.dir))
         target = out / "gatedemo-0.1.0-py3-none-any.whl"
@@ -344,6 +364,9 @@ class HostileEnvironment(unittest.TestCase):
             self.assertFalse((root / "gatedemo").exists(), "pip installed before refusal")
             self.assertEqual((code, report["status"]), (1, "environment_untrusted"))
             self.assertEqual(report["stage"], "environment")
+            self.assertEqual(report["artifact"], dict(path=None,
+                sha256=hashlib.sha256(ReleaseGate.wheel.read_bytes()).hexdigest()))
+            self.assertNotIn("problems", report)
             self.assertEqual(report["foreign_startup_hooks"], ["foreign.pth"])
             self.assertEqual(files, [], "preflight refusal published an approved wheel")
             # Prove the fixture can execute, when the operator explicitly allows it.

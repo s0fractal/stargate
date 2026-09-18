@@ -274,3 +274,10 @@ hook belonged to the candidate. The inventory now compares actual bytes to the
 admitted digest and reports candidate-owned as well as foreign hooks. This is
 still a root-.pth policy within a trusted interpreter/installer boundary, not a
 complete startup-code detector. The README spells out that narrower contract.
+
+Claude's follow-up found that `environment_untrusted` also named failures to
+establish an installation root. These are now `environment_unresolved` (still
+exit 1), separate from a detected foreign hook. Neither preflight refusal drops
+the admitted digest: reports carry `artifact.sha256` with `path: null`, because
+no final copy has been published. The hook override cannot waive an unresolved
+root.
