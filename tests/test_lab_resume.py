@@ -164,6 +164,38 @@ class LabResume(unittest.TestCase):
         self.assertIsNone(state.successor)
         with self.assertRaises(InvalidRecord): lab.resume_transition(state, rows=1)
 
+    def test_suspended_and_faulted_reports_are_progress_not_verdicts(self):
+        raw, proposal = setup()
+        for expected_status in ('suspended', 'faulted'):
+            with self.subTest(status=expected_status):
+                state = lab.start_transition(raw, proposal, rows=3)
+                if expected_status == 'faulted':
+                    with patch.object(compiler, 'compile_source', side_effect=RuntimeError('interrupted')):
+                        with self.assertRaisesRegex(RuntimeError, 'interrupted'):
+                            lab.resume_transition(state, rows=1)
+                report = state.report
+                # Pin the public snapshot, not merely the object's status.
+                self.assertEqual(report['status'], expected_status)
+                self.assertIs(report['admitted'], False)
+                self.assertIsNone(state.successor)
+                # Exact progress shape excludes verdict-only fields such as
+                # successor, reason, max_atp, witness and property_results.
+                self.assertEqual(set(report), {
+                    'status', 'parent', 'runtime_digest', 'candidate',
+                    'rows', 'total_rows', 'admitted'})
+                self.assertEqual(report['total_rows'], 8)
+                self.assertEqual([row['input'] for row in report['rows']], [
+                    {'a': False, 'b': False, 'c': False},
+                    {'a': False, 'b': False, 'c': True},
+                    {'a': False, 'b': True, 'c': False}])
+        # Actual ATP exhaustion must retain its terminal classification.
+        limited, proposal = setup(max_atp=1)
+        exhausted = lab.start_transition(limited, proposal, rows=1)
+        self.assertEqual(exhausted.report['status'], 'incomplete')
+        self.assertIs(exhausted.report['admitted'], False)
+        self.assertIn('reason', exhausted.report)
+        self.assertIsNone(exhausted.successor)
+
     def test_interleaved_sessions_own_separate_work(self):
         raw, yes = setup()
         no = dict(yes, candidate=rule('a && b && c'))
