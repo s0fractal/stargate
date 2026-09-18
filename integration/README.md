@@ -81,7 +81,7 @@ and the venv imports `sigma_glyph` at version `0.7.0`.
 ## Tests
 
 ```sh
-python3 integration/test_release_gate.py                 # 8 tests, builds its own wheel
+python3 integration/test_release_gate.py                  # 9 tests, builds its own wheel
 python3 integration/test_release_gate.py --with-install   # plus a venv install
 ```
 
@@ -94,6 +94,6 @@ same name and version was already installed.
 
 ## What this cost
 
-[FINDINGS.md](FINDINGS.md) lists the eight things I had to invent at the
+[FINDINGS.md](FINDINGS.md) lists the ten things I had to invent at the
 boundary between verification and action — and the four that Stargate already
 got right, which is why the gate is 150 lines and not a subsystem.
