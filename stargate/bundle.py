@@ -91,7 +91,7 @@ def write_bundle(path, raw):
         Path(tmp).unlink(missing_ok=True)
 
 
-def require_bundle(raw, trusted_keys, *, rule, facts):
+def require_bundle(raw, trusted_keys, *, rule, facts, subject=None):
     """Verify transport and require the recipient's exact rule and boolean facts.
 
     Returns satisfied/unsatisfied for verified records only. Verification failures
@@ -103,10 +103,12 @@ def require_bundle(raw, trusted_keys, *, rule, facts):
     if not isinstance(facts, dict) or not all(
             isinstance(n, str) and type(v) is bool for n, v in facts.items()):
         raise PolicyError('expected facts must be an object of boolean values')
+    if subject is not None:
+        record_hash(subject)
     facts_raw = canon(facts)
     parse(rule, decode(facts_raw))  # validate the recipient's request independently
     expected = dict(rule=hashlib.sha256(rule.encode('utf-8')).hexdigest(),
-                    facts=hashlib.sha256(facts_raw).hexdigest())
+                    facts=hashlib.sha256(facts_raw).hexdigest(), subject=subject)
     report = verify_bundle(raw, set(trusted_keys))
     policy = report['policy']
     if policy is None:
@@ -115,6 +117,8 @@ def require_bundle(raw, trusted_keys, *, rule, facts):
         reason = 'rule_mismatch'
     elif policy['facts'] != expected['facts']:
         reason = 'facts_mismatch'
+    elif report['subject'] != expected['subject']:
+        reason = 'subject_mismatch'
     elif report['decision'] != 'accept':
         reason = 'decision_reject'
     else:

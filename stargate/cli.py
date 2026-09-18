@@ -1,5 +1,7 @@
 """One CLI, exposed as both stargate and sg."""
 import argparse
+import hashlib
+import stat
 import json
 import os
 from pathlib import Path
@@ -38,12 +40,14 @@ def parser():
     q.add_argument("term", type=hex_hash); q.add_argument("--atp", required=True, type=int)
     q.add_argument("--expect", required=True, type=hex_hash)
     q.add_argument("--exit", required=True, choices=kernel.EXITS)
+    q.add_argument("--subject", type=Path, help="bind to SHA-256 of this regular file")
     q.add_argument("--key", required=True, type=Path)
     q.add_argument("--environment", type=Path,
                    help="JSON list defining the exact object domain; otherwise capture demanded objects")
     q = cmd("policy", "compile a boolean WPL file and sign its decision")
     q.add_argument("source", type=Path)
     q.add_argument("--facts", required=True, type=Path)
+    q.add_argument("--subject", type=Path, help="bind to SHA-256 of this regular file")
     q.add_argument("--key", required=True, type=Path)
     q.add_argument("--max-atp", type=int, default=DEFAULT_MAX_ATP)
     q = cmd("verify", "verify a stored signed record by independent re-execution")
@@ -62,7 +66,27 @@ def parser():
     q.add_argument("--trust", required=True, action="append", type=hex_hash)
     q.add_argument("--rule", required=True, type=Path)
     q.add_argument("--facts", required=True, type=Path)
+    q.add_argument("--subject", type=Path, help="require SHA-256 of this regular file; omission requires an unbound record")
     return p
+
+
+def subject_hash(path):
+    if path is None:
+        return None
+    # Nonblocking open lets us reject FIFOs rather than waiting for a writer.
+    fd = os.open(path, os.O_RDONLY | os.O_NONBLOCK)
+    with os.fdopen(fd, 'rb') as stream:
+        before = os.fstat(stream.fileno())
+        if not stat.S_ISREG(before.st_mode):
+            raise ValueError('subject must be a regular file')
+        digest = hashlib.sha256()
+        while chunk := stream.read(1024 * 1024):
+            digest.update(chunk)
+        after = os.fstat(stream.fileno())
+        if (before.st_size, before.st_mtime_ns, before.st_ctime_ns) != (
+                after.st_size, after.st_mtime_ns, after.st_ctime_ns):
+            raise OSError('subject changed while hashing')
+    return digest.hexdigest()
 
 
 def read_facts(path):
@@ -81,7 +105,7 @@ def execute(args):
         rule = args.rule.read_bytes().decode("utf-8")
         facts = read_facts(args.facts)
         raw = read_bundle(args.path)
-        return require_bundle(raw, set(args.trust), rule=rule, facts=facts)
+        return require_bundle(raw, set(args.trust), rule=rule, facts=facts, subject=subject_hash(args.subject))
     store = Store(args.store)
     if args.command == "verify-bundle":
         return verify_bundle(read_bundle(args.path), set(args.trust))
@@ -117,14 +141,14 @@ def execute(args):
                        else capture_environment(args.term, args.atp, store))
         check = dict(term=args.term, atp=args.atp, expect=args.expect, exit=args.exit,
                      environment=environment)
-        envelope = create_record(check, store, key)
+        envelope = create_record(check, store, key, subject=subject_hash(args.subject))
         return {"record": record_id(envelope["body"]), "object": store.put(canon(envelope)),
                 "decision": envelope["body"]["decision"]}
     if args.command == "policy":
         key = Ed25519PrivateKey.from_private_bytes(bytes.fromhex(args.key.read_text().strip()))
         facts = read_facts(args.facts)
         return author_policy(args.source.read_bytes().decode("utf-8"), facts, store, key,
-                             max_atp=args.max_atp)
+                             max_atp=args.max_atp, subject=subject_hash(args.subject))
     if args.command == "verify":
         return verify_record(store.read(args.object), store, set(args.trust))
     raise ValueError("unknown operation")
