@@ -164,6 +164,47 @@ decision, the naming and the publication. The lesson is the same one this projec
 keeps learning at a different layer: the interesting paths are the ones that
 refuse, and they need the same care as the one that succeeds.
 
+## F11. A manifest inside the verified object is a claim by the object
+
+Added after the second review. The postcondition check built its expected hashes
+from the wheel's own `RECORD`. A signed decision authenticates the **whole
+archive**, including a `RECORD` that contradicts it, so the artifact was choosing
+what the check would check. Codex reproduced both halves through the real gate
+and real pip, using a `.pth` startup hook to rewrite the installed module:
+
+- **omission** — leave the module out of `RECORD`: it is never examined;
+- **contradiction** — list the module with the digest of the *mutated* bytes:
+  the lie becomes the expected value.
+
+In both, the gate said `0 / installed` while the environment ran `VALUE=999`
+from a wheel whose own bytes say `VALUE=1`.
+
+The fix is not to read `RECORD` more carefully. Expected hashes now come from
+the **ZIP members themselves**; `RECORD` is read only to refuse an internally
+inconsistent wheel *before* anything is installed — every payload member must be
+listed, with the digest its bytes actually have, and a disagreement is
+`artifact_not_a_wheel` (exit 2), because a gate should not choose which half of a
+self-contradicting artifact to believe.
+
+Both of Codex's variants now fail against the pre-fix gate with
+`(0, 'approved') != (2, 'artifact_not_a_wheel')` and pass against the fix.
+
+**The general shape, which is the point:** *signed* does not mean *internally
+consistent*. Every layer of this project has now met the same lesson wearing
+different clothes — a fact name that means nothing to the tool (build 5), a
+source hash that had to be recompiled rather than believed (build 7), and now a
+file manifest that had to be recomputed rather than read. Anything a verified
+object says **about itself** is a claim, and a checker that reads it has verified
+the claim, not the thing.
+
+A third case is worth recording because it did **not** need the fix: a wheel
+whose `RECORD` is entirely truthful, in an environment whose `.pth` hook rewrites
+the module at interpreter startup, was already caught — the readback hashes what
+is on disk, so it reported `install_unverified`. What no after-the-fact check can
+catch is an environment that mutates *after* the gate finishes. The only honest
+answer there is to install into an environment the gate creates itself, and this
+gate does not.
+
 ## Method note
 
 My first failure battery reported five bogus failures because `zsh` does not

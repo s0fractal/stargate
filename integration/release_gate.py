@@ -30,8 +30,9 @@ would then be about different bytes. So the gate runs, in this order:
      already-present distribution of the same version as satisfied and skips the
      install, so "pip exited 0" does not mean the admitted code is in place: the
      gate forces the install and then hashes every payload file the wheel's
-     RECORD names against what is now on disk. `installed` means that check
-     passed, and nothing else.
+     ZIP itself contains against what is now on disk — the wheel's `RECORD` is
+     checked for agreement with those bytes and then not believed. `installed`
+     means that check passed, and nothing else.
 
 Step 2 could not come first, and nothing in Stargate enforces this order — see
 integration/FINDINGS.md.
@@ -137,11 +138,18 @@ def wheel_filename(path):
 
 
 def wheel_payload(path):
-    """{installed relative path: sha256} for every payload file the wheel RECORDs.
+    """{installed relative path: sha256} for every payload member of the WHEEL.
 
-    `.dist-info/RECORD` is excluded because the installer rewrites it. Wheels
-    carrying a `.data/` tree are refused: their files land outside purelib and
-    this gate does not track them.
+    The digests come from the ZIP members themselves, never from `RECORD`. A
+    manifest is an artifact-controlled claim: a signed decision authenticates the
+    whole archive including a contradictory `RECORD`, so believing it would let
+    the artifact choose what the postcondition checks (Codex, PR #11 review R3).
+
+    `RECORD` is still read, but only to REFUSE an internally inconsistent wheel
+    before anything is installed: every payload member must be listed, with the
+    digest its bytes actually have. `.dist-info/RECORD` itself is excluded (the
+    installer rewrites it) and a `.data/` tree is refused, since those files land
+    outside purelib and this gate does not track them.
     """
     try:
         archive = zipfile.ZipFile(path)
@@ -153,28 +161,47 @@ def wheel_payload(path):
         if len(records) != 1:
             raise NotAWheel("admitted wheel does not carry exactly one RECORD")
         payload = {}
+        for member in archive.infolist():
+            name = member.filename
+            if name == records[0] or name.endswith("/"):
+                continue
+            if ".data/" in name:
+                raise NotAWheel("this gate does not handle wheels with a .data payload")
+            payload[name] = hashlib.sha256(archive.read(name)).hexdigest()
+        if not payload:
+            raise NotAWheel("admitted wheel carries no payload members")
+
+        # The manifest must agree with the bytes. It decides nothing here; a
+        # disagreement means the artifact is internally inconsistent, and this
+        # gate refuses it rather than choosing which half to believe.
         try:
             lines = archive.read(records[0]).decode("utf-8", "strict").splitlines()
         except (KeyError, UnicodeDecodeError, zipfile.BadZipFile) as exc:
             raise NotAWheel(f"admitted wheel has an unreadable RECORD: {exc}") from exc
-        for line in lines:
-            if not line.strip():
-                continue
-            name, _, rest = line.partition(",")
-            if name.endswith(".dist-info/RECORD"):
-                continue
-            if ".data/" in name:
-                raise NotAWheel("this gate does not handle wheels with a .data payload")
-            digest = rest.split(",")[0]
-            if not digest.startswith("sha256="):
-                raise NotAWheel(f"RECORD entry without a sha256 digest: {name}")
-            try:
-                payload[name] = base64.urlsafe_b64decode(
-                    digest[7:] + "=" * (-len(digest[7:]) % 4)).hex()
-            except ValueError as exc:
-                raise NotAWheel(f"RECORD entry with an undecodable digest: {name}") from exc
-    if not payload:
-        raise NotAWheel("admitted wheel RECORDs no payload files")
+    claimed = {}
+    for line in lines:
+        if not line.strip():
+            continue
+        name, _, rest = line.partition(",")
+        if name == records[0]:
+            continue
+        digest = rest.split(",")[0]
+        if not digest.startswith("sha256="):
+            raise NotAWheel(f"RECORD entry without a sha256 digest: {name}")
+        try:
+            claimed[name] = base64.urlsafe_b64decode(
+                digest[7:] + "=" * (-len(digest[7:]) % 4)).hex()
+        except ValueError as exc:
+            raise NotAWheel(f"RECORD entry with an undecodable digest: {name}") from exc
+    missing = sorted(set(payload) - set(claimed))
+    if missing:
+        raise NotAWheel(f"RECORD omits payload members: {', '.join(missing[:4])}")
+    extra = sorted(set(claimed) - set(payload))
+    if extra:
+        raise NotAWheel(f"RECORD lists members the wheel does not contain: {', '.join(extra[:4])}")
+    lying = sorted(n for n, want in claimed.items() if payload[n] != want)
+    if lying:
+        raise NotAWheel(f"RECORD digests contradict the wheel's own bytes: {', '.join(lying[:4])}")
     return payload
 
 

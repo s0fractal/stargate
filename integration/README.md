@@ -61,8 +61,9 @@ and the venv imports `sigma_glyph` at version `0.7.0`.
    anything about names.
 4. **Install the admitted path** — forced, because `pip` skips a distribution
    whose name and version are already present — and then **read the environment
-   back**: every payload file in the wheel's `RECORD` is hashed where the
-   installer put it. `installed` means that check passed; a mismatch is
+   back**: every payload member of the wheel's **ZIP** is hashed where the
+   installer put it (`RECORD` is checked for agreement with those bytes before
+   the install, and then not believed). `installed` means that check passed; a mismatch is
    `install_unverified`, exit 1.
 
 ## Outcomes
@@ -81,7 +82,7 @@ and the venv imports `sigma_glyph` at version `0.7.0`.
 ## Tests
 
 ```sh
-python3 integration/test_release_gate.py                  # 9 tests, builds its own wheel
+python3 integration/test_release_gate.py                  # 11 tests, builds its own wheels
 python3 integration/test_release_gate.py --with-install   # plus a venv install
 ```
 
@@ -89,11 +90,13 @@ They cover approval and naming, a tampered artifact, an untrusted key, a missing
 artifact, verified bytes that are not a wheel, a taken target name, a candidate
 whose *path* name is misleading, missing and malformed second proofs (with no
 staging left behind and a retry that still works), the environment readback on
-its own, and — with `--with-install` — a venv where a **different** wheel of the
-same name and version was already installed.
+its own, a `RECORD` that omits payload members, a `RECORD` that contradicts the
+wheel's own bytes, and — with `--with-install` — a venv where a **different**
+wheel of the same name and version was already installed, and an environment
+that rewrites the installed module at interpreter startup.
 
 ## What this cost
 
-[FINDINGS.md](FINDINGS.md) lists the ten things I had to invent at the
+[FINDINGS.md](FINDINGS.md) lists the eleven things I had to invent at the
 boundary between verification and action — and the four that Stargate already
 got right, which is why the gate is 150 lines and not a subsystem.

@@ -205,6 +205,119 @@ class ReleaseGate(unittest.TestCase):
         self.assertEqual(files, ["gatedemo-0.1.0-py3-none-any.whl"])
 
 
+def build_hostile_wheel(path, variant, name="gatedemo", version="0.1.0", pad=2048):
+    """A wheel whose RECORD lies about its own bytes, plus a startup hook.
+
+    The hook rewrites the installed module when the target interpreter starts —
+    a deterministic stand-in for any environment that mutates itself after an
+    installer finishes (Codex, PR #11 review R3). `variant`:
+
+      "omit"         — the module and the hook are left out of RECORD
+      "lie"          — everything listed, but the module's digest is the hook's target
+      "honest-hook"  — RECORD agrees with every byte; only the environment lies
+    """
+    dist = f"{name}-{version}.dist-info"
+    module = f"VALUE = 1\n".encode()
+    # A .pth line runs at interpreter startup if it begins with "import". It has
+    # no __file__, so the target is derived from sysconfig, as a real one would be.
+    hook = (b"import os,sysconfig;p=os.path.join(sysconfig.get_paths()['purelib'],"
+            b"'gatedemo','__init__.py');os.path.exists(p) and open(p,'w').write('VALUE = 999\\n')\n")
+    entries = {
+        f"{name}/__init__.py": module,
+        "gate_probe.pth": hook,
+        f"{dist}/METADATA":
+            f"Metadata-Version: 2.1\nName: {name}\nVersion: {version}\n\nbody\n".encode(),
+        f"{dist}/WHEEL": (b"Wheel-Version: 1.0\nGenerator: test\nRoot-Is-Purelib: true\n"
+                          b"Tag: py3-none-any\n"),
+        f"{dist}/filler": ("0" * pad).encode(),
+    }
+    def row(member, raw):
+        digest = base64.urlsafe_b64encode(hashlib.sha256(raw).digest()).rstrip(b"=").decode()
+        return f"{member},sha256={digest},{len(raw)}"
+    record = []
+    for member, raw in entries.items():
+        if variant == "omit" and member in (f"{name}/__init__.py", "gate_probe.pth"):
+            continue
+        if variant == "lie" and member == f"{name}/__init__.py":
+            record.append(row(member, b"VALUE = 999\n"))      # digest of what the hook writes
+            continue
+        record.append(row(member, raw))
+    record.append(f"{dist}/RECORD,,")
+    with zipfile.ZipFile(path, "w") as archive:
+        for member, raw in entries.items():
+            archive.writestr(member, raw)
+        archive.writestr(f"{dist}/RECORD", "\n".join(record) + "\n")
+    return path
+
+
+class HostileManifest(unittest.TestCase):
+    """A wheel may be admitted and still lie about itself internally."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.dir = Path(self.tmp.name)
+        self.store = Store(self.dir / "objects")
+        self.key = Ed25519PrivateKey.from_private_bytes(bytes(range(32)))
+        self.trust = R.public_key(self.key)
+        (self.dir / "bytes.wpl").write_text(BYTES_RULE)
+        (self.dir / "bytes.json").write_text(json.dumps(BYTES_PROFILE))
+        (self.dir / "judgment.wpl").write_text(JUDGMENT_RULE)
+        (self.dir / "judgment-facts.json").write_text(json.dumps(JUDGMENT_FACTS))
+
+    def gate_for(self, variant, install=False):
+        wheel = build_hostile_wheel(self.dir / f"{variant}.whl", variant)
+        digest = hashlib.sha256(wheel.read_bytes()).hexdigest()
+        byte_record = author_derived(BYTES_RULE, BYTES_PROFILE, wheel, self.store, self.key)
+        judgment = P.author_policy(JUDGMENT_RULE, JUDGMENT_FACTS, self.store, self.key,
+                                   subject=digest)
+        for name, record in ((f"{variant}-bytes.sg.json", byte_record),
+                             (f"{variant}-judgment.sg.json", judgment)):
+            raw, _ = B.export_bundle(self.store.read(record["object"]), self.store, {self.trust})
+            (self.dir / name).write_bytes(raw)
+        out = Path(tempfile.mkdtemp(dir=self.dir))
+        extra = []
+        if install:
+            venv = self.dir / f"venv-{variant}"
+            subprocess.run([sys.executable, "-m", "venv", str(venv)], check=True,
+                           capture_output=True)
+            extra = ["--install-into", str(venv)]
+        done = subprocess.run(
+            [sys.executable, str(GATE), "--artifact", str(wheel), "--trust", self.trust,
+             "--bytes-bundle", str(self.dir / f"{variant}-bytes.sg.json"),
+             "--bytes-rule", str(self.dir / "bytes.wpl"),
+             "--bytes-profile", str(self.dir / "bytes.json"),
+             "--judgment-bundle", str(self.dir / f"{variant}-judgment.sg.json"),
+             "--judgment-rule", str(self.dir / "judgment.wpl"),
+             "--judgment-facts", str(self.dir / "judgment-facts.json"),
+             "--output-dir", str(out), *extra], capture_output=True, text=True,
+            env={**os.environ, "PIP_NO_INDEX": "1"})
+        return done.returncode, json.loads(done.stdout), sorted(p.name for p in out.iterdir())
+
+    def test_record_omitting_payload_members_is_refused(self):
+        code, report, files = self.gate_for("omit")
+        self.assertEqual((code, report["status"]), (2, "artifact_not_a_wheel"))
+        self.assertIn("omits payload members", report["error"])
+        self.assertEqual(files, [])
+
+    @unittest.skipUnless("--with-install" in sys.argv, "needs a venv; pass --with-install")
+    def test_consistent_wheel_whose_environment_rewrites_it_is_not_installed(self):
+        """Nothing about this wheel is inconsistent; the ENVIRONMENT mutates it.
+
+        The hook runs when the target interpreter starts, which is what the
+        readback does. `installed` must not survive that."""
+        code, report, files = self.gate_for("honest-hook", install=True)
+        self.assertEqual((code, report["status"]), (1, "install_unverified"))
+        self.assertTrue(any("gatedemo/__init__.py" in p for p in report["problems"]),
+                        report["problems"])
+
+    def test_record_contradicting_its_own_bytes_is_refused(self):
+        code, report, files = self.gate_for("lie")
+        self.assertEqual((code, report["status"]), (2, "artifact_not_a_wheel"))
+        self.assertIn("contradict", report["error"])
+        self.assertEqual(files, [])
+
+
 class EnvironmentReadback(unittest.TestCase):
     """`environment_holds` on its own: the install step's postcondition check.
 
