@@ -156,3 +156,9 @@ root explicitly as sysconfig base/platbase. Before Python 3.14, disabling site a
 prevents normal venv prefix setup. The interpreter still supplies its own version
 and installation scheme, which must agree with the separately parsed pyvenv.cfg
 layout; startup hooks stay disabled and escaping install roots remain refused.
+
+Python 3.11's fresh venv also seeds setuptools and `distutils-precedence.pth`.
+The gate correctly treats that pre-existing hook as foreign; it is not silently
+allowlisted. Integration fixtures uninstall setuptools from their own fresh venvs
+before planting test hooks, so all interpreter versions start from a pip-only
+fixture. This does not remove or relax hook checks in the gate.
