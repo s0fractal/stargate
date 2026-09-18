@@ -11,7 +11,7 @@ In the default equivalence mode, a changed answer produces a concrete
 counterexample. A cheaper equivalent rule
 can become the next world; an unfinished check establishes nothing.
 
-**Build 20 · 32K draft.** The contract can change incompatibly. This is an
+**Build 21 · 32K draft.** The contract can change incompatibly. This is an
 experimental implementation, not a stable release or a general program prover.
 Python only; commands `sg` and `stargate`. MIT licensed.
 
@@ -923,3 +923,61 @@ it as `checker_error`. Unexpected exceptions propagate and leave the state
 No `lab-resume` CLI or serialized checkpoint is claimed: a new process must
 recompute work it did not itself verify. The compiler's existing within-row
 exact-budget replay remains; slicing adds no repeat of completed rows.
+
+### Pass an unfinished task to another chat (Build 21)
+
+`lab-task-start` packages the world, candidate and **claimed** completed rows.
+A recipient uses its own checker to recompute those rows before continuing.
+The stable task ID binds both the exact world and exact candidate; obtain it
+from your chosen inputs or a separately agreed source, not from an untrusted
+packet you are trying to authenticate. Packet IDs change as progress grows. In Python, compute your chosen anchor with
+`labtask.identity(world_bytes, proposal)` after validating your inputs.
+
+```sh
+# A suspended task is exit 3, and --output contains a task, not a successor.
+sg lab-task-start world.json proposal.json --rows 2 --output task.json
+sg lab-task-inspect task.json
+# Recipient supplies the independently chosen TASK_ID.
+sg lab-task-resume task.json --expect-task "$TASK_ID" --rows 3 --output next.json
+```
+
+Here `--rows 3` means **three new rows after replaying the prefix**. Even
+`--rows 0` rechecks all claimed rows. With two imported rows and three new ones,
+there are five parent/candidate pairs computed, not three. Reports separate
+`replayed_rows` from `new_rows` and embed the recomputed `verification` report.
+Inspection exits 0 with `unverified_progress`: it validates structure/runtime
+without establishing any row's truth.
+
+The output kind is explicit: `output_kind: task` and exit 3 when suspended;
+`output_kind: world` and exit 0 only for an admitted successor. Refusal, terminal
+`incomplete`, and checker failure have no output bytes. Existing output paths
+are never overwritten. These examples are individual commands: in a shell using
+`set -e`, deliberately handle exit 3 before running the next command.
+
+For a recipient with Python but no installed Stargate:
+
+```sh
+sg lab-task-unpack task.json --output task-offline
+python -I -S task-offline/replay.py task-offline/task.json next.json \
+  --task --expect-task "$TASK_ID" --rows 3 --expect-runtime "$RUNTIME_DIGEST"
+```
+
+Authenticate `replay.py`'s digest and the runtime digest independently, just as
+for world/lineage replay. Unpacking validates and writes files; it runs no packet
+code. The checked launcher executes only verified source snapshots. This is not
+a sandbox and still trusts Python and its standard library.
+
+A task is canonical JSON with `stargate_task: 32`, `world`, `proposal`, and
+`prefix`. It contains no continuation objects or trusted verdicts. Prefix results
+are compared in full (inputs, values, term hashes and ATP), not by trusting a
+sender's digest. A completed-prefix claim that exhausts the fixed world ATP
+budget on replay is invalid (exit 2), even if its claimed ATP fits the budget.
+A local resource failure remains incomplete (exit 3). Exhaustion in new rows
+also remains incomplete: nobody claimed those rows were completed. A complete table is not a pending task. Dropping a suffix or
+resetting the prefix to empty is allowed; it merely discards claimed progress.
+A different candidate or world requires a different task anchor.
+
+This transfers the **work request and its context**, not the authority of a
+previous process. Repeated handoffs repeat prefix computation. No cross-process
+work savings, persisted kernel state, background execution or automatic routing
+between chats is claimed. The recipient still chooses to run the packet.

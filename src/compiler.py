@@ -25,6 +25,10 @@ class CompileIncomplete(PolicyError):
     """Valid source did not finish; distinct from malformed source."""
 
 
+class CompileBudgetExhausted(CompileIncomplete):
+    """The canonical evaluator exhausted the supplied per-program ATP budget."""
+
+
 class CompilerBug(RuntimeError):
     """Compiler output disagrees with the source interpreter or emission gate."""
 
@@ -163,6 +167,8 @@ def compile_source(source, *, max_atp=DEFAULT_MAX_ATP, facts=None, limits=None):
     if limits is not None:
         evaluator_limits.update(limits)
     receipt = k.eval_receipt(h, max_atp, objects, evaluator_limits)
+    if receipt.exit == 'atp_exhausted':
+        raise CompileBudgetExhausted('policy did not finish within the compile budget')
     if receipt.exit != 'normal_form':
         raise CompileIncomplete('policy did not finish within the compile budget')
     expected_value_hash = k.K_H if value else k.FALSE_H

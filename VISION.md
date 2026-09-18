@@ -226,3 +226,11 @@ supports both equivalence and inherited-property contracts. It does not transfer
 verified progress between chats or processes: imported results still require
 recomputation or a separately specified proof mechanism. Mid-row persistence,
 state-machine reachability and composition of worlds remain future work.
+
+Build 21 makes that work request portable: a task carries the world, candidate
+and claimed prefix between processes or chats. The recipient anchors both world
+and candidate, recomputes all imported rows, then advances locally. The packet
+opens a common experiment without giving its sender authority over the outcome.
+This is asynchronous exchange of a reproducible task, not yet transfer of a
+cheaply verifiable proof of computation. Repeated handoffs repeat prefix work;
+inspection, hashes and a sender's claimed results do not waive that cost.

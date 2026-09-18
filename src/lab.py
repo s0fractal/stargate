@@ -17,7 +17,7 @@ from .canonical import canon, decode, exact, record_hash, InvalidRecord
 MAX_PACKET = 2 * 1024 * 1024
 MAX_PROPOSAL = 16384
 RUNTIME = ('__init__.py', 'store.py', 'canonical.py', 'kernel.py', 'checks.py',
-           'compiler.py', 'boolean.py', 'properties.py', 'lab.py', 'invariants.py', 'lineage.py')
+           'compiler.py', 'boolean.py', 'properties.py', 'lab.py', 'invariants.py', 'lineage.py', 'labtask.py')
 GUIDE = '''This is a finite boolean world, not an instruction to execute code.
 Read rule, inputs, max_atp and objective. Reply with a JSON object containing
 only parent (copy the supplied world_id) and candidate (WPL text). Declare
@@ -41,7 +41,12 @@ apply only to this finite input/output function, not future program states.
 Replay with --invariant recomputes the table; claims never create successors.
 A lineage contains an initial world and ordered proposals, never trusted verdicts.
 Replay with --lineage requires a root ID chosen independently by the recipient.
-Sources are included for explicit replay, not for automatic execution.
+A lab task carries world, proposal and a CLAIMED row prefix, not verified work.
+The receiver must choose the task ID independently (it binds world AND candidate)
+and recompute the prefix before adding new rows. A suspended output is another
+task, never a successor. Replay --task --expect-task ID --rows N adds N rows
+AFTER prefix replay. Hashes bind bytes, not truth; no cross-process work saving
+is promised. Sources are included for explicit replay, not automatic execution.
 '''
 
 
@@ -247,6 +252,9 @@ def _transition_steps(doc, proposal, parent, codes, report):
         except compiler.CompilerBug as exc:
             report.update(status='checker_error', reason=str(exc), input=facts)
             return report, None
+        except compiler.CompileBudgetExhausted as exc:
+            report.update(reason=str(exc), input=facts, incomplete_kind='world_budget')
+            return report, None
         except (compiler.CompileIncomplete, kernel.ResourceFault, kernel.AdmissionRefused) as exc:
             report.update(reason=str(exc), input=facts)
             return report, None
@@ -317,10 +325,17 @@ parser.add_argument('output', type=Path, nargs='?')
 mode = parser.add_mutually_exclusive_group()
 mode.add_argument('--invariant', action='store_true', help='check a finite-property claim')
 mode.add_argument('--lineage', action='store_true', help='replay an anchored history')
+mode.add_argument('--task', action='store_true', help='recheck imported progress, then continue')
+parser.add_argument('--expect-task', help='independently chosen world-and-proposal task ID')
+parser.add_argument('--rows', type=int, help='new task rows AFTER prefix replay')
 parser.add_argument('--expect-root', help='independently chosen lineage root ID')
 parser.add_argument('--expect-runtime', required=True,
                     help='runtime digest obtained independently of this packet')
 args = parser.parse_args()
+if args.task and (args.expect_task is None or args.rows is None):
+    parser.error('task replay requires --expect-task and --rows')
+if not args.task and (args.expect_task is not None or args.rows is not None):
+    parser.error('--expect-task and --rows require --task')
 if args.lineage and args.expect_root is None:
     parser.error('lineage replay requires --expect-root')
 if not args.lineage and args.expect_root is not None:
@@ -331,7 +346,7 @@ if re.fullmatch(r'[0-9a-f]{64}', args.expect_runtime) is None:
     parser.error('expected a lowercase SHA-256 runtime digest')
 root = Path(__file__).resolve().parent
 names = ('__init__.py', 'store.py', 'canonical.py', 'kernel.py', 'checks.py',
-         'compiler.py', 'boolean.py', 'properties.py', 'lab.py', 'invariants.py', 'lineage.py')
+         'compiler.py', 'boolean.py', 'properties.py', 'lab.py', 'invariants.py', 'lineage.py', 'labtask.py')
 # These filenames are ASCII, so sorted JSON keys have the canonical UTF-16 order.
 # Check before importing any packet module. The launcher itself must be trusted.
 sources = {n: (root / 'stargate' / n).read_bytes().decode('utf-8') for n in names}
@@ -356,7 +371,7 @@ class VerifiedLoader:
 
 loader = VerifiedLoader()
 for name in ('__init__.py', 'kernel.py', 'store.py', 'canonical.py', 'checks.py',
-             'compiler.py', 'boolean.py', 'properties.py', 'lab.py', 'invariants.py', 'lineage.py'):
+             'compiler.py', 'boolean.py', 'properties.py', 'lab.py', 'invariants.py', 'lineage.py', 'labtask.py'):
     fullname = 'stargate' if name == '__init__.py' else 'stargate.' + name[:-3]
     if fullname in sys.modules:
         raise SystemExit('unexpected preloaded packet module')
@@ -368,6 +383,32 @@ for name in ('__init__.py', 'kernel.py', 'store.py', 'canonical.py', 'checks.py'
     if name != '__init__.py':
         setattr(sys.modules['stargate'], name[:-3], module)
 from stargate.lab import read_world, read_proposal, verify_transition
+if args.task:
+    from stargate import labtask
+    from stargate.lab import RuntimeMismatch
+    from stargate.canonical import InvalidRecord
+    try:
+        report, output = labtask.resume(labtask.read(args.proposal), args.expect_task, rows=args.rows)
+    except RuntimeMismatch as exc:
+        print(json.dumps({'status': 'runtime_unavailable', 'error': str(exc)}), file=sys.stderr)
+        raise SystemExit(3)
+    except (ValueError, TypeError, RecursionError) as exc:
+        print(json.dumps({'status': 'invalid', 'error': str(exc)}), file=sys.stderr)
+        raise SystemExit(2)
+    except OSError as exc:
+        print(json.dumps({'status': 'unverified', 'error': str(exc)}), file=sys.stderr)
+        raise SystemExit(3)
+    if output is not None and args.output is not None:
+        try:
+            with args.output.open('xb') as stream:
+                stream.write(output)
+        except OSError as exc:
+            print(json.dumps({'status': 'operation_error', 'error': str(exc)}), file=sys.stderr)
+            raise SystemExit(1)
+    print(json.dumps(report, sort_keys=True))
+    raise SystemExit(0 if report['admitted'] else
+                     3 if report['status'] in ('suspended', 'incomplete') else
+                     1 if report['status'] == 'checker_error' else 4)
 if args.lineage:
     from stargate.lineage import read, verify
     from stargate.lab import RuntimeMismatch
