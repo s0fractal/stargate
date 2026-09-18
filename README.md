@@ -432,6 +432,8 @@ only signed compilation/computation, without inspecting artifact bytes.
 
 Python: `measure_subject(path, profile)` returns the measurement in one read;
 `admit_bundle(..., derive=profile, subject=path, output=path)` computes it during
-staging. Exactly one of facts or derive is required. Manual --facts mode remains
+staging. Exactly one of facts or derive is required. Invalid derivation profiles raise
+`PolicyError`, including canonical snapshot failures; CLI still reports invalid/2.
+Manual --facts mode remains
 an assertion supplied by the caller. No claim is made about properties beyond
 these three byte predicates, and no signed format or Kelvin change is added.

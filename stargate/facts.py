@@ -2,13 +2,16 @@
 import codecs
 import re
 
-from .records import canon, decode
+from .records import canon, decode, InvalidRecord
 from .policy import PolicyError, RESERVED
 
 
 class FactDeriver:
     def __init__(self, profile):
-        profile = decode(canon(profile))  # snapshot caller-owned configuration
+        try:
+            profile = decode(canon(profile))  # snapshot caller-owned configuration
+        except InvalidRecord as exc:
+            raise PolicyError('invalid derivation profile: ' + str(exc)) from exc
         if not isinstance(profile, dict) or not 1 <= len(profile) <= 32:
             raise PolicyError('derivation profile must contain 1 to 32 facts')
         for name, predicate in profile.items():

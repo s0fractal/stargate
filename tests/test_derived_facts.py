@@ -100,11 +100,13 @@ class DerivedFacts(unittest.TestCase):
     def test_invalid_profiles_and_snapshot(self):
         bad = [None, {}, [], {'text': {'utf8': False}}, {'x': {'size_at_most': True}},
                {'x': {'size_at_least': -1}}, {'x': {'size_at_most': 2**53}},
+               {'x': {'size_at_most': 1.0}},
                {'x': {'exec': 'true'}}, {'x': {'utf8': True, 'size_at_least': 1}},
                {'check': {'utf8': True}}, {'bad name': {'utf8': True}},
                {f'x{i}': {'utf8': True} for i in range(33)}]
         for profile in bad:
-            with self.assertRaises(ValueError): FactDeriver(profile)
+            with self.subTest(profile=profile):
+                with self.assertRaises(PolicyError): FactDeriver(profile)
         profile = {'x': {'size_at_least': 2}}
         d = FactDeriver(profile); profile['x']['size_at_least'] = 0
         d.update(b'a'); self.assertEqual(d.finish(), {'x': False})
