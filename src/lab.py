@@ -337,7 +337,7 @@ parser.add_argument('--rows', type=int, help='new task rows AFTER prefix replay'
 parser.add_argument('--expect-root', help='independently chosen lineage root ID')
 parser.add_argument('--expect-runtime', required=True,
                     help='runtime digest obtained independently of this packet')
-args = parser.parse_args()
+args = parser.parse_intermixed_args()
 if (args.machine or args.machine_change or args.machine_discover or args.machine_claim) and args.expect_machine is None:
     parser.error('machine replay requires --expect-machine')
 if not (args.machine or args.machine_change or args.machine_discover or args.machine_claim) and (args.expect_machine is not None or args.max_edges is not None):

@@ -11,9 +11,18 @@ In the default equivalence mode, a changed answer produces a concrete
 counterexample. A cheaper equivalent rule
 can become the next world; an unfinished check establishes nothing.
 
-**Build 25 · 32K draft.** The contract can change incompatibly. This is an
+**Build 26 · 32K draft.** The contract can change incompatibly. This is an
 experimental implementation, not a stable release or a general program prover.
 Python only; commands `sg` and `stargate`. MIT licensed.
+
+Two flows share the computation kernel but have different trust models:
+
+- **Finite lab:** propose text, recompute behavior/properties and replay changes.
+  No trusted signer is required. Start with the walkthrough below.
+- **Artifact admission:** verify signed judgments against recipient-selected keys,
+  measure artifact facts and publish only admitted bytes (`policy`, `require`,
+  `admit`, `admit-all`). A signature identifies an assertion; it does not establish
+  the truth of external facts.
 
 ## Try a complete transition
 
@@ -172,16 +181,11 @@ returned, but no settlement/admissibility consumer uses it yet.
 .venv/bin/python -m unittest discover -s tests -v
 ```
 
-Python 3.14 is the tested environment for this port; metadata permits Python
-3.11+, which has not been independently exercised here. Tests include a real
-subprocess CLI flow, corruption, signature/decision tampering, unsupported
-editions, local refusal, and the isolated same-result/different-exit case.
-
-Local derived-fact validation: all 92 tests passed both in the checkout and against a
-wheel-installed package outside the checkout, including the 49 imported kernel
-cases. Both console aliases report build 7 / 32K. An external in-memory mutation
-omitting actual exit from the fingerprint makes the isolating test fail by an
-assertion. These are implementation checks, not an independent review.
+The supported Python range is 3.11–3.14. CI checks each minor version, including
+3.11.0 and 3.12.3 to exercise older argparse behavior, builds and installs a wheel,
+then runs the suite outside the checkout with isolated imports. The test runner
+prints the current count; `sg --version` reports the implementation build.
+These checks are distinct from independent review.
 
 ## Continue a reduction (Python only)
 

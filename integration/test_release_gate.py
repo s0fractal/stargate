@@ -82,6 +82,14 @@ def build_wheel(path, name="gatedemo", version="0.1.0", value=1, pad=2048):
     return path
 
 
+def pip_only_venv(path):
+    # Python 3.11 ensurepip also seeds setuptools and its startup .pth; newer
+    # versions seed only pip. Normalize our OWN fresh fixture before planting hooks.
+    subprocess.run([sys.executable, "-m", "venv", str(path)], check=True, capture_output=True)
+    subprocess.run([str(path / 'bin' / 'python'), '-I', '-m', 'pip', 'uninstall',
+                    '--yes', 'setuptools'], check=True, capture_output=True)
+
+
 class ReleaseGate(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -352,8 +360,7 @@ class HostileEnvironment(unittest.TestCase):
         try:
             case = ReleaseGate()
             venv = ReleaseGate.dir / "preflight-venv"
-            subprocess.run([sys.executable, "-m", "venv", str(venv)], check=True,
-                           capture_output=True)
+            pip_only_venv(venv)
             root, errors = installation_root(venv)
             self.assertEqual(errors, [])
             marker = venv / "hook-executed"
@@ -392,8 +399,7 @@ class HostileEnvironment(unittest.TestCase):
         ReleaseGate.setUpClass()
         try:
             venv = Path(ReleaseGate.dir) / "redirect-venv"
-            subprocess.run([sys.executable, "-m", "venv", str(venv)], check=True,
-                           capture_output=True)
+            pip_only_venv(venv)
             named = Path(ReleaseGate.dir) / "named" / "gatedemo-0.1.0-py3-none-any.whl"
             named.parent.mkdir(exist_ok=True)
             named.write_bytes(ReleaseGate.wheel.read_bytes())
@@ -434,8 +440,7 @@ class HostileEnvironment(unittest.TestCase):
         try:
             case = ReleaseGate()
             venv = Path(ReleaseGate.dir) / "hooked-venv"
-            subprocess.run([sys.executable, "-m", "venv", str(venv)], check=True,
-                           capture_output=True)
+            pip_only_venv(venv)
             hostile = Path(ReleaseGate.dir) / "hook2" / "evilhook-0.1.0-py3-none-any.whl"
             hostile.parent.mkdir(exist_ok=True)
             build_hook_package(hostile)
@@ -489,8 +494,7 @@ class HostileManifest(unittest.TestCase):
         extra = list(extra)
         if install:
             venv = self.dir / f"venv-{variant}"
-            subprocess.run([sys.executable, "-m", "venv", str(venv)], check=True,
-                           capture_output=True)
+            pip_only_venv(venv)
             extra = ["--install-into", str(venv), *extra]
         done = subprocess.run(
             [sys.executable, str(GATE), "--artifact", str(wheel), "--trust", self.trust,
@@ -544,8 +548,7 @@ class EnvironmentReadback(unittest.TestCase):
         ReleaseGate.setUpClass()
         try:
             venv = Path(ReleaseGate.dir) / "readback-venv"
-            subprocess.run([sys.executable, "-m", "venv", str(venv)], check=True,
-                           capture_output=True)
+            pip_only_venv(venv)
             # pip refuses `candidate.whl`: the name must be the canonical wheel
             # name (FINDINGS.md F1, which this test tripped over too).
             named = Path(ReleaseGate.dir) / "readback" / "gatedemo-0.1.0-py3-none-any.whl"
@@ -586,8 +589,7 @@ class Installation(unittest.TestCase):
         ReleaseGate.setUpClass()
         try:
             venv = Path(ReleaseGate.dir) / "venv"
-            subprocess.run([sys.executable, "-m", "venv", str(venv)], check=True,
-                           capture_output=True)
+            pip_only_venv(venv)
             impostor = ReleaseGate.dir / "impostor" / "gatedemo-0.1.0-py3-none-any.whl"
             impostor.parent.mkdir()
             build_wheel(impostor, value=999)

@@ -13,7 +13,7 @@ from .checks import run_check
 MAX_SOURCE_BYTES = 8192
 MAX_TOKENS = 256
 DEFAULT_MAX_ATP = 100_000
-TOKEN = re.compile(r'\s+|#[^\n]*|&&|\|\||[!():=]|[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*')
+TOKEN = re.compile(r'[ \t\r\n\f\v]+|#[^\n]*|&&|\|\||[!():=]|[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*')
 RESERVED = {'fact', 'check', 'bool', 'true', 'false'}
 
 
@@ -47,7 +47,7 @@ def parse(source, inputs=None):
         if not m:
             raise PolicyError(f'unsupported token at character {pos}')
         text = m.group()
-        if not text.isspace() and not text.startswith('#'):
+        if text[0] not in ' \t\r\n\f\v' and not text.startswith('#'):
             tokens.append(text)
         pos = m.end()
     if len(tokens) > MAX_TOKENS:

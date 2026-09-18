@@ -149,3 +149,16 @@ isolated interpreter and computed layout agree; exercised here on Python 3.14.
 An unsupported/mismatched layout is refused before pip. This is separate from
 the library's Python support claim. No rollback is promised after pip begins;
 installation/readback failures may leave the admitted wheel and a modified venv.
+
+
+Interpreter portability: the isolated `-I -S` probe supplies the operator's venv
+root explicitly as sysconfig base/platbase. Before Python 3.14, disabling site also
+prevents normal venv prefix setup. The interpreter still supplies its own version
+and installation scheme, which must agree with the separately parsed pyvenv.cfg
+layout; startup hooks stay disabled and escaping install roots remain refused.
+
+Python 3.11's fresh venv also seeds setuptools and `distutils-precedence.pth`.
+The gate correctly treats that pre-existing hook as foreign; it is not silently
+allowlisted. Integration fixtures uninstall setuptools from their own fresh venvs
+before planting test hooks, so all interpreter versions start from a pip-only
+fixture. This does not remove or relax hook checks in the gate.

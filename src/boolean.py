@@ -16,7 +16,7 @@ def program(source, names):
     i = 0
     while i < len(source):
         c = source[i]
-        if c.isspace():
+        if c in ' \t\r\n\f\v':
             i += 1
         elif c == '#':
             end = source.find('\n', i)

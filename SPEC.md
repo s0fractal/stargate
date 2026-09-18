@@ -1,8 +1,8 @@
 # Stargate contract
 
 Status: **32K — DRAFT, implemented for the flows described below**.
-Build 19 is a local development implementation, not an adopted or published
-standard. It is not a Warrant verifier.
+The current implementation build is reported by `sg --version`; it is not an
+adopted or published standard. It is not a Warrant verifier.
 
 ## One temperature
 
@@ -248,7 +248,7 @@ failure behavior. A caller requiring grant-schedule-independent local outcomes
 must not assume this interface provides them. No changes to the signed check format follow from this
 process-local API.
 
-## Policy provenance and authoring (build 7 candidate)
+## Policy provenance and authoring
 
 Every body has the REQUIRED field policy: either null for a raw computation
 claim or exactly {rule: hash, facts: hash}. Both references are lowercase SHA-256
@@ -262,7 +262,12 @@ Rule grammar: zero or more `fact NAME: bool` declarations followed by one
 `check EXPR`. Names are ASCII identifier components optionally separated by dots.
 Keywords cannot name facts. Expressions support true, false, declared names,
 !, &&, || and parentheses, in that precedence order; binary operators associate
-left. # starts a line comment. No inline values are allowed with external facts.
+left. Lexical whitespace is exactly U+0009 (tab), U+000A (LF), U+000B (VT),
+U+000C (FF), U+000D (CR), and U+0020 (space). Other Unicode whitespace is not
+lexical whitespace and is rejected outside comments. # starts a comment ending
+at the next LF or EOF; other Unicode characters inside comments are opaque text.
+These rules do not depend on Python isspace() or its Unicode database.
+No inline values are allowed with external facts.
 The low-level compile_source API also accepts closed inline-fact source when no
 facts parameter is supplied; provenance records always use the external-facts
 path. This is not a separate executable runtime or signed format.
@@ -1238,3 +1243,14 @@ contract. Successful/unsuccessful reports match the installed CLI.
 Properties quantify reachable states of this finite model only. They are neither
 inductive over all valuations, temporal liveness claims, nor automatically adopted
 admission contracts. Strengthening a contract still requires choosing a new root.
+
+
+## Supported interpreters and offline argument order
+
+Python 3.11–3.14 are checked in CI, including early 3.11.0/3.12.3 patch versions.
+The standalone launcher accepts options interspersed with its positional input
+and optional output (e.g. INPUT --task --rows 1 ... OUTPUT), using argparse's
+intermixed mode. Unknown options, mutually exclusive modes and modes that forbid
+outputs still refuse. This changes launcher/runtime digests; historical packet
+bytes are not rewritten. The supported Python range is an implementation promise,
+not a claim that every stdlib behavior is part of the semantic contract.

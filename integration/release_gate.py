@@ -241,7 +241,8 @@ def installation_root(venv):
     computed = venv / "lib" / f"python{version.group(1)}.{version.group(2)}" / "site-packages"
 
     probe = subprocess.run([str(python), "-I", "-S", "-c",
-                            "import sysconfig;print(sysconfig.get_paths()['purelib'])"],
+                            "import sys,sysconfig;print(sysconfig.get_paths(vars="
+                            "{'base':sys.argv[1],'platbase':sys.argv[1]})['purelib'])", str(venv)],
                            capture_output=True, text=True)
     if probe.returncode != 0:
         return None, [f"cannot ask the target interpreter (no site) where it installs: "
