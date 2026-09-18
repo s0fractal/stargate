@@ -1,7 +1,7 @@
 # Stargate contract
 
 Status: **32K — DRAFT, implemented for the single signed-check flow below**.
-Build 8 is a local development implementation, not an adopted or published
+Build 9 is a local development implementation, not an adopted or published
 standard. It is not a Warrant verifier.
 
 ## One temperature
@@ -114,7 +114,7 @@ promised (the inherited evaluator adjusts Python's recursion limit).
 An envelope has exactly `body` and `signature`. Its body has exactly:
 
 ```json
-{"stargate":32,"build":"8","key":"<public key hex>","check":{"term":"<hash>","atp":4,"expect":"<hash>","exit":"normal_form","environment":["<term hash>"]},"decision":"accept","policy":null}
+{"stargate":32,"build":"9","key":"<public key hex>","check":{"term":"<hash>","atp":4,"expect":"<hash>","exit":"normal_form","environment":["<term hash>"]},"decision":"accept","policy":null,"subject":null}
 ```
 
 This example is explanatory, not canonical field ordering. The encoding is
@@ -335,7 +335,7 @@ does not introduce application truth, quorum or global availability claims.
 
 ## Recipient requirement
 
-`require_bundle(raw, trusted_keys, *, rule, facts)` accepts an independently
+`require_bundle(raw, trusted_keys, *, rule, facts, subject=None)` accepts an independently
 provided UTF-8 rule string and exact-domain boolean fact dictionary. It validates
 the request with the current rule grammar and hashes exact rule bytes and
 canonical facts. It then performs full bundle verification. Verification errors
@@ -343,10 +343,10 @@ retain their original classes; no requirement verdict is produced on failure.
 
 For a verified record, evaluate these predicates in order: policy is non-null,
 policy.rule equals expected rule hash, policy.facts equals expected facts hash,
-and decision is accept. The first failed predicate gives, respectively,
-policy_missing, rule_mismatch, facts_mismatch or decision_reject. All predicates
+report.subject equals expected subject (including null), and decision is accept. The first failed predicate gives, respectively,
+policy_missing, rule_mismatch, facts_mismatch, subject_mismatch or decision_reject. All predicates
 must hold for status satisfied with reason null; otherwise status is unsatisfied.
-The report includes expected {rule, facts} hashes and the original verification
+The report includes expected {rule, facts, subject} hashes/null and the original verification
 report under verification. It is local output, not a signed record.
 
 `sg require BUNDLE --trust KEY --rule FILE --facts FILE` exposes this operation.
@@ -356,4 +356,36 @@ Duplicate fact keys are rejected before canonicalization. Request validation
 precedes proof verification. Raw policy:null records cannot satisfy a request.
 The command has no store fallback and executes no subsequent external action.
 This imposes no freshness or anti-replay property and makes no claim about
-real-world truth of the expected inputs. Existing wire shapes remain unchanged.
+real-world truth of the expected inputs. The bundle container is unchanged; the current body includes the subject field.
+
+
+## Artifact subject
+
+Every signed body MUST contain subject, exactly null or a lowercase 64-hex SHA-256
+digest. Bodies without this field are invalid. create_record and author_policy
+accept subject=None or a validated digest. The field is signed and contributes
+to Record ID, but not the computational fingerprint, term or reduction budget.
+verify_record reports the signed subject without resolving its bytes.
+
+The subject is not a computational environment member or a policy source
+reference. Naming it does not admit its bytes into a bundle's object domain;
+only an independent computational/source reference can do so. Export does not
+fetch an artifact solely because it is named as subject.
+
+require_bundle compares the signed subject to the recipient's subject by exact
+equality after policy/fact identity and before decision. Null is an explicit
+unbound requirement, never a wildcard. The API consumes a digest selected by
+the caller; CLI --subject hashes the file's binary bytes. Both policy and record
+CLI commands can bind a subject. Only regular files are hashed; chunked reading
+avoids loading the artifact into memory. Detected size/mtime/ctime change during
+reading is an I/O refusal (require: unverified/3, authoring: operation_error/1).
+Invalid subject shape or a nonregular file is invalid/2. Missing or unreadable
+recipient artifact is unverified/3; a complete verified proof with a different
+subject is unsatisfied/4. Existing verification failures retain their classes.
+
+The binding authenticates that the signer associated this decision with that
+digest. It does not derive boolean facts from the artifact, prove availability,
+or establish content safety. Hashing is not an atomic snapshot or a lock against
+later mutation. Consumers acting on a file must preserve the checked bytes.
+No artifact execution, publication, freshness or replay prevention is provided.
+This is one revised 32K draft body, without a legacy acceptance path.

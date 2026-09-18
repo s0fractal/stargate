@@ -176,13 +176,15 @@ def record_id(body):
 
 
 def validate_body(body):
-    exact(body, ("stargate", "build", "key", "check", "decision", "policy"))
+    exact(body, ("stargate", "build", "key", "check", "decision", "policy", "subject"))
     if type(body["stargate"]) is not int or body["stargate"] != KELVIN:
         raise InvalidRecord("unsupported Stargate temperature")
     if not isinstance(body["build"], str) or not body["build"].isascii() or not body["build"].isdigit():
         raise InvalidRecord("build must be a decimal string")
     record_hash(body["key"])
     validate_check(body["check"])
+    if body["subject"] is not None:
+        record_hash(body["subject"])
     if body["policy"] is not None:
         exact(body["policy"], ("rule", "facts"))
         record_hash(body["policy"]["rule"])
@@ -191,12 +193,12 @@ def validate_body(body):
         raise InvalidRecord("unknown decision")
 
 
-def create_record(check, store, key, *, limits=None, policy=None):
+def create_record(check, store, key, *, limits=None, policy=None, subject=None):
     # Snapshot caller-owned data before evaluation and signing.
     check = decode(canon(check))
     outcome = run_check(check, store, limits=limits)
     body = dict(stargate=KELVIN, build=__version__, key=public_key(key), check=check,
-                decision="accept" if outcome.verdict == "pass" else "reject", policy=decode(canon(policy)))
+                decision="accept" if outcome.verdict == "pass" else "reject", policy=decode(canon(policy)), subject=subject)
     validate_body(body)
     verify_policy(body, store, limits=limits)
     rid = record_id(body)
@@ -262,7 +264,7 @@ def verify_record(raw, store, trusted_keys, *, limits=None):
     return dict(status="verified", record=rid, decision=decision, key=body["key"],
                 verifier_build=__version__, stargate=KELVIN,
                 outcome=outcome.as_dict(), fingerprint=list(fingerprint(body["check"], outcome)),
-                policy=provenance)
+                policy=provenance, subject=body["subject"])
 
 
 def verify_policy(body, store, *, limits=None):

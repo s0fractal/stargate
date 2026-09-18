@@ -176,7 +176,7 @@ def compile_source(source, *, max_atp=DEFAULT_MAX_ATP, facts=None, limits=None):
     return CompiledPolicy(check, objects, value, receipt.atp_spent)
 
 
-def author_policy(source, facts, store, key, *, max_atp=DEFAULT_MAX_ATP):
+def author_policy(source, facts, store, key, *, max_atp=DEFAULT_MAX_ATP, subject=None):
     facts_raw = canon(facts)
     facts = decode(facts_raw)
     if not isinstance(facts, dict):
@@ -188,11 +188,11 @@ def author_policy(source, facts, store, key, *, max_atp=DEFAULT_MAX_ATP):
     staged = dict(compiled.objects)
     staged[k.sha(rule_raw)] = rule_raw
     staged[k.sha(facts_raw)] = facts_raw
-    envelope = create_record(compiled.check, staged, key, policy=provenance)
+    envelope = create_record(compiled.check, staged, key, policy=provenance, subject=subject)
     for raw in staged.values():
         store.put(raw)
     envelope_object = store.put(canon(envelope))
     return dict(record=record_id(envelope['body']), object=envelope_object,
-                decision=envelope['body']['decision'], policy=provenance,
+                decision=envelope['body']['decision'], policy=provenance, subject=subject,
                 policy_value=compiled.value, atp_spent=compiled.atp_spent,
                 check=compiled.check)

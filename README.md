@@ -3,7 +3,7 @@
 One Python system for content-addressed computation and signed, reproducible
 checks. Working successor to Sigma-Glyph and Warrant; commands `stargate` / `sg`.
 
-**Build 8 · 32K draft (recipient requirement candidate).** The evaluator, object store and one signed-check flow
+**Build 9 · 32K draft (artifact subject candidate).** The evaluator, object store and one signed-check flow
 work. This is a development implementation, not an independently accepted
 release. Predecessor repositories remain unchanged.
 
@@ -111,7 +111,7 @@ Python 3.14 is the tested environment for this port; metadata permits Python
 subprocess CLI flow, corruption, signature/decision tampering, unsupported
 editions, local refusal, and the isolated same-result/different-exit case.
 
-Local recipient-requirement validation: all 67 tests passed both in the checkout and against a
+Local artifact-subject validation: all 75 tests passed both in the checkout and against a
 wheel-installed package outside the checkout, including the 49 imported kernel
 cases. Both console aliases report build 7 / 32K. An external in-memory mutation
 omitting actual exit from the fingerprint makes the isolating test fail by an
@@ -275,7 +275,7 @@ Both files are required, and facts must exactly match the rule declarations.
 A trusted author cannot substitute an easier rule such as `check true`.
 
 Exit 4 / `unsatisfied` preserves the successful verification under `verification`
-and reports `policy_missing`, `rule_mismatch`, `facts_mismatch`, or `decision_reject`
+and reports `policy_missing`, `rule_mismatch`, `facts_mismatch`, `subject_mismatch`, or `decision_reject`
 (in that order). A valid record for another request is not an invalid record.
 Malformed input or failed verification retains exit 2; missing bytes, resource
 limits and I/O failures use 3. These failures never become an unsatisfied decision.
@@ -286,5 +286,45 @@ returns the same report and preserves verification exceptions. It reads no local
 object store and performs no action beyond checking the requirement. The expected
 hashes are included in the report, but the report is not a new signed artifact.
 This does not establish real-world fact truth, freshness, or one-time use: the
-same bundle can satisfy the same request repeatedly. No record/bundle format or
-Kelvin change is introduced.
+same bundle can satisfy the same request repeatedly. Build 9 extends the draft
+record with a required subject field; Kelvin remains 32K.
+
+
+## Bind a decision to the artifact you are handing over
+
+```sh
+sg policy rule.wpl --facts facts.json --key signing.key --subject artifact.bin
+sg export ENVELOPE_OBJECT_HASH proof.json --trust PUBLIC_KEY
+sg require proof.json --trust PUBLIC_KEY --rule rule.wpl --facts facts.json --subject artifact.bin
+```
+
+Author and recipient hash their own file bytes. The signed body contains
+`subject`: a lowercase SHA-256 hash, or null when no subject is selected.
+Identical bytes under another filename satisfy the requirement; different bytes
+produce `unsatisfied` / `subject_mismatch` (exit 4), even with the correct rule,
+facts, trusted signer and accept result. Missing/unreadable recipient files give
+`unverified` (3). Only regular files are accepted. Hashing streams in bounded
+chunks and refuses a change detected in file size or modification metadata.
+
+Omitting `--subject` explicitly requires subject null, not a wildcard. A bound
+record cannot silently satisfy an unbound request, or vice versa. Raw `sg record`
+also accepts `--subject`, but still cannot satisfy a policy requirement.
+
+Python `author_policy`, `create_record` and `require_bundle` accept keyword
+`subject=None` or a lowercase SHA-256 digest. These APIs validate the digest;
+they do not independently obtain or inspect the artifact. CLI hashes the file.
+The verified report exposes the signed subject, and the requirement report also
+contains the recipient's expected subject. A changed subject changes Record ID
+and needs a new signature; the computational fingerprint is unaffected.
+
+The subject is a statement of what the decision concerns, not evidence that the
+boolean facts describe that file correctly. Its bytes are not bundled, stored,
+or fetched by the evaluator. `verify-bundle` authenticates the subject claim
+without checking artifact availability; `require --subject` compares local bytes.
+No filename, filesystem permission, safety, freshness or single-use guarantee is
+implied. The result concerns bytes read during hashing: it does not lock a path
+or guarantee what a later upload/execution will read. Use an immutable artifact
+when connecting this check to another action. Stargate performs no such action.
+
+This replaces the current unreleased draft shape: bodies missing subject are
+invalid. There is no compatibility branch or temperature freeze.
