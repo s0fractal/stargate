@@ -234,3 +234,12 @@ opens a common experiment without giving its sender authority over the outcome.
 This is asynchronous exchange of a reproducible task, not yet transfer of a
 cheaply verifiable proof of computation. Repeated handoffs repeat prefix work;
 inspection, hashes and a sender's claimed results do not waive that cost.
+
+Build 22 introduces a first finite temporal experiment: synchronous Boolean
+machines with explicit initial states, universally quantified Boolean events and
+a safety invariant over reachable states. The checker returns a fully closed
+reachable graph, a concrete shortest violating trace, or incomplete; each
+expression still passes SKI and an independent Boolean oracle. This makes
+counterexamples paths through behavior, not merely single input rows. It does
+not yet admit machine replacements, persist traversal progress, express liveness,
+or compose independently developed machines. Those require their own contracts.

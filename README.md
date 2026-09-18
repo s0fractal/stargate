@@ -11,7 +11,7 @@ In the default equivalence mode, a changed answer produces a concrete
 counterexample. A cheaper equivalent rule
 can become the next world; an unfinished check establishes nothing.
 
-**Build 21 · 32K draft.** The contract can change incompatibly. This is an
+**Build 22 · 32K draft.** The contract can change incompatibly. This is an
 experimental implementation, not a stable release or a general program prover.
 Python only; commands `sg` and `stargate`. MIT licensed.
 
@@ -981,3 +981,54 @@ This transfers the **work request and its context**, not the authority of a
 previous process. Repeated handoffs repeat prefix computation. No cross-process
 work savings, persisted kernel state, background execution or automatic routing
 between chats is claimed. The recipient still chooses to run the packet.
+
+### Check behavior over time (Build 22)
+
+A finite machine has 1–6 Boolean state bits and 0–2 disjoint event bits. Each
+state bit gets a WPL rule for its next value; another rule is the invariant.
+All next rules read the **same old state and event**. Every event valuation is
+possible at every reached state. Safety means the invariant holds at all states
+reachable from the listed initial states, including the initial states themselves.
+
+```sh
+sg machine-create examples/machine-delayed-failure.json --output machine.json
+sg machine-inspect machine.json
+# Choose MACHINE_ID from your independently selected machine.
+sg machine-check machine.json --expect-machine "$MACHINE_ID"
+```
+
+This example exits **4**, with the exact counterexample `00 → 01 → 11`:
+`next(a)=b`, `next(b)=!a`, invariant `!a`. An in-place implementation would
+incorrectly compute the second step as `10`. The WPL examples include tautologies
+for irrelevant inputs because the existing language requires using every declared
+fact. Next rules declare all state/event names; the invariant declares only state
+names. No new expression syntax is introduced.
+
+The checker explores breadth-first, evaluates every initial/newly reached state,
+and considers every event at each expanded state. Each expression is compiled to
+SKI and compared with the independent Boolean parser/evaluator. A counterexample
+carries its initial state and concrete event/state steps; it is a shortest path
+in number of transitions (ties follow initial-list and Boolean event order).
+Unreachable states that violate the invariant do not refute it.
+
+`established` (exit 0) requires a fully explored graph closed under every event
+and every reachable invariant checked. `--max-edges N` bounds completed edges,
+not time: hitting the quota with work remaining is `incomplete` (exit 3), never
+safety. The default/hard maximum is 256, sufficient for all 64×4 state/event
+pairs. ATP/resource exhaustion also gives 3; a checker disagreement gives 1;
+malformed input or a wrong machine anchor gives 2. Inspection and creation return
+`unchecked_machine`, not a safety verdict. No command admits a successor.
+
+```sh
+sg machine-unpack machine.json --output machine-offline
+python -I -S machine-offline/replay.py machine-offline/machine.json \
+  --machine --expect-machine "$MACHINE_ID" --max-edges 256 \
+  --expect-runtime "$RUNTIME_DIGEST"
+```
+
+As with other offline modes, authenticate the launcher/runtime independently.
+The packet supplies the machine guide and pinned checker sources, not authority
+to execute them automatically. Reports are recomputable, not signed certificates.
+There is no fairness, liveness, external event restriction, machine evolution gate
+or persisted graph continuation in this build. Real-world systems are covered
+only to the extent that this finite model describes them accurately.

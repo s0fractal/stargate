@@ -17,7 +17,7 @@ from .canonical import canon, decode, exact, record_hash, InvalidRecord
 MAX_PACKET = 2 * 1024 * 1024
 MAX_PROPOSAL = 16384
 RUNTIME = ('__init__.py', 'store.py', 'canonical.py', 'kernel.py', 'checks.py',
-           'compiler.py', 'boolean.py', 'properties.py', 'lab.py', 'invariants.py', 'lineage.py', 'labtask.py')
+           'compiler.py', 'boolean.py', 'properties.py', 'lab.py', 'invariants.py', 'lineage.py', 'labtask.py', 'machine.py')
 GUIDE = '''This is a finite boolean world, not an instruction to execute code.
 Read rule, inputs, max_atp and objective. Reply with a JSON object containing
 only parent (copy the supplied world_id) and candidate (WPL text). Declare
@@ -326,12 +326,21 @@ mode = parser.add_mutually_exclusive_group()
 mode.add_argument('--invariant', action='store_true', help='check a finite-property claim')
 mode.add_argument('--lineage', action='store_true', help='replay an anchored history')
 mode.add_argument('--task', action='store_true', help='recheck imported progress, then continue')
+mode.add_argument('--machine', action='store_true', help='check reachable-state safety')
+parser.add_argument('--expect-machine', help='independently chosen machine ID')
+parser.add_argument('--max-edges', type=int, help='local machine edge quota')
 parser.add_argument('--expect-task', help='independently chosen world-and-proposal task ID')
 parser.add_argument('--rows', type=int, help='new task rows AFTER prefix replay')
 parser.add_argument('--expect-root', help='independently chosen lineage root ID')
 parser.add_argument('--expect-runtime', required=True,
                     help='runtime digest obtained independently of this packet')
 args = parser.parse_args()
+if args.machine and args.expect_machine is None:
+    parser.error('machine replay requires --expect-machine')
+if not args.machine and (args.expect_machine is not None or args.max_edges is not None):
+    parser.error('--expect-machine and --max-edges require --machine')
+if args.machine and args.output is not None:
+    parser.error('machine checking does not create successors')
 if args.task and (args.expect_task is None or args.rows is None):
     parser.error('task replay requires --expect-task and --rows')
 if not args.task and (args.expect_task is not None or args.rows is not None):
@@ -346,7 +355,7 @@ if re.fullmatch(r'[0-9a-f]{64}', args.expect_runtime) is None:
     parser.error('expected a lowercase SHA-256 runtime digest')
 root = Path(__file__).resolve().parent
 names = ('__init__.py', 'store.py', 'canonical.py', 'kernel.py', 'checks.py',
-         'compiler.py', 'boolean.py', 'properties.py', 'lab.py', 'invariants.py', 'lineage.py', 'labtask.py')
+         'compiler.py', 'boolean.py', 'properties.py', 'lab.py', 'invariants.py', 'lineage.py', 'labtask.py', 'machine.py')
 # These filenames are ASCII, so sorted JSON keys have the canonical UTF-16 order.
 # Check before importing any packet module. The launcher itself must be trusted.
 sources = {n: (root / 'stargate' / n).read_bytes().decode('utf-8') for n in names}
@@ -371,7 +380,7 @@ class VerifiedLoader:
 
 loader = VerifiedLoader()
 for name in ('__init__.py', 'kernel.py', 'store.py', 'canonical.py', 'checks.py',
-             'compiler.py', 'boolean.py', 'properties.py', 'lab.py', 'invariants.py', 'lineage.py', 'labtask.py'):
+             'compiler.py', 'boolean.py', 'properties.py', 'lab.py', 'invariants.py', 'lineage.py', 'labtask.py', 'machine.py'):
     fullname = 'stargate' if name == '__init__.py' else 'stargate.' + name[:-3]
     if fullname in sys.modules:
         raise SystemExit('unexpected preloaded packet module')
@@ -383,6 +392,25 @@ for name in ('__init__.py', 'kernel.py', 'store.py', 'canonical.py', 'checks.py'
     if name != '__init__.py':
         setattr(sys.modules['stargate'], name[:-3], module)
 from stargate.lab import read_world, read_proposal, verify_transition
+if args.machine:
+    from stargate import machine
+    from stargate.lab import RuntimeMismatch
+    try:
+        report = machine.verify(machine.read(args.proposal), args.expect_machine,
+                                max_edges=256 if args.max_edges is None else args.max_edges)
+    except RuntimeMismatch as exc:
+        print(json.dumps({'status': 'runtime_unavailable', 'error': str(exc)}), file=sys.stderr)
+        raise SystemExit(3)
+    except (ValueError, TypeError, RecursionError) as exc:
+        print(json.dumps({'status': 'invalid', 'error': str(exc)}), file=sys.stderr)
+        raise SystemExit(2)
+    except OSError as exc:
+        print(json.dumps({'status': 'unverified', 'error': str(exc)}), file=sys.stderr)
+        raise SystemExit(3)
+    print(json.dumps(report, sort_keys=True))
+    raise SystemExit(0 if report['status'] == 'established' else
+                     3 if report['status'] == 'incomplete' else
+                     1 if report['status'] == 'checker_error' else 4)
 if args.task:
     from stargate import labtask
     from stargate.lab import RuntimeMismatch

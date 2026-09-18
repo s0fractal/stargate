@@ -127,3 +127,9 @@ it does not deserialize state or introduce an upward lab import. The standalone
 launcher includes this module after lab in its verified source snapshot closure.
 CLI exposes task creation, resumption, structural inspection and unpacking.
 x0 remains empty.
+
+Build 22 adds `machine` at x4 over lab/canonical/compiler/boolean/kernel. It
+checks a finite reachable graph using the existing two expression evaluators.
+No kernel or language extension; x0 remains empty. Its runtime-envelope view is
+validation-only, never a machine transition or emitted successor. The standalone
+verified-source closure loads machine after lab, with no upward runtime import.
