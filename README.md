@@ -11,7 +11,7 @@ In the default equivalence mode, a changed answer produces a concrete
 counterexample. A cheaper equivalent rule
 can become the next world; an unfinished check establishes nothing.
 
-**Build 27 · 32K draft.** The contract can change incompatibly. This is an
+**Build 28 · 32K draft.** The contract can change incompatibly. This is an
 experimental implementation, not a stable release or a general program prover.
 Python only; commands `sg` and `stargate`. MIT licensed.
 
@@ -1207,3 +1207,23 @@ and provenance verification still reject unused facts. Low-level compiler/oracle
 APIs remain strict by default; only explicit `allow_unused=True` selects lab behavior.
 ATP remains the cost of the actual lowering/evaluation, not a semantic complexity
 measure; removing padding does not make it invariant under equivalent rewrites.
+
+
+### Keep required states reachable
+
+A safe machine can still be useless: changing every transition to a self-loop
+preserves safety while removing future behavior. Add `"goals": [{"q": true}]` to a
+machine whose initial state is `{"q": false}` and whose next rule is
+`fact q: bool\ncheck !q`. With invariant `fact q: bool\ncheck true`, the toggle is safe and
+reaches the goal; replacing its rule with `fact q: bool\ncheck q` gives
+`goal_unreachable` (exit 4), with no admitted child.
+
+Goals are full Boolean states, inherited by every proposed change. The checker
+returns shortest paths for reachable goals and assesses absence only after
+finishing the safe graph. A quota stop remains `incomplete`, even if it already
+visited a goal. Omitting goals when creating a machine means `[]`.
+
+This proves that a path **exists from some allowed initial state**. It does not
+force the environment to take that path, guarantee progress on every execution,
+or establish liveness. `machine-discover` observes the graph independently of
+both the invariant and goals; its observation does not admit a change.

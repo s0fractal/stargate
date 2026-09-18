@@ -270,3 +270,12 @@ supplying computed evidence; the recipient recomputes it, including offline. The
 observation can cross violations of the machine's declared invariant without
 changing that invariant or admitting a new machine. This keeps finding a property,
 checking it, and adopting it as a contract as three separate actions.
+
+
+Build 28 adds an inherited existential reachability obligation: a finite machine
+may name states that must remain reachable. This closes one concrete loophole in
+safety-only mutation, where a candidate freezes all state and becomes vacuously
+safe. Complete graph exploration establishes reachability or absence; a stopped
+exploration establishes neither. The obligation is intentionally weaker than
+liveness: a possible useful path need not be taken. Transition mutations cannot
+remove goals, and observations do not silently adopt new ones.

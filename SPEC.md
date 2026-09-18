@@ -1009,7 +1009,7 @@ change applies only to the imported prefix.
 ## Finite synchronous machines (Build 22)
 
 A machine is canonical JSON (<=4 MiB) with exactly stargate_machine (integer 32),
-state, events, initial, next, invariant, max_atp, sources, guide, license. state is
+state, events, initial, next, invariant, goals, max_atp, sources, guide, license. state is
 1..6 sorted unique WPL names; events is 0..2 sorted unique WPL names disjoint from
 state. initial is a nonempty list of distinct complete Boolean state assignments,
 at most 2**len(state). Its ordering breaks equal-length trace ties. next maps
@@ -1055,7 +1055,8 @@ partial trace or an unbounded loop.
 
 max_edges is a local exact-integer quota 0..256. Before each new edge, if the quota
 has been consumed, return incomplete with reason edge_quota. Finishing the entire
-graph on the last allowed edge is established. Initial invariant violations can
+graph on the last allowed edge completes exploration; the goal check then decides
+established or goal_unreachable. Initial invariant violations can
 still refute with quota zero. An ATP budget failure or local resource/admission
 failure is incomplete; an internal/compiler/oracle disagreement is checker_error.
 No inability to evaluate establishes or refutes safety. Unexpected exceptions
@@ -1063,10 +1064,11 @@ propagate. Quotas bound neither CPU time nor memory, and this build has no graph
 resume/portable graph progress format. Rechecking starts from the initial states.
 
 CLI machine-create SPEC_JSON --output FILE creates a pinned packet from the six
-fields state/events/initial/next/invariant/max_atp. Author JSON may have whitespace,
+required fields state/events/initial/next/invariant/max_atp and optional goals
+(default []). The canonical packet always includes goals. Author JSON may have whitespace,
 not duplicate keys. machine-inspect FILE reports unchecked_machine without any
 expression evaluation. machine-check FILE --expect-machine ID [--max-edges N]
-prints a report: established=0, counterexample=4, incomplete/runtime unavailable=3,
+prints a report: established=0, counterexample/goal_unreachable=4, incomplete/runtime unavailable=3,
 invalid=2, checker/operation failure=1. Create/inspect/unpack exit0 is structural
 success only. No machine-check output path or successor is accepted.
 
@@ -1089,18 +1091,20 @@ A proposal is exactly {parent,next}. parent is a lowercase SHA256 MachineID;
 next is a complete transition-rule map with the same validation as machine.next.
 Author JSON allows whitespace, but no duplicate keys; the size ceiling is 64 KiB
 (on input bytes and on the canonical API value). No claimed results, replacement
-invariants, initials, budgets or runtime fields are permitted.
+invariants, goals, initials, budgets or runtime fields are permitted.
 
 verify_change(parent_bytes, proposal, expected_parent, max_edges=256) first
 validates the runtime/structure, recipient anchor, proposal anchor and candidate
 rules. It creates the candidate by replacing ONLY next in the parent document.
-It checks parent safety first, then candidate safety over the candidate's own
-reachable graph. Each check has its own max_edges quota. A parent counterexample
-returns parent_rejected; a candidate counterexample returns counterexample.
+It checks parent safety and goals first, then candidate safety and goals over the
+candidate's own reachable graph. Each check has its own max_edges quota. A parent
+counterexample or unreachable goal returns parent_rejected; a candidate failure
+returns counterexample or goal_unreachable respectively.
 Incomplete and checker_error propagate with program=parent or candidate. No
 unsuccessful result returns successor bytes. The second check is not run if the
 first fails. Both graphs established returns safety_preserved, admitted=true and
-the canonical candidate bytes. This establishes inherited finite safety, not
+the canonical candidate bytes. This establishes inherited finite safety and
+existential reachability goals, not
 trace equivalence, improvement, liveness or correspondence to an external system.
 
 The report has status,parent,candidate,admitted,checks. checks contains the actual
@@ -1113,7 +1117,7 @@ and proposal to establish the edge. An unsafe parent is never repaired through
 this admission path; choosing another root is a separate action.
 
 machine-change PARENT PROPOSAL --expect-machine ID [--max-edges N] [--output FILE]
-returns 0=safety_preserved, 4=parent_rejected/counterexample, 3=incomplete/runtime
+returns 0=safety_preserved, 4=parent_rejected/counterexample/goal_unreachable, 3=incomplete/runtime
 unavailable/missing input, 2=invalid, 1=checker/operation failure. Output is written
 only for admission and refuses an occupied path. Standalone replay uses the
 unpacked machine.json as parent: replay.py PROPOSAL [OUTPUT] --machine-change
@@ -1186,9 +1190,10 @@ by offline machine-change. Sender-provided experience cannot certify a successor
 ## Reachable-state property discovery (Build 25)
 
 machine-discover and machine-claim observe a machine independently of whether its
-declared invariant holds. They anchor the exact original MachineID before evaluation.
-An internal observation view replaces ONLY invariant with `check true`, retaining
-all state declarations. The inherited runtime, next rules, event domain,
+declared invariant holds or its goals are reachable. They anchor the exact original
+MachineID before evaluation. An internal observation view replaces invariant with
+`check true` (retaining all state declarations) and goals with []. The inherited
+runtime, next rules, event domain,
 initials and per-expression ATP ceiling remain unchanged. This view is never
 returned as machine bytes, admitted, or used to alter any stored contract.
 Its full graph is checked through the existing machine verifier (SKI and the
@@ -1268,3 +1273,35 @@ false. Lab validation, execution, screening and machine evaluation opt in explic
 Signed policy authoring and provenance verification do not opt in and still refuse
 unused facts, even when the underlying raw computation was compiled in lab mode.
 The strict policy rule is not a restriction on a lab world's input domain.
+
+
+## Inherited existential machine goals (Build 28)
+
+goals is a list of distinct complete Boolean state assignments, with at most
+2**len(state) members; [] imposes no reachability requirement. Each goal must be
+reachable from at least one initial state by some finite event sequence. Different
+goals may use different initials and paths. An initial state itself is a zero-edge
+witness. This is NOT inevitability, fairness, progress on every execution, or
+reachability from every initial state. It does not exclude stuttering paths.
+
+Safety is checked first. Only after complete, safe, independently checked graph
+closure does the checker assess goals. Both established and goal_unreachable
+include goal_witnesses in declared goal order for the goals that are reachable;
+each entry is {goal,trace} with a shortest BFS trace. goal_unreachable additionally
+includes unreached_goals in declared order. It is exit 4, with no successor.
+Absence is established by the complete closed graph, not by a single failing path.
+Incomplete and checker_error do not claim goal satisfaction or absence. Witness
+reconstruction errors are checker_error.
+
+A change inherits goals byte-for-byte with the other contract fields. Freezing
+next is refused when it loses a required goal, even if every reached state remains
+safe. Parent failure is parent_rejected and stops admission/search. Search may
+continue after a candidate's goal_unreachable but cannot add it to safety-trace
+experience: an unreachable state is not a finite safety counterexample. Discovery
+uses its explicit observation-only view with no goals, without weakening the
+original machine's admission contract.
+
+Machine inspection checks well-formed textual runtime identity before the current
+packet shape. A different textual runtime is unavailable/3 even if it predates
+the goals field; missing goals under this runtime is invalid/2. This is failure
+classification, not a legacy execution path.
