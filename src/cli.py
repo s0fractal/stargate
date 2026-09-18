@@ -121,11 +121,14 @@ def parser():
     q = cmd("lab-check-invariant", "recompute a finite property claim without trusting its author")
     q.add_argument("path", type=Path)
     q.add_argument("claim", type=Path)
-    for name in ('machine-create', 'machine-inspect', 'machine-check', 'machine-unpack'):
+    for name in ('machine-create', 'machine-inspect', 'machine-check', 'machine-unpack', 'machine-change'):
         q = cmd(name, 'check a finite synchronous machine on all reachable states')
         q.add_argument('path', type=Path)
         if name in ('machine-create', 'machine-unpack'): q.add_argument('--output', type=Path, required=True)
-        if name == 'machine-check':
+        if name == 'machine-change':
+            q.add_argument('proposal', type=Path)
+            q.add_argument('--output', type=Path)
+        if name in ('machine-check', 'machine-change'):
             q.add_argument('--expect-machine', required=True)
             q.add_argument('--max-edges', type=int, default=256)
     for name in ('lab-task-start', 'lab-task-resume', 'lab-task-inspect', 'lab-task-unpack'):
@@ -196,6 +199,7 @@ def execute(args):
     if args.command.startswith('machine-'):
         try:
             raw = machine.read(args.path)
+            if args.command == 'machine-change': proposal = machine.read_change(args.proposal)
         except OSError as exc:
             raise StoreError('cannot read machine input: ' + str(exc)) from exc
         if args.command == 'machine-create':
@@ -211,6 +215,10 @@ def execute(args):
             return machine.describe(created)
         if args.command == 'machine-inspect': return machine.describe(raw)
         if args.command == 'machine-unpack': return machine.unpack(raw, args.output)
+        if args.command == 'machine-change':
+            report, output = machine.verify_change(raw, proposal, args.expect_machine, max_edges=args.max_edges)
+            if output is not None and args.output is not None: write_bundle(args.output, output)
+            return report
         return machine.verify(raw, args.expect_machine, max_edges=args.max_edges)
     if args.command.startswith('lab-task-'):
         try:
@@ -451,7 +459,7 @@ def main(argv=None):
         if result['status'] == 'found': return 0
         if result['status'] == 'checker_error': return 1
         return 4 if result['status'] in ('neighborhood_exhausted', 'parent_rejected') else 3
-    if args.command in ('lab-check', 'lab-task-start', 'lab-task-resume'):
+    if args.command in ('lab-check', 'lab-task-start', 'lab-task-resume', 'machine-change'):
         if result['status'] in ('incomplete', 'suspended'): return 3
         if result['status'] == 'checker_error': return 1
         return 0 if result['admitted'] else 4

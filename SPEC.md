@@ -1074,6 +1074,45 @@ positional output path. Existing independently authenticated launcher/runtime,
 -I -S verified-source loading, and Python/stdlib trust requirements apply.
 
 This is finite-state universal-event safety, not liveness, fairness, unbounded
-integer reachability, general program verification, or an automatic gate for
-replacing machines. A passing finite model does not itself prove a physical or
+integer reachability or general program verification. A passing finite model does not itself prove a physical or
 external software system implements that model.
+
+
+## Machine change admission (Build 23)
+
+A proposal is exactly {parent,next}. parent is a lowercase SHA256 MachineID;
+next is a complete transition-rule map with the same validation as machine.next.
+Author JSON allows whitespace, but no duplicate keys; the size ceiling is 64 KiB
+(on input bytes and on the canonical API value). No claimed results, replacement
+invariants, initials, budgets or runtime fields are permitted.
+
+verify_change(parent_bytes, proposal, expected_parent, max_edges=256) first
+validates the runtime/structure, recipient anchor, proposal anchor and candidate
+rules. It creates the candidate by replacing ONLY next in the parent document.
+It checks parent safety first, then candidate safety over the candidate's own
+reachable graph. Each check has its own max_edges quota. A parent counterexample
+returns parent_rejected; a candidate counterexample returns counterexample.
+Incomplete and checker_error propagate with program=parent or candidate. No
+unsuccessful result returns successor bytes. The second check is not run if the
+first fails. Both graphs established returns safety_preserved, admitted=true and
+the canonical candidate bytes. This establishes inherited finite safety, not
+trace equivalence, improvement, liveness or correspondence to an external system.
+
+The report has status,parent,candidate,admitted,checks. checks contains the actual
+machine reports keyed by parent and, when reached, candidate. Failure includes
+program; successful admission includes successor (the candidate MachineID).
+Candidate is an identity of proposed bytes, never a claim of admission. An
+unchanged next map may pass and retains the same MachineID. There is no predecessor
+field, signed report or machine-history format: a recipient replays the parent
+and proposal to establish the edge. An unsafe parent is never repaired through
+this admission path; choosing another root is a separate action.
+
+machine-change PARENT PROPOSAL --expect-machine ID [--max-edges N] [--output FILE]
+returns 0=safety_preserved, 4=parent_rejected/counterexample, 3=incomplete/runtime
+unavailable/missing input, 2=invalid, 1=checker/operation failure. Output is written
+only for admission and refuses an occupied path. Standalone replay uses the
+unpacked machine.json as parent: replay.py PROPOSAL [OUTPUT] --machine-change
+--expect-machine ID --expect-runtime DIGEST [--max-edges N]. This mode is exclusive
+with other modes, runs the authenticated source loader under -I -S, and produces
+the same report and successor bytes as the installed CLI. These checks inherit
+the existing Python/stdlib and runtime-authentication assumptions.

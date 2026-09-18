@@ -11,7 +11,7 @@ In the default equivalence mode, a changed answer produces a concrete
 counterexample. A cheaper equivalent rule
 can become the next world; an unfinished check establishes nothing.
 
-**Build 22 · 32K draft.** The contract can change incompatibly. This is an
+**Build 23 · 32K draft.** The contract can change incompatibly. This is an
 experimental implementation, not a stable release or a general program prover.
 Python only; commands `sg` and `stargate`. MIT licensed.
 
@@ -1017,7 +1017,7 @@ not time: hitting the quota with work remaining is `incomplete` (exit 3), never
 safety. The default/hard maximum is 256, sufficient for all 64×4 state/event
 pairs. ATP/resource exhaustion also gives 3; a checker disagreement gives 1;
 malformed input or a wrong machine anchor gives 2. Inspection and creation return
-`unchecked_machine`, not a safety verdict. No command admits a successor.
+`unchecked_machine`, not a safety verdict. Admission is a separate command below.
 
 ```sh
 sg machine-unpack machine.json --output machine-offline
@@ -1029,6 +1029,64 @@ python -I -S machine-offline/replay.py machine-offline/machine.json \
 As with other offline modes, authenticate the launcher/runtime independently.
 The packet supplies the machine guide and pinned checker sources, not authority
 to execute them automatically. Reports are recomputable, not signed certificates.
-There is no fairness, liveness, external event restriction, machine evolution gate
+There is no fairness, liveness, external event restriction
 or persisted graph continuation in this build. Real-world systems are covered
 only to the extent that this finite model describes them accurately.
+
+
+### Change a machine without weakening its safety contract (Build 23)
+
+A proposal contains only `parent` (copy the exact MachineID) and `next` (a complete
+map of state names to new WPL rules). For example, a machine whose invariant is
+`!a` can change what `b` does, provided no reachable transition makes `a` true.
+The candidate may reach states its parent never visited: those states must also
+satisfy the inherited invariant.
+
+This creates a safe parent holding `00` and proposes making `b` true while
+keeping `a` false. Run in a fresh directory after installing Stargate:
+
+```sh
+MACHINE_ID=$(python - <<'PYTHON'
+import json
+from pathlib import Path
+from stargate import lab, machine
+
+def rule(expr):
+    return 'fact a: bool\nfact b: bool\ncheck ' + expr
+
+raw = machine.create(dict(state=['a', 'b'], events=[],
+    initial=[dict(a=False, b=False)], max_atp=1000,
+    next={'a': rule('a && (b || !b)'), 'b': rule('b && (a || !a)')},
+    invariant=rule('!a && (b || !b)')))
+Path('parent-machine.json').write_bytes(raw)
+Path('proposal.json').write_text(json.dumps(dict(parent=lab.identity(raw), next={
+    'a': rule('a && (b || !b)'), 'b': rule('(a || !a) && (b || !b)')})))
+print(lab.identity(raw))
+PYTHON
+)
+sg machine-change parent-machine.json proposal.json --expect-machine "$MACHINE_ID" \
+  --output successor-machine.json
+```
+
+For offline use, unpack that parent with `machine-unpack`. Authenticate the
+launcher/runtime independently, then run:
+
+```sh
+python -I -S machine-offline/replay.py proposal.json successor-offline.json \
+  --machine-change --expect-machine "$MACHINE_ID" --expect-runtime "$RUNTIME_DIGEST"
+```
+
+Both parent and candidate are checked from their initial states. `safety_preserved`
+(exit 0) writes the successor if requested. An unsafe parent gives
+`parent_rejected` (4); an unsafe candidate gives `counterexample` (4), including
+its shortest violating trace under `checks.candidate`. Neither writes a successor.
+Incomplete checks give 3; checker disagreement gives 1; malformed proposals or
+wrong parent anchors give 2. `--max-edges` applies separately to each graph.
+
+The successor changes **only** `next`: initial states, state/event names, invariant,
+ATP ceiling and runtime remain exact. An identical proposal is allowed and keeps
+the same MachineID. No cheaper-cost or behavior-equivalence claim is made.
+A weak invariant can admit undesirable behavior; the gate does not invent the
+missing requirements. Repairing an unsafe root requires explicitly choosing a new
+root, not calling it an admitted change. Keep the parent and proposal to replay
+an admission: the successor alone carries no lineage or admission certificate.

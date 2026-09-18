@@ -327,6 +327,7 @@ mode.add_argument('--invariant', action='store_true', help='check a finite-prope
 mode.add_argument('--lineage', action='store_true', help='replay an anchored history')
 mode.add_argument('--task', action='store_true', help='recheck imported progress, then continue')
 mode.add_argument('--machine', action='store_true', help='check reachable-state safety')
+mode.add_argument('--machine-change', action='store_true', help='admit new rules under inherited safety')
 parser.add_argument('--expect-machine', help='independently chosen machine ID')
 parser.add_argument('--max-edges', type=int, help='local machine edge quota')
 parser.add_argument('--expect-task', help='independently chosen world-and-proposal task ID')
@@ -335,10 +336,10 @@ parser.add_argument('--expect-root', help='independently chosen lineage root ID'
 parser.add_argument('--expect-runtime', required=True,
                     help='runtime digest obtained independently of this packet')
 args = parser.parse_args()
-if args.machine and args.expect_machine is None:
+if (args.machine or args.machine_change) and args.expect_machine is None:
     parser.error('machine replay requires --expect-machine')
-if not args.machine and (args.expect_machine is not None or args.max_edges is not None):
-    parser.error('--expect-machine and --max-edges require --machine')
+if not (args.machine or args.machine_change) and (args.expect_machine is not None or args.max_edges is not None):
+    parser.error('--expect-machine and --max-edges require --machine or --machine-change')
 if args.machine and args.output is not None:
     parser.error('machine checking does not create successors')
 if args.task and (args.expect_task is None or args.rows is None):
@@ -392,12 +393,17 @@ for name in ('__init__.py', 'kernel.py', 'store.py', 'canonical.py', 'checks.py'
     if name != '__init__.py':
         setattr(sys.modules['stargate'], name[:-3], module)
 from stargate.lab import read_world, read_proposal, verify_transition
-if args.machine:
+if args.machine or args.machine_change:
     from stargate import machine
     from stargate.lab import RuntimeMismatch
     try:
-        report = machine.verify(machine.read(args.proposal), args.expect_machine,
-                                max_edges=256 if args.max_edges is None else args.max_edges)
+        quota = 256 if args.max_edges is None else args.max_edges
+        output = None
+        if args.machine_change:
+            report, output = machine.verify_change(machine.read(root / 'machine.json'),
+                machine.read_change(args.proposal), args.expect_machine, max_edges=quota)
+        else:
+            report = machine.verify(machine.read(args.proposal), args.expect_machine, max_edges=quota)
     except RuntimeMismatch as exc:
         print(json.dumps({'status': 'runtime_unavailable', 'error': str(exc)}), file=sys.stderr)
         raise SystemExit(3)
@@ -407,8 +413,14 @@ if args.machine:
     except OSError as exc:
         print(json.dumps({'status': 'unverified', 'error': str(exc)}), file=sys.stderr)
         raise SystemExit(3)
+    if output is not None and args.output is not None:
+        try:
+            with args.output.open('xb') as stream: stream.write(output)
+        except OSError as exc:
+            print(json.dumps({'status': 'operation_error', 'error': str(exc)}), file=sys.stderr)
+            raise SystemExit(1)
     print(json.dumps(report, sort_keys=True))
-    raise SystemExit(0 if report['status'] == 'established' else
+    raise SystemExit(0 if report['status'] in ('established', 'safety_preserved') else
                      3 if report['status'] == 'incomplete' else
                      1 if report['status'] == 'checker_error' else 4)
 if args.task:

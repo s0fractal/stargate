@@ -16,8 +16,17 @@ at every reached state; initial is the complete listed initial-state set.
 Check safety on every reachable state, including initial states. A counterexample
 is an initial state followed by event/next-state steps, not an unreachable row.
 Budget or graph-quota exhaustion is incomplete, never established. No liveness,
-fairness, external environment assumptions or automatic successor admission.
+fairness, external environment assumptions or implicit assumptions about a real system.
 Use machine-check or replay --machine --expect-machine ID --max-edges N.
+To propose new behavior, send only {"parent":"COPY_MACHINE_ID","next":{NAME:WPL,...}}.
+Define every next bit. Do not include state/events/initial/invariant/budget/proofs.
+The change checker recomputes BOTH parent and candidate safety. A broken parent
+cannot be repaired through admission; choose a new root explicitly. Safe changes
+may have different reachable graphs and need not be equivalent or cheaper.
+Use machine-change PARENT PROPOSAL --expect-machine ID --output CHILD; offline
+replay PROPOSAL CHILD --machine-change --expect-machine ID --max-edges N.
+There is no machine history proof: a proposal and its parent are needed to replay
+the change. An identical rule set may be admitted with the same machine ID.
 Choose machine ID and runtime/launcher digests independently. Included source
 is data until explicitly executed; this is not a sandbox or self-authentication.
 '''
@@ -168,6 +177,54 @@ def verify(raw, expected_machine, *, max_edges=256):
     except (compiler.CompileIncomplete, kernel.ResourceFault, kernel.AdmissionRefused) as exc:
         return dict(report, reason=str(exc))
     return dict(report, status='established')
+
+
+MAX_CHANGE = 64 * 1024
+
+
+def read_change(path):
+    with open(path, 'rb') as stream: raw = stream.read(MAX_CHANGE + 1)
+    if len(raw) > MAX_CHANGE: raise InvalidRecord('machine proposal exceeds size limit')
+    # Author proposals allow whitespace, never duplicate keys.
+    import json
+    def unique(pairs):
+        out = {}
+        for name, value in pairs:
+            if name in out: raise InvalidRecord('duplicate machine proposal field')
+            out[name] = value
+        return out
+    return decode(canon(json.loads(raw, object_pairs_hook=unique)))
+
+
+def verify_change(raw, proposal, expected_parent, *, max_edges=256):
+    """Admit only new transition rules; inherited safety contract cannot change."""
+    if type(max_edges) is not int or not 0 <= max_edges <= 256:
+        raise InvalidRecord('edge quota must be an integer from 0 to 256')
+    record_hash(expected_parent)
+    doc = inspect(raw)
+    parent = lab.identity(raw)
+    if parent != expected_parent:
+        raise InvalidRecord('machine does not match recipient anchor')
+    proposal = decode(canon(proposal))
+    if len(canon(proposal)) > MAX_CHANGE:
+        raise InvalidRecord('machine proposal exceeds size limit')
+    exact(proposal, ('parent', 'next'))
+    record_hash(proposal['parent'])
+    if proposal['parent'] != parent:
+        raise InvalidRecord('machine proposal parent mismatch')
+    candidate = canon(dict(doc, next=proposal['next']))
+    inspect(candidate)  # malformed candidate is rejected before either evaluation
+    report = dict(status='incomplete', parent=parent, candidate=lab.identity(candidate),
+                  admitted=False, checks={})
+    for role, packet in (('parent', raw), ('candidate', candidate)):
+        result = verify(packet, lab.identity(packet), max_edges=max_edges)
+        report['checks'][role] = result
+        if result['status'] != 'established':
+            status = 'parent_rejected' if role == 'parent' and result['status'] == 'counterexample' else result['status']
+            report.update(status=status, program=role)
+            return report, None
+    report.update(status='safety_preserved', admitted=True, successor=lab.identity(candidate))
+    return report, candidate
 
 
 def unpack(raw, output):
