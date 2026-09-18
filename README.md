@@ -1,20 +1,70 @@
 # Stargate
 
-One Python system for content-addressed computation and signed, reproducible
-checks. Working successor to Sigma-Glyph and Warrant; commands `stargate` / `sg`.
+A portable lab for proposing program changes, finding counterexamples, and
+replaying the history of accepted changes. Give someone a world packet; they can
+propose a new rule as text, recompute the checks, and continue from the result.
+The finite lab needs no author key, account or service.
 
-**Build 18 · 32K draft (replayable world histories candidate).** The evaluator, object store and one signed-check flow
-work. This is a development implementation, not an independently accepted
-release. Predecessor repositories remain unchanged.
+Today the lab checks **Boolean rules with at most eight inputs**: every input is
+run through an SKI evaluator and compared with a separate Boolean oracle.
+A changed answer produces a concrete counterexample. A cheaper equivalent rule
+can become the next world; an unfinished check establishes nothing.
 
-## Install and run
+**Build 18 · 32K draft.** The contract can change incompatibly. This is an
+experimental implementation, not a stable release or a general program prover.
+Python only; commands `sg` and `stargate`. MIT licensed.
+
+## Try a complete transition
+
+Clone this repository, then run from its root:
 
 ```sh
 python3 -m venv .venv
 .venv/bin/python -m pip install .
-.venv/bin/sg --version
-.venv/bin/sg --help
+. .venv/bin/activate
+mkdir demo
+cd demo
+sg lab-create ../examples/lineage-parent.wpl --input a --input b --input c \
+  --objective lower_max_atp --output world.json
+sg lineage-start world.json --output history.json
+sg lab-search world.json --output candidate-world.json > search.json
+python - <<'PYTHON'
+import json
+from pathlib import Path
+proposal = json.loads(Path("search.json").read_text())["proposal"]
+Path("proposal.json").write_text(json.dumps(proposal))
+PYTHON
+ROOT_ID=$(python -c 'import json; print(json.load(open("proposal.json"))["parent"])')
+sg lineage-append history.json proposal.json --expect-root "$ROOT_ID" --output next-history.json
+sg lineage-check next-history.json --expect-root "$ROOT_ID" --output checked-world.json
 ```
+
+The search finds `!!!!(a || b) || c` → `!!(a || b) || c`, reducing worst-case
+ATP from **61 to 43**. The history checker reconstructs the same successor by
+replaying the transition. Search is only a proposal generator; it cannot bypass
+the gate. Run search again on `checked-world.json` to continue.
+
+A chat participant can replace the generated proposal with their own JSON
+containing only `parent` and `candidate`. `sg lab-check world.json proposal.json`
+returns an admitted result, a counterexample, insufficient improvement, an
+incomplete check or a checker error. Stargate refuses to overwrite its output
+files; use a fresh demo directory on a rerun.
+In this local example the root ID comes from the world you just created. When
+receiving someone else's history, choose your expected root independently.
+
+Next: [portable worlds and offline replay](#a-boolean-laboratory-you-can-hand-to-a-chat),
+[finite properties](#discover-finite-inputoutput-properties), and
+[replayable histories](#carry-a-replayable-history-to-the-next-participant).
+See [VISION.md](VISION.md) for direction and [SPEC.md](SPEC.md) for the contract.
+Packet integrity alone does not authenticate its checker; offline replay needs
+independently trusted launcher/runtime digests and is not a sandbox.
+
+## Signed checks and object storage
+
+Stargate also provides content-addressed computation and signed checks, brought
+forward from Sigma-Glyph and Warrant. These flows have explicit signer trust;
+the finite lab above does not weaken it. Predecessor repositories remain unchanged.
+Return to the repository root (`cd ..`) for the examples below.
 
 Use `.venv/bin/sg` below, or activate the environment. Default object directory
 is `.stargate`; override with `sg --store /path/to/objects COMMAND`.
