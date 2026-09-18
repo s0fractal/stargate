@@ -1,0 +1,3 @@
+fact a: bool
+fact b: bool
+check a && (b || !b)

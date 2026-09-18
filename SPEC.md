@@ -1,7 +1,7 @@
 # Stargate contract
 
 Status: **32K — DRAFT, implemented for the flows described below**.
-Build 16 is a local development implementation, not an adopted or published
+Build 17 is a local development implementation, not an adopted or published
 standard. It is not a Warrant verifier.
 
 ## One temperature
@@ -707,3 +707,46 @@ exhausted on its next call; the search does not look ahead beyond the limit.
 The search budget excludes incoming experience replay (separately capped at 256
 witnesses) and is not an ATP/CPU aggregate budget. Output uses the existing
 exclusive bundle writer only after found. No other files are written by search.
+
+## Finite property hypotheses (build 17, draft)
+
+A property claim has exactly `parent` (the supplied world's ID) and `property`.
+It accepts no computed values or evidence fields. Supported property objects:
+
+- `{"kind":"constant","value":B}`: B is a JSON boolean; every output equals B.
+- `{"kind":"independent","input":X}`: X is a declared input; every pair of
+  assignments differing only at X has the same output.
+- `{"kind":"monotone","input":X}`: for every such pair oriented X=false to
+  X=true, output true followed by false is forbidden.
+
+Validate and snapshot the claim before evaluation. Worlds retain their existing
+0..8 input restriction. Compute the complete table using `lab.verify_transition`
+with the parent's own rule as candidate. This deliberately reuses both parsers,
+SKI receipts and coverage checks (and currently evaluates each row twice).
+Only semantic `equivalent` permits property checking; `admitted` is irrelevant,
+since strict cost improvement is not a property obligation. Any self-comparison
+successor is discarded. Resource exhaustion is incomplete; checker disagreement
+is checker_error. No partial table yields established or counterexample.
+
+The property checker also requires exactly 2^N rows in binary-index order and
+strict Boolean output values. Constant claims check 2^N rows; independence and
+monotonicity check 2^(N-1) ordered pairs (these claims require a named input).
+`checked` counts examined obligations including a failing one. A counterexample
+contains the first violating row or pair; established requires every obligation.
+Reports bind parent and runtime_digest, include the checked table and its SHA-256
+canonical-JSON digest, and are observations, not trusted evidence inputs.
+
+Discovery computes one table and enumerates constant false, constant true, then
+independent and monotone for each sorted input: exactly 2+2N hypotheses. Each
+result includes the exact portable claim. `complete` says this catalog finished,
+not that all hypotheses hold or every possible property was discovered. A failed
+table computation returns no property results. This mode does not alter the
+world's constraints, authorize artifacts, or produce a successor.
+
+CLI: lab-discover WORLD [--output CATALOG]; lab-check-invariant WORLD CLAIM.
+Exit 0 is complete/established, 4 counterexample, 3 incomplete/runtime unavailable,
+2 invalid input, 1 checker/local operation failure. Catalog output is exclusive
+and only written on complete. The portable replay accepts --invariant and refuses
+an output successor argument in that mode. Its snapshot loader includes
+invariants.py in the hashed runtime closure, loaded after lab.py. Independent
+launcher/runtime authentication and interpreter trust remain necessary.

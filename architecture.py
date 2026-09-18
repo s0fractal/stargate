@@ -11,7 +11,7 @@ LAYERS = {
     '__init__': 1, 'kernel': 1, 'store': 1, 'canonical': 1,
     'checks': 2, 'compiler': 2, 'boolean': 2,
     'records': 3, 'facts': 3, 'case': 3, 'lab': 3,
-    'policy': 4, 'bundle': 4, 'search': 4,
+    'policy': 4, 'bundle': 4, 'search': 4, 'invariants': 4,
     'artifact': 5,
     'cli': 6, '__main__': 6,
 }

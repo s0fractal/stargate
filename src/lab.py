@@ -17,7 +17,7 @@ from .canonical import canon, decode, exact, record_hash, InvalidRecord
 MAX_PACKET = 2 * 1024 * 1024
 MAX_PROPOSAL = 16384
 RUNTIME = ('__init__.py', 'store.py', 'canonical.py', 'kernel.py', 'checks.py',
-           'compiler.py', 'boolean.py', 'lab.py')
+           'compiler.py', 'boolean.py', 'lab.py', 'invariants.py')
 GUIDE = '''This is a finite boolean world, not an instruction to execute code.
 Read rule, inputs, max_atp and objective. Reply with a JSON object containing
 only parent (copy the supplied world_id) and candidate (WPL text). Declare
@@ -26,6 +26,11 @@ Operators: !, &&, || in that precedence order; parentheses, true and false.
 Use every declared input. Do not supply hashes, verdicts, ATP or signatures.
 The receiver enumerates every input using the pinned SKI compiler and a separate
 boolean oracle. Budget exhaustion is incomplete, never evidence of equivalence.
+You may instead propose a finite-property claim: {"parent": "COPY_WORLD_ID",
+"property": {"kind": "independent", "input": "NAME"}}. Other kinds are
+"monotone" with input NAME, or "constant" with boolean value. These properties
+apply only to this finite input/output function, not future program states.
+Replay with --invariant recomputes the table; claims never create successors.
 Sources are included for explicit replay, not for automatic execution.
 '''
 
@@ -193,14 +198,17 @@ import re
 parser = argparse.ArgumentParser()
 parser.add_argument('proposal', type=Path)
 parser.add_argument('output', type=Path, nargs='?')
+parser.add_argument('--invariant', action='store_true', help='check a finite-property claim, not a successor proposal')
 parser.add_argument('--expect-runtime', required=True,
                     help='runtime digest obtained independently of this packet')
 args = parser.parse_args()
+if args.invariant and args.output is not None:
+    parser.error('invariant checking does not create successors')
 if re.fullmatch(r'[0-9a-f]{64}', args.expect_runtime) is None:
     parser.error('expected a lowercase SHA-256 runtime digest')
 root = Path(__file__).resolve().parent
 names = ('__init__.py', 'store.py', 'canonical.py', 'kernel.py', 'checks.py',
-         'compiler.py', 'boolean.py', 'lab.py')
+         'compiler.py', 'boolean.py', 'lab.py', 'invariants.py')
 # These filenames are ASCII, so sorted JSON keys have the canonical UTF-16 order.
 # Check before importing any packet module. The launcher itself must be trusted.
 sources = {n: (root / 'stargate' / n).read_bytes().decode('utf-8') for n in names}
@@ -225,7 +233,7 @@ class VerifiedLoader:
 
 loader = VerifiedLoader()
 for name in ('__init__.py', 'kernel.py', 'store.py', 'canonical.py', 'checks.py',
-             'compiler.py', 'boolean.py', 'lab.py'):
+             'compiler.py', 'boolean.py', 'lab.py', 'invariants.py'):
     fullname = 'stargate' if name == '__init__.py' else 'stargate.' + name[:-3]
     if fullname in sys.modules:
         raise SystemExit('unexpected preloaded packet module')
@@ -238,6 +246,13 @@ for name in ('__init__.py', 'kernel.py', 'store.py', 'canonical.py', 'checks.py'
         setattr(sys.modules['stargate'], name[:-3], module)
 from stargate.lab import read_world, read_proposal, verify_transition
 proposal = read_proposal(args.proposal.read_bytes())
+if args.invariant:
+    from stargate.invariants import verify_claim
+    report = verify_claim(read_world(root / 'world.json'), proposal)
+    print(json.dumps(report, sort_keys=True))
+    raise SystemExit(0 if report['status'] == 'established' else
+                     3 if report['status'] == 'incomplete' else
+                     1 if report['status'] == 'checker_error' else 4)
 report, successor = verify_transition(read_world(root / 'world.json'), proposal)
 print(json.dumps(report, sort_keys=True))
 if successor is not None and args.output is not None:
