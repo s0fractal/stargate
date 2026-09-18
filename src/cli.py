@@ -14,7 +14,7 @@ from .store import Store, StoreError, hex_hash
 from .bundle import export_bundle, verify_bundle, read_bundle, write_bundle, require_bundle
 from .policy import author_policy, CompilerBug, DEFAULT_MAX_ATP
 from .case import pack_case, inspect_case, read_case, unpack_case
-from . import lab, search, invariants
+from . import lab, search, invariants, lineage
 from .artifact import subject_hash, admit_bundle, admit_all, measure_subject
 
 
@@ -120,6 +120,13 @@ def parser():
     q = cmd("lab-check-invariant", "recompute a finite property claim without trusting its author")
     q.add_argument("path", type=Path)
     q.add_argument("claim", type=Path)
+    for name in ('lineage-start', 'lineage-append', 'lineage-check', 'lineage-unpack'):
+        q = cmd(name, 'create, extend, replay or materialize an anchored world history')
+        q.add_argument('path', type=Path)
+        if name == 'lineage-append': q.add_argument('proposal', type=Path)
+        if name in ('lineage-append', 'lineage-check'):
+            q.add_argument('--expect-root', required=True)
+        q.add_argument('--output', type=Path, required=name != 'lineage-check')
     return p
 
 
@@ -168,6 +175,27 @@ def read_admission_plan(path):
 
 
 def execute(args):
+    if args.command.startswith('lineage-'):
+        try:
+            raw = lab.read_world(args.path) if args.command == 'lineage-start' else lineage.read(args.path)
+            if args.command == 'lineage-append':
+                with args.proposal.open('rb') as stream:
+                    proposal = lab.read_proposal(stream.read(lab.MAX_PROPOSAL + 1))
+        except OSError as exc:
+            raise StoreError('cannot read lineage input: ' + str(exc)) from exc
+        if args.command == 'lineage-start':
+            created = lineage.create(raw)
+            write_bundle(args.output, created)
+            return dict(status='created', lineage_id=lab.identity(created), root=lab.identity(raw))
+        if args.command == 'lineage-unpack':
+            return lineage.unpack(raw, args.output)
+        if args.command == 'lineage-append':
+            report, output = lineage.append(raw, proposal, args.expect_root)
+        else:
+            report, output = lineage.verify(raw, args.expect_root)
+        if output is not None and args.output is not None:
+            write_bundle(args.output, output)
+        return report
     if args.command in ('lab-discover', 'lab-check-invariant'):
         try:
             raw = lab.read_world(args.path)
@@ -353,6 +381,10 @@ def main(argv=None):
         print(json.dumps({"status": "invalid", "error": str(exc)}), file=sys.stderr)
         return 2
     print(json.dumps(result, ensure_ascii=False, sort_keys=True))
+    if args.command in ('lineage-check', 'lineage-append'):
+        if result['status'] == 'verified_lineage': return 0
+        if result['status'] == 'incomplete': return 3
+        return 1 if result['status'] == 'checker_error' else 4
     if args.command in ('lab-discover', 'lab-check-invariant'):
         if result['status'] in ('complete', 'established'): return 0
         if result['status'] == 'checker_error': return 1

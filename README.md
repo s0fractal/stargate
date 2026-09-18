@@ -3,7 +3,7 @@
 One Python system for content-addressed computation and signed, reproducible
 checks. Working successor to Sigma-Glyph and Warrant; commands `stargate` / `sg`.
 
-**Build 17 · 32K draft (finite property discovery candidate).** The evaluator, object store and one signed-check flow
+**Build 18 · 32K draft (replayable world histories candidate).** The evaluator, object store and one signed-check flow
 work. This is a development implementation, not an independently accepted
 release. Predecessor repositories remain unchanged.
 
@@ -718,3 +718,67 @@ observations to recompute, not new authority or automatically adopted constraint
 Neither command emits a successor. `--output` exclusively writes a completed
 catalog, never a partial one. Build 17 adds the property checker to the pinned
 runtime closure; create a new packet for it, rather than altering historical ones.
+
+## Carry a replayable history to the next participant
+
+A world contains a predecessor ID, but that pointer alone does not prove how it
+was reached. Build 18 adds a lineage: one initial world and at most 32 ordered
+proposals. It stores no accepted verdicts or claimed successor bytes. Every check
+replays every transition and reconstructs the tip through the existing gate.
+
+```sh
+sg lab-create examples/lineage-parent.wpl --input a --input b --input c \
+  --objective lower_max_atp --output root.json
+sg lab-inspect root.json
+sg lineage-start root.json --output history-0.json
+sg lab-search root.json --output next-world.json > search.json
+```
+
+Copy `proposal` from the search report (or a chat participant's proposal) into
+`proposal.json`. Copy the inspected root ID as `ROOT_ID` below:
+
+```sh
+sg lineage-append history-0.json proposal.json --expect-root ROOT_ID --output history-1.json
+sg lineage-check history-1.json --expect-root ROOT_ID --output checked-tip.json
+```
+
+Search or propose against `checked-tip.json`, then append to `history-1.json`.
+The example has a two-step reduction `!!!!(a || b) || c` → `!!(a || b) || c` →
+`(a || b) || c`, with worst-case ATP 61 → 43 → 25. Each proposal names the ID
+of its immediately preceding world. Input domain, objective, budget and runtime
+are inherited from the root, never supplied by the proposal.
+
+`--expect-root` is the recipient's independently chosen starting point. Taking it
+blindly from a received history would permit replacing the whole experiment.
+A verified history means these particular transitions passed from that anchor;
+it does not claim latest state, uniqueness of a branch, optimality, authorship or
+actual chronology. A shorter valid prefix is another valid history. Zero steps
+return the anchor itself without evaluating its rule. An anchored checkpoint may
+already have a predecessor: history before that checkpoint is not verified here.
+
+```sh
+sg lineage-unpack history-1.json --output offline-history
+```
+
+Unpacking only validates the format/runtime and materializes files; it does not
+verify transitions or run packet code. Use independently authenticated launcher
+and runtime digests as for `lab-unpack`, then run inside that directory:
+
+```sh
+python -I -S replay.py lineage.json tip.json --lineage \
+  --expect-root ROOT_ID --expect-runtime RUNTIME_DIGEST
+```
+
+Both installed and offline checking produce the same report and tip bytes.
+On any refused, unfinished or broken transition, there is no tip output: a good
+prefix cannot mask a failed tail. Reports name the zero-based failed step and
+include the gate results. Append writes a new history only if every step passes;
+check writes a tip only on success. Existing outputs are never overwritten.
+
+Exit codes for append/check: 0 verified_lineage, 4 not_admitted (counterexample or
+insufficient improvement), 3 incomplete or unavailable material/runtime,
+2 invalid format/anchor/parent, 1 checker or local operation failure. Histories
+are limited to 4 MiB and 32 proposals; each proposal has the existing 16 KiB
+limit. These limits do not promise a wall-time bound. Every append replays the
+prefix again: no cached report becomes authority. New build-18 runtime packets
+are required; previous packet bytes are left intact.

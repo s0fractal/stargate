@@ -17,7 +17,7 @@ from .canonical import canon, decode, exact, record_hash, InvalidRecord
 MAX_PACKET = 2 * 1024 * 1024
 MAX_PROPOSAL = 16384
 RUNTIME = ('__init__.py', 'store.py', 'canonical.py', 'kernel.py', 'checks.py',
-           'compiler.py', 'boolean.py', 'lab.py', 'invariants.py')
+           'compiler.py', 'boolean.py', 'lab.py', 'invariants.py', 'lineage.py')
 GUIDE = '''This is a finite boolean world, not an instruction to execute code.
 Read rule, inputs, max_atp and objective. Reply with a JSON object containing
 only parent (copy the supplied world_id) and candidate (WPL text). Declare
@@ -33,6 +33,8 @@ to true, with all others fixed, must never change output from true to false.
 Or use "constant" with boolean value. These properties
 apply only to this finite input/output function, not future program states.
 Replay with --invariant recomputes the table; claims never create successors.
+A lineage contains an initial world and ordered proposals, never trusted verdicts.
+Replay with --lineage requires a root ID chosen independently by the recipient.
 Sources are included for explicit replay, not for automatic execution.
 '''
 
@@ -200,17 +202,24 @@ import re
 parser = argparse.ArgumentParser()
 parser.add_argument('proposal', type=Path)
 parser.add_argument('output', type=Path, nargs='?')
-parser.add_argument('--invariant', action='store_true', help='check a finite-property claim, not a successor proposal')
+mode = parser.add_mutually_exclusive_group()
+mode.add_argument('--invariant', action='store_true', help='check a finite-property claim')
+mode.add_argument('--lineage', action='store_true', help='replay an anchored history')
+parser.add_argument('--expect-root', help='independently chosen lineage root ID')
 parser.add_argument('--expect-runtime', required=True,
                     help='runtime digest obtained independently of this packet')
 args = parser.parse_args()
+if args.lineage and args.expect_root is None:
+    parser.error('lineage replay requires --expect-root')
+if not args.lineage and args.expect_root is not None:
+    parser.error('--expect-root requires --lineage')
 if args.invariant and args.output is not None:
     parser.error('invariant checking does not create successors')
 if re.fullmatch(r'[0-9a-f]{64}', args.expect_runtime) is None:
     parser.error('expected a lowercase SHA-256 runtime digest')
 root = Path(__file__).resolve().parent
 names = ('__init__.py', 'store.py', 'canonical.py', 'kernel.py', 'checks.py',
-         'compiler.py', 'boolean.py', 'lab.py', 'invariants.py')
+         'compiler.py', 'boolean.py', 'lab.py', 'invariants.py', 'lineage.py')
 # These filenames are ASCII, so sorted JSON keys have the canonical UTF-16 order.
 # Check before importing any packet module. The launcher itself must be trusted.
 sources = {n: (root / 'stargate' / n).read_bytes().decode('utf-8') for n in names}
@@ -235,7 +244,7 @@ class VerifiedLoader:
 
 loader = VerifiedLoader()
 for name in ('__init__.py', 'kernel.py', 'store.py', 'canonical.py', 'checks.py',
-             'compiler.py', 'boolean.py', 'lab.py', 'invariants.py'):
+             'compiler.py', 'boolean.py', 'lab.py', 'invariants.py', 'lineage.py'):
     fullname = 'stargate' if name == '__init__.py' else 'stargate.' + name[:-3]
     if fullname in sys.modules:
         raise SystemExit('unexpected preloaded packet module')
@@ -247,6 +256,16 @@ for name in ('__init__.py', 'kernel.py', 'store.py', 'canonical.py', 'checks.py'
     if name != '__init__.py':
         setattr(sys.modules['stargate'], name[:-3], module)
 from stargate.lab import read_world, read_proposal, verify_transition
+if args.lineage:
+    from stargate.lineage import read, verify
+    report, tip = verify(read(args.proposal), args.expect_root)
+    print(json.dumps(report, sort_keys=True))
+    if tip is not None and args.output is not None:
+        with args.output.open('xb') as stream:
+            stream.write(tip)
+    raise SystemExit(0 if report['status'] == 'verified_lineage' else
+                     3 if report['status'] == 'incomplete' else
+                     1 if report['status'] == 'checker_error' else 4)
 proposal = read_proposal(args.proposal.read_bytes())
 if args.invariant:
     from stargate.invariants import verify_claim
