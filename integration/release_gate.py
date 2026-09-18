@@ -30,7 +30,8 @@ would then be about different bytes. So the gate runs, in this order:
      already-present distribution of the same version as satisfied and skips the
      install, so "pip exited 0" does not mean the admitted code is in place: the
      gate forces the install and then hashes every payload file the wheel's
-     ZIP itself contains against what is now on disk — the wheel's `RECORD` is
+     ZIP itself contains against what is now on disk, in an install directory
+     decided without running anything the environment installed, — the wheel's `RECORD` is
      checked for agreement with those bytes and then not believed. `installed`
      means that check passed, and nothing else.
 
@@ -43,8 +44,9 @@ be able to tell "refused" from "could not check":
   0  installed          every decision satisfied AND the environment now holds
                      the admitted payload, verified file by file
   1  operation_error    local I/O: the target name exists, directory missing,
-                     install failed, or the environment does not hold the
-                     admitted payload afterwards
+                     install failed, the environment does not hold the admitted
+                     payload afterwards (`install_unverified`), or it runs
+                     startup code the wheel did not bring (`environment_untrusted`)
   2  invalid            a bundle, key, rule or profile is malformed or untrusted, or
                      the admitted bytes are not an installable wheel
   3  unverified         proof, rule, facts or artifact missing or unreadable;
@@ -205,16 +207,75 @@ def wheel_payload(path):
     return payload
 
 
-def environment_holds(venv, payload):
-    """Every RECORDed file, hashed where the installer put it. Returns a list of
-    complaints; empty means the environment holds exactly the admitted bytes."""
-    probe = subprocess.run([str(Path(venv) / "bin" / "python"), "-c",
-                            "import json,sysconfig;print(json.dumps(sysconfig.get_paths()))"],
+def installation_root(venv):
+    """Where this environment installs pure-Python packages, decided WITHOUT it.
+
+    `environment_holds` used to ask the target interpreter for
+    `sysconfig.get_paths()["purelib"]` on a normal startup — which runs the
+    environment's own `.pth` hooks first, so the environment could rewrite the
+    installed module and then send the check to a directory of clean copies
+    (Codex, PR #11 review R4). The answer now comes from two sources that a
+    startup hook cannot reach:
+
+      * the layout this gate computes from `pyvenv.cfg`, executing nothing;
+      * the interpreter's own answer under `-I -S`, which skips `site` (so no
+        `.pth`, `sitecustomize` or `usercustomize` runs) and ignores the
+        environment variables.
+
+    They must agree, and the result must lie inside the environment. A
+    disagreement is not resolved in the environment's favour — it is refused.
+    """
+    venv = Path(venv).resolve()
+    python = venv / "bin" / "python"
+    try:
+        config = dict(
+            (part.strip() for part in line.split("=", 1))
+            for line in (venv / "pyvenv.cfg").read_text(encoding="utf-8").splitlines()
+            if "=" in line)
+    except OSError as exc:
+        return None, [f"cannot read the environment's own pyvenv.cfg: {exc.strerror}"]
+    version = re.match(r"^(\d+)\.(\d+)", config.get("version", config.get("version_info", "")))
+    if not version:
+        return None, ["the environment's pyvenv.cfg declares no usable version"]
+    computed = venv / "lib" / f"python{version.group(1)}.{version.group(2)}" / "site-packages"
+
+    probe = subprocess.run([str(python), "-I", "-S", "-c",
+                            "import sysconfig;print(sysconfig.get_paths()['purelib'])"],
                            capture_output=True, text=True)
     if probe.returncode != 0:
-        return [f"cannot ask the target interpreter where it installs: {probe.stderr.strip()[:200]}"]
-    purelib = Path(json.loads(probe.stdout)["purelib"])
-    problems = []
+        return None, [f"cannot ask the target interpreter (no site) where it installs: "
+                      f"{probe.stderr.strip()[:200]}"]
+    reported = Path(probe.stdout.strip()).resolve()
+    if reported != computed.resolve():
+        return None, [f"the environment reports {reported} as its install root while its own "
+                      f"layout says {computed}"]
+    if venv not in reported.parents:
+        return None, [f"the environment's install root {reported} is outside {venv}"]
+    return reported, []
+
+
+def startup_hooks(purelib, payload):
+    """`.pth` files in the install root that the admitted wheel did not bring.
+
+    Anything in this list executes at interpreter startup, before any import, so
+    it can change the files this gate just verified — after the gate has
+    finished. The check cannot be done by hashing, only by naming what is there.
+    """
+    try:
+        present = sorted(p.name for p in Path(purelib).glob("*.pth"))
+    except OSError as exc:
+        return [f"cannot list startup hooks in {purelib}: {exc.strerror}"]
+    return [name for name in present if name not in payload]
+
+
+def environment_holds(venv, payload):
+    """Every payload member, hashed where this environment actually installs.
+
+    Returns a list of complaints; empty means the environment holds exactly the
+    admitted bytes."""
+    purelib, problems = installation_root(venv)
+    if problems:
+        return problems
     for name, want in sorted(payload.items()):
         installed = purelib / name
         try:
@@ -284,9 +345,17 @@ def gate(args):
     problems = environment_holds(args.install_into, payload)
     if problems:
         return EXIT_OPERATION, dict(report, status="install_unverified", problems=problems)
-    return EXIT_OK, dict(report, status="installed",
-                         installed_into=str(args.install_into),
-                         payload_files_verified=len(payload))
+
+    # 5. Say what else runs there. A `.pth` executes at interpreter startup,
+    #    before any import, so it can undo everything checked above once this
+    #    process exits. Hashing cannot see that; naming it can.
+    purelib, _ = installation_root(args.install_into)
+    hooks = startup_hooks(purelib, payload) if purelib else []
+    report = dict(report, installed_into=str(args.install_into),
+                  payload_files_verified=len(payload), foreign_startup_hooks=hooks)
+    if hooks and not args.allow_startup_hooks:
+        return EXIT_OPERATION, dict(report, status="environment_untrusted")
+    return EXIT_OK, dict(report, status="installed")
 
 
 def main(argv=None):
@@ -303,6 +372,9 @@ def main(argv=None):
     p.add_argument("--output-dir", required=True, type=Path,
                    help="directory the admitted wheel is written into, under the name its own bytes declare")
     p.add_argument("--install-into", type=Path, help="venv to install the admitted wheel into")
+    p.add_argument("--allow-startup-hooks", action="store_true",
+                   help="certify the install even though the environment runs .pth code the "
+                        "admitted wheel did not bring (they are always reported)")
     args = p.parse_args(argv)
     try:
         code, report = gate(args)

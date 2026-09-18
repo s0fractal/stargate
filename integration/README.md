@@ -63,7 +63,9 @@ and the venv imports `sigma_glyph` at version `0.7.0`.
    whose name and version are already present — and then **read the environment
    back**: every payload member of the wheel's **ZIP** is hashed where the
    installer put it (`RECORD` is checked for agreement with those bytes before
-   the install, and then not believed). `installed` means that check passed; a mismatch is
+   the install, and then not believed). The install root is resolved from
+   `pyvenv.cfg` and from `python -I -S`, so no code the environment installed
+   decides where the check looks. `installed` means that check passed; a mismatch is
    `install_unverified`, exit 1.
 
 ## Outcomes
@@ -71,7 +73,7 @@ and the venv imports `sigma_glyph` at version `0.7.0`.
 | exit | status | meaning |
 |---|---|---|
 | 0 | `approved` / `installed` | both decisions hold for these bytes |
-| 1 | `operation_error` / `install_unverified` | local I/O: target name taken, missing directory, install failed, or the environment does not hold the admitted payload |
+| 1 | `operation_error` / `install_unverified` / `environment_untrusted` | local I/O: target name taken, missing directory, install failed; the environment does not hold the admitted payload; or it runs `.pth` startup code the wheel did not bring (`--allow-startup-hooks` overrides) |
 | 2 | `invalid` / `artifact_not_a_wheel` | malformed or untrusted input, or verified bytes that are not installable |
 | 3 | `unverified` | material missing or unreadable — **nothing was decided** |
 | 4 | `unsatisfied` | a decision was reached and it does not admit this artifact |
@@ -83,7 +85,7 @@ and the venv imports `sigma_glyph` at version `0.7.0`.
 
 ```sh
 python3 integration/test_release_gate.py                  # 11 tests, builds its own wheels
-python3 integration/test_release_gate.py --with-install   # plus a venv install
+python3 integration/test_release_gate.py --with-install   # 16, incl. hostile environments
 ```
 
 They cover approval and naming, a tampered artifact, an untrusted key, a missing
@@ -97,6 +99,6 @@ that rewrites the installed module at interpreter startup.
 
 ## What this cost
 
-[FINDINGS.md](FINDINGS.md) lists the eleven things I had to invent at the
+[FINDINGS.md](FINDINGS.md) lists the twelve things I had to invent at the
 boundary between verification and action — and the four that Stargate already
 got right, which is why the gate is 150 lines and not a subsystem.

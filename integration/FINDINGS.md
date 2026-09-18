@@ -205,9 +205,55 @@ catch is an environment that mutates *after* the gate finishes. The only honest
 answer there is to install into an environment the gate creates itself, and this
 gate does not.
 
+## F12. The environment decided where it would be inspected
+
+Third review, and the sharpest of the series. The readback asked the **target
+interpreter** for `sysconfig.get_paths()["purelib"]` on a normal startup — which
+runs that environment's `.pth` hooks *first*. So a hook could rewrite the
+installed module and then hand the check a decoy directory of clean copies.
+Codex's reproduction: `0 / installed`, five files verified, module on disk
+`VALUE=999`, admitted wheel `VALUE=1`.
+
+The install root is now decided by two sources a startup hook cannot reach: the
+layout this gate computes from `pyvenv.cfg`, executing nothing, and the
+interpreter's own answer under `-I -S`, which skips `site` entirely (measured:
+a `.pth` that fires on a normal start does not fire under `-I -S`, and the
+reported path is identical). They must agree, and the result must lie inside the
+environment; a disagreement is refused rather than resolved in the environment's
+favour.
+
+**The shape, again:** F11 was the artifact describing itself; this is the
+environment describing itself. In both cases the checker read a claim from the
+thing under test. *Anything the subject tells you about where or what to check is
+part of the subject.*
+
+### What that leaves, stated rather than closed
+
+Not running the hooks means the gate no longer *trips over* them — so it can
+verify the files and still be handing over an environment that rewrites them at
+the next import. Hashing cannot see the future. The gate therefore **names**
+every `.pth` in the install root that the admitted wheel did not bring, and by
+default refuses to certify (`environment_untrusted`, exit 1);
+`--allow-startup-hooks` is the operator's choice, and the test for it asserts
+what that choice costs — the same environment, allowed, serves `VALUE=999` on
+the next import.
+
+A hook the **admitted artifact itself** ships is a different matter and is
+reported, not refused: the reviewer signed an artifact containing startup code,
+and no byte gate can promise what code does once it runs.
+
 ## Method note
 
-My first failure battery reported five bogus failures because `zsh` does not
-word-split unquoted parameter expansions, so a variable holding seven arguments
-arrived as one. The gate was fine; my harness was not. Recording it because I
-have asked for exactly this standard from the other side of these reviews.
+Three of my own harness bugs are worth recording, because I have asked for
+exactly this standard from the other side of these reviews:
+
+- my first failure battery reported five bogus failures because `zsh` does not
+  word-split unquoted parameter expansions, so seven arguments arrived as one;
+- my first hostile `.pth` fixture did nothing at all — a `.pth` line has no
+  `__file__`, so the hook silently failed;
+- my first redirect fixture chained statements with `or`, and `shutil.copytree`
+  returns a truthy path, so the mutation after it never ran.
+
+Each time the gate was fine and the fixture was broken. A control that cannot
+fire proves nothing, and the only defence is to assert the fixture did its job
+before asserting anything about the subject — which these tests now do.

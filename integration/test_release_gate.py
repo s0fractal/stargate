@@ -215,6 +215,8 @@ def build_hostile_wheel(path, variant, name="gatedemo", version="0.1.0", pad=204
       "omit"         — the module and the hook are left out of RECORD
       "lie"          — everything listed, but the module's digest is the hook's target
       "honest-hook"  — RECORD agrees with every byte; only the environment lies
+      "redirect"     — as above, and the hook also points sysconfig at a decoy
+                       directory holding clean copies (Codex, PR #11 review R4)
     """
     dist = f"{name}-{version}.dist-info"
     module = f"VALUE = 1\n".encode()
@@ -222,6 +224,15 @@ def build_hostile_wheel(path, variant, name="gatedemo", version="0.1.0", pad=204
     # no __file__, so the target is derived from sysconfig, as a real one would be.
     hook = (b"import os,sysconfig;p=os.path.join(sysconfig.get_paths()['purelib'],"
             b"'gatedemo','__init__.py');os.path.exists(p) and open(p,'w').write('VALUE = 999\\n')\n")
+    if variant == "redirect":
+        # Mutate the real module, stash clean copies, and make every later
+        # sysconfig lookup in THIS interpreter answer with the decoy.
+        hook = (b"import os,shutil,sysconfig;r=sysconfig.get_paths()['purelib'];"
+                b"d=os.path.join(r,'.decoy');"
+                b"os.path.exists(os.path.join(r,'gatedemo')) and ("
+                b"shutil.rmtree(d,ignore_errors=True) or shutil.copytree(r,d) or "
+                b"open(os.path.join(r,'gatedemo','__init__.py'),'w').write('VALUE = 999\\n'));"
+                b"_o=sysconfig.get_paths;sysconfig.get_paths=lambda *a,**k:dict(_o(*a,**k),purelib=d)\n")
     entries = {
         f"{name}/__init__.py": module,
         "gate_probe.pth": hook,
@@ -250,6 +261,135 @@ def build_hostile_wheel(path, variant, name="gatedemo", version="0.1.0", pad=204
     return path
 
 
+def build_hook_package(path, redirect=False, name="evilhook", version="0.1.0"):
+    """A wheel that ships only a `.pth`: the environment's code, not the artifact's.
+
+    With `redirect`, the hook also stashes clean copies and makes every later
+    `sysconfig` lookup in that interpreter answer with the decoy — the R4 attack.
+    """
+    # A .pth line must be one physical line, so the body goes through exec().
+    # (My first version chained statements with `or`; shutil.copytree returns a
+    # truthy path, so the mutation never ran — the fixture was wrong, not the gate.)
+    body = ("import os,sysconfig\n"
+            "r = sysconfig.get_paths()['purelib']\n"
+            "m = os.path.join(r, 'gatedemo', '__init__.py')\n"
+            "if os.path.exists(m):\n"
+            "    open(m, 'w').write('VALUE = 999\\n')\n")
+    if redirect:
+        body = ("import os,shutil,sysconfig\n"
+                "r = sysconfig.get_paths()['purelib']\n"
+                "d = os.path.join(r, '.decoy')\n"
+                "m = os.path.join(r, 'gatedemo', '__init__.py')\n"
+                "if os.path.exists(m):\n"
+                "    shutil.rmtree(d, ignore_errors=True)\n"
+                "    shutil.copytree(os.path.join(r, 'gatedemo'), os.path.join(d, 'gatedemo'))\n"
+                "    open(m, 'w').write('VALUE = 999\\n')\n"
+                "_original = sysconfig.get_paths\n"
+                "sysconfig.get_paths = lambda *a, **k: dict(_original(*a, **k), purelib=d)\n")
+    mutate = ("import sysconfig;exec(%r)\n" % body).encode()
+    dist = f"{name}-{version}.dist-info"
+    entries = {"evil.pth": mutate,
+               f"{dist}/METADATA":
+                   f"Metadata-Version: 2.1\nName: {name}\nVersion: {version}\n\nbody\n".encode(),
+               f"{dist}/WHEEL": (b"Wheel-Version: 1.0\nGenerator: test\n"
+                                 b"Root-Is-Purelib: true\nTag: py3-none-any\n")}
+    record = []
+    for member, raw in entries.items():
+        digest = base64.urlsafe_b64encode(hashlib.sha256(raw).digest()).rstrip(b"=").decode()
+        record.append(f"{member},sha256={digest},{len(raw)}")
+    record.append(f"{dist}/RECORD,,")
+    with zipfile.ZipFile(path, "w") as archive:
+        for member, raw in entries.items():
+            archive.writestr(member, raw)
+        archive.writestr(f"{dist}/RECORD", "\n".join(record) + "\n")
+    return path
+
+
+class HostileEnvironment(unittest.TestCase):
+    """The artifact is honest; the environment it is installed into is not."""
+
+    @unittest.skipUnless("--with-install" in sys.argv, "needs a venv; pass --with-install")
+    def test_a_startup_hook_cannot_redirect_the_readback(self):
+        """R4 itself, isolated from pip's timing.
+
+        The environment carries a hook that mutates the installed module and
+        makes `sysconfig` answer with a decoy of clean copies. The readback must
+        hash the real install root — resolved from `pyvenv.cfg` and from
+        `-I -S`, neither of which runs the hook — and therefore see the
+        mutation."""
+        sys.path.insert(0, str(ROOT / "integration"))
+        from release_gate import environment_holds, installation_root, wheel_payload
+        ReleaseGate.setUpClass()
+        try:
+            venv = Path(ReleaseGate.dir) / "redirect-venv"
+            subprocess.run([sys.executable, "-m", "venv", str(venv)], check=True,
+                           capture_output=True)
+            named = Path(ReleaseGate.dir) / "named" / "gatedemo-0.1.0-py3-none-any.whl"
+            named.parent.mkdir(exist_ok=True)
+            named.write_bytes(ReleaseGate.wheel.read_bytes())
+            hostile = Path(ReleaseGate.dir) / "hook" / "evilhook-0.1.0-py3-none-any.whl"
+            hostile.parent.mkdir(exist_ok=True)
+            build_hook_package(hostile, redirect=True)
+            for wheel in (named, hostile):
+                subprocess.run([str(venv / "bin" / "pip"), "install", "--no-deps", "--quiet",
+                                str(wheel)], check=True, capture_output=True,
+                               env={**os.environ, "PIP_NO_INDEX": "1"})
+            payload = wheel_payload(named)
+            self.assertEqual(environment_holds(venv, payload), [],
+                             "fixture: the install must start out correct")
+
+            # One normal interpreter start is all the hook needs.
+            subprocess.run([str(venv / "bin" / "python"), "-c", "pass"], check=True,
+                           capture_output=True)
+            root, _ = installation_root(venv)
+            self.assertTrue((root / ".decoy" / "gatedemo" / "__init__.py").exists(),
+                            "fixture: the hook did not lay down its decoy")
+            self.assertEqual((root / "gatedemo" / "__init__.py").read_bytes(),
+                             b"VALUE = 999\n", "fixture: the hook did not mutate the module")
+
+            complaints = environment_holds(venv, payload)
+            self.assertTrue(any("gatedemo/__init__.py" in c for c in complaints),
+                            f"the decoy was consulted instead of the real root: {complaints}")
+        finally:
+            ReleaseGate.tmp.cleanup()
+
+    @unittest.skipUnless("--with-install" in sys.argv, "needs a venv; pass --with-install")
+    def test_foreign_startup_code_is_named_and_refused_by_default(self):
+        """A hook the admitted artifact did not bring will undo the check later.
+
+        Hashing cannot see the future, so the gate names what else runs there and
+        does not certify it silently. `--allow-startup-hooks` is the operator's
+        choice — and this test shows what that choice costs."""
+        ReleaseGate.setUpClass()
+        try:
+            case = ReleaseGate()
+            venv = Path(ReleaseGate.dir) / "hooked-venv"
+            subprocess.run([sys.executable, "-m", "venv", str(venv)], check=True,
+                           capture_output=True)
+            hostile = Path(ReleaseGate.dir) / "hook2" / "evilhook-0.1.0-py3-none-any.whl"
+            hostile.parent.mkdir(exist_ok=True)
+            build_hook_package(hostile)
+            subprocess.run([str(venv / "bin" / "pip"), "install", "--no-deps", "--quiet",
+                            str(hostile)], check=True, capture_output=True,
+                           env={**os.environ, "PIP_NO_INDEX": "1"})
+
+            code, report, _ = case.run_gate(extra=("--install-into", str(venv),))
+            self.assertEqual((code, report["status"]), (1, "environment_untrusted"))
+            self.assertEqual(report["foreign_startup_hooks"], ["evil.pth"])
+
+            code, report, _ = case.run_gate(extra=("--install-into", str(venv),
+                                                   "--allow-startup-hooks"))
+            self.assertEqual((code, report["status"]), (0, "installed"))
+            self.assertEqual(report["foreign_startup_hooks"], ["evil.pth"])
+            later = subprocess.run([str(venv / "bin" / "python"), "-c",
+                                    "import gatedemo;print(gatedemo.VALUE)"],
+                                   capture_output=True, text=True)
+            self.assertEqual(later.stdout.strip(), "999",
+                             "this is what allowing foreign startup code costs")
+        finally:
+            ReleaseGate.tmp.cleanup()
+
+
 class HostileManifest(unittest.TestCase):
     """A wheel may be admitted and still lie about itself internally."""
 
@@ -265,7 +405,7 @@ class HostileManifest(unittest.TestCase):
         (self.dir / "judgment.wpl").write_text(JUDGMENT_RULE)
         (self.dir / "judgment-facts.json").write_text(json.dumps(JUDGMENT_FACTS))
 
-    def gate_for(self, variant, install=False):
+    def gate_for(self, variant, install=False, extra=()):
         wheel = build_hostile_wheel(self.dir / f"{variant}.whl", variant)
         digest = hashlib.sha256(wheel.read_bytes()).hexdigest()
         byte_record = author_derived(BYTES_RULE, BYTES_PROFILE, wheel, self.store, self.key)
@@ -276,12 +416,12 @@ class HostileManifest(unittest.TestCase):
             raw, _ = B.export_bundle(self.store.read(record["object"]), self.store, {self.trust})
             (self.dir / name).write_bytes(raw)
         out = Path(tempfile.mkdtemp(dir=self.dir))
-        extra = []
+        extra = list(extra)
         if install:
             venv = self.dir / f"venv-{variant}"
             subprocess.run([sys.executable, "-m", "venv", str(venv)], check=True,
                            capture_output=True)
-            extra = ["--install-into", str(venv)]
+            extra = ["--install-into", str(venv), *extra]
         done = subprocess.run(
             [sys.executable, str(GATE), "--artifact", str(wheel), "--trust", self.trust,
              "--bytes-bundle", str(self.dir / f"{variant}-bytes.sg.json"),
@@ -301,15 +441,17 @@ class HostileManifest(unittest.TestCase):
         self.assertEqual(files, [])
 
     @unittest.skipUnless("--with-install" in sys.argv, "needs a venv; pass --with-install")
-    def test_consistent_wheel_whose_environment_rewrites_it_is_not_installed(self):
-        """Nothing about this wheel is inconsistent; the ENVIRONMENT mutates it.
+    def test_a_hook_the_artifact_itself_ships_is_installed_and_named(self):
+        """The admitted wheel carries its own `.pth`, so the reviewer signed it.
 
-        The hook runs when the target interpreter starts, which is what the
-        readback does. `installed` must not survive that."""
+        The gate verifies that the installed files are the admitted ones — they
+        are — and names the startup code rather than refusing it: an artifact
+        that ships code which runs at import time is doing what its own bytes
+        say, and no byte gate can promise otherwise."""
         code, report, files = self.gate_for("honest-hook", install=True)
-        self.assertEqual((code, report["status"]), (1, "install_unverified"))
-        self.assertTrue(any("gatedemo/__init__.py" in p for p in report["problems"]),
-                        report["problems"])
+        self.assertEqual((code, report["status"]), (0, "installed"))
+        self.assertEqual(report["foreign_startup_hooks"], [])
+        self.assertEqual(report["payload_files_verified"], 5)
 
     def test_record_contradicting_its_own_bytes_is_refused(self):
         code, report, files = self.gate_for("lie")
