@@ -95,12 +95,83 @@ class Search(unittest.TestCase):
         self.assertEqual((report['status'], report['reason'], report['attempted'], child),
                          ('search_incomplete','candidate_limit',1,None))
         report, child = search.search(world(max_atp=1))
-        self.assertEqual((report['status'], child), ('incomplete',None))
+        self.assertEqual((report['status'], child), ('search_incomplete',None))
+        self.assertGreater(report['incomplete_candidates'], 0)
         with patch.object(compiler, 'compile_source', side_effect=compiler.CompilerBug('planted')):
             report, child = search.search(raw)
         self.assertEqual((report['status'], child), ('checker_error',None))
         for n in (0, True, 257):
             with self.subTest(n=n), self.assertRaises(InvalidRecord): search.search(raw, max_candidates=n)
+
+    def test_parent_cost_budget_still_finds_cheaper_successor(self):
+        for budget in (43,48):
+            with self.subTest(budget=budget):
+                raw = world(max_atp=budget)
+                report, child = search.search(raw)
+                self.assertEqual(report['status'], 'found')
+                self.assertEqual(report['attempts'][0]['status'], 'incomplete')
+                self.assertGreater(report['incomplete_candidates'], 0)
+                self.assertNotIn(report['attempts'][0]['candidate'],
+                                 [e['candidate'] for e in report['experience']['counterexamples']])
+                verified, expected = lab.verify_transition(raw, report['proposal'])
+                self.assertEqual(verified['max_atp'], {'parent':43,'candidate':25})
+                self.assertEqual(child, expected)
+
+    def test_screening_oracle_is_checked_for_both_programs(self):
+        from stargate import boolean
+        raw = world()
+        parent = rule('!!(a || b) || c')
+        candidate = rule('(a || b) || c')
+        original_eval = boolean.evaluate
+        original_gate = lab.verify_transition
+        for affected in (parent, candidate):
+            armed = False
+            code = boolean.program(affected, ['a','b','c'])
+            def oracle(program, facts):
+                value = original_eval(program, facts)
+                return not value if armed and program == code else value
+            def gate(*args, **kwargs):
+                nonlocal armed
+                result = original_gate(*args, **kwargs)
+                armed = True
+                return result
+            with self.subTest(affected=affected), \
+                 patch.object(search, 'candidates', return_value=iter([rule('!(!!(a || b) || c)'),candidate])), \
+                 patch.object(boolean, 'evaluate', side_effect=oracle), \
+                 patch.object(lab, 'verify_transition', side_effect=gate) as calls:
+                report, child = search.search(raw)
+                self.assertEqual(calls.call_count, 1)  # Fault caught by screening, not the later full gate.
+                self.assertEqual((report['status'], report['attempts'][1]['status'], child),
+                                 ('checker_error','checker_error',None))
+
+    def test_screening_incomplete_skips_only_that_candidate(self):
+        raw = world()
+        actual = search._probe
+        blocked = rule('!!(!!(a || b) || c)')
+        candidate = rule('(a || b) || c')
+        def probe(doc, text, facts):
+            if text == blocked: return {'status':'incomplete', 'reason':'planted budget'}, None
+            return actual(doc,text,facts)
+        with patch.object(search,'candidates', return_value=iter([rule('!(!!(a || b) || c)'),blocked,candidate])), \
+             patch.object(search,'_probe',side_effect=probe):
+            report, child = search.search(raw)
+        self.assertEqual([a['status'] for a in report['attempts']], ['counterexample','incomplete','equivalent'])
+        self.assertEqual((report['status'],report['incomplete_candidates']),('found',1))
+        self.assertEqual(child, lab.verify_transition(raw,report['proposal'])[1])
+
+    def test_exhausted_with_incomplete_candidate_exits_three(self):
+        raw = world(max_atp=43)
+        only = rule('!(!!(a || b) || c)')
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp);(root/'world').write_bytes(raw)
+            out=io.StringIO()
+            with patch.object(search,'candidates',return_value=iter([only])), redirect_stdout(out):
+                code=cli.main(['lab-search',str(root/'world'),'--output',str(root/'child')])
+            report=json.loads(out.getvalue())
+            self.assertEqual((code,report['status'],report.get('reason'),report['incomplete_candidates']),
+                             (3,'search_incomplete','incomplete_candidates',1))
+            self.assertEqual(report['experience']['counterexamples'],[])
+            self.assertFalse((root/'child').exists())
 
     def test_exact_duplicate_does_not_spend_full_gate_again(self):
         raw = world()

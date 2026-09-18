@@ -63,7 +63,8 @@ def search(raw, *, max_candidates=32, experience=None):
     runtime = lab.runtime_digest(doc['sources'])
     memory = dict(parent=parent, runtime_digest=runtime, counterexamples=[])
     report = dict(status='search_incomplete', parent=parent, runtime_digest=runtime,
-                  attempted=0, full_checks=0, screened=0, attempts=[], experience=memory)
+                  attempted=0, full_checks=0, screened=0, incomplete_candidates=0,
+                  attempts=[], experience=memory)
     if experience is not None:
         incoming = decode(canon(experience))
         exact(incoming, ('parent', 'runtime_digest', 'counterexamples'))
@@ -94,7 +95,10 @@ def search(raw, *, max_candidates=32, experience=None):
         try:
             candidate = next(stream)
         except StopIteration:
-            report.update(status='neighborhood_exhausted')
+            if report['incomplete_candidates']:
+                report.update(status='search_incomplete', reason='incomplete_candidates')
+            else:
+                report.update(status='neighborhood_exhausted')
             return report, None
         report['attempted'] += 1
         attempt = dict(candidate=candidate)
@@ -113,8 +117,12 @@ def search(raw, *, max_candidates=32, experience=None):
             refusal, row = _probe(doc, candidate, example['input'])
             if refusal:
                 attempt.update(refusal)
-                report.update(status=refusal['status'], reason=refusal['reason'])
-                return report, None
+                if refusal['status'] == 'checker_error':
+                    report.update(status='checker_error', reason=refusal['reason'])
+                    return report, None
+                report['incomplete_candidates'] += 1
+                blocked = True
+                break
             if row['parent']['value'] != row['candidate']['value']:
                 attempt.update(status='screened', witness=row)
                 report['screened'] += 1
@@ -132,7 +140,9 @@ def search(raw, *, max_candidates=32, experience=None):
             facts = verified['input']
             if not any(e['input'] == facts for e in memory['counterexamples']):
                 memory['counterexamples'].append(dict(candidate=candidate, input=facts))
-        elif verified['status'] in ('incomplete', 'checker_error'):
+        elif verified['status'] == 'incomplete':
+            report['incomplete_candidates'] += 1
+        elif verified['status'] == 'checker_error':
             report.update(status=verified['status'], reason=verified.get('reason'))
             return report, None
     report['reason'] = 'candidate_limit'

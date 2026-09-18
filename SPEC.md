@@ -684,10 +684,16 @@ For each new candidate, replay remembered inputs first. A completed disagreement
 produces a screened attempt with its row witness; no full check is needed to
 reject that candidate. Matching this sample grants nothing. All survivors go to
 lab.verify_transition, including its independent oracle, coverage checks and
-cost objective. Full counterexamples extend experience. Any incomplete/checker
-error stops the search rather than silently being treated as a negative example.
+cost objective. Full counterexamples extend experience. A candidate that is incomplete in
+screening or the full gate is marked incomplete, increments incomplete_candidates,
+and contributes no negative example; search continues with the next candidate.
+A checker_error stops search. If the iterator is exhausted after any incomplete
+candidate, status is search_incomplete with reason incomplete_candidates (CLI 3),
+not neighborhood_exhausted. Incoming experience replay still refuses the search
+on incomplete/error before any candidates run: it has not established its hints.
 
-Reports contain parent, runtime_digest, attempted, full_checks, screened, attempts
+Reports contain parent, runtime_digest, attempted, full_checks, screened,
+incomplete_candidates, attempts
 and experience. Per-attempt status is duplicate, invalid, screened, or the full
 lab result. found includes the exact two-field proposal and successor ID, with
 successor bytes returned separately. Search returns only a successor supplied

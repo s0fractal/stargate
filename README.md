@@ -639,7 +639,10 @@ sg lab-search search-world.json --experience experience.json --max-candidates 32
 Experience is bound to the exact parent and runtime, and every alleged
 counterexample is recomputed before it can prune candidates. A saved verdict
 is never accepted as proof. A candidate matching all remembered rows must still
-pass exhaustive `lab-check`; the report's `proposal` can be given directly to
+pass exhaustive `lab-check`; replayed examples cannot semantically reject a fully verifiable equivalent
+candidate, even if another participant chose every input row. They may add
+replay cost; this is not a universal speedup guarantee. The report's `proposal`
+can be given directly to
 that command or to standalone replay. The search implementation is not part of
 the portable checker closure: its proposals need no trust in the generator.
 
@@ -654,5 +657,9 @@ the same search with better screening, rather than resuming an execution cursor.
 Exit 0 = found; 4 = this finite neighborhood exhausted; 3 = candidate limit,
 evaluation incomplete or missing material; 2 = invalid input/experience;
 1 = checker or operation error. No unsuccessful path writes a successor.
-Neither exhaustion status means that no better program exists. Candidate count
+An over-budget candidate is recorded as incomplete and skipped, without adding
+it to experience. If any candidate remains incomplete when the neighborhood ends,
+exit is 3 rather than 4. Checker errors stop immediately; unresolved incoming
+experience is refused before search. Neither exhaustion status means that no
+better program exists. Candidate count
 and each world's ATP bound are distinct; neither promises a CPU time bound.
