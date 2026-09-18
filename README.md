@@ -3,7 +3,7 @@
 One Python system for content-addressed computation and signed, reproducible
 checks. Working successor to Sigma-Glyph and Warrant; commands `stargate` / `sg`.
 
-**Build 7 · 32K draft (policy provenance candidate).** The evaluator, object store and one signed-check flow
+**Build 8 · 32K draft (recipient requirement candidate).** The evaluator, object store and one signed-check flow
 work. This is a development implementation, not an independently accepted
 release. Predecessor repositories remain unchanged.
 
@@ -49,6 +49,7 @@ verifiable; adding undeclared bytes cannot change its decision.
 | 1 | `operation_error` | Operator/I/O failure, including existing key file |
 | 2 | `invalid` | Malformed record, bad signature, unsupported temperature |
 | 3 | `unverified` | Missing declared bytes, admission/resource or verification I/O failure |
+| 4 | `unsatisfied` | `require`: verified record does not satisfy the recipient request |
 
 Argument parsing errors use exit 2 with argparse's text diagnostic. Library
 callers catch `InvalidRecord` for invalid fields, including malformed hashes;
@@ -110,7 +111,7 @@ Python 3.14 is the tested environment for this port; metadata permits Python
 subprocess CLI flow, corruption, signature/decision tampering, unsupported
 editions, local refusal, and the isolated same-result/different-exit case.
 
-Local provenance validation: all 59 tests passed both in the checkout and against a
+Local recipient-requirement validation: all 67 tests passed both in the checkout and against a
 wheel-installed package outside the checkout, including the 49 imported kernel
 cases. Both console aliases report build 7 / 32K. An external in-memory mutation
 omitting actual exit from the fingerprint makes the isolating test fail by an
@@ -258,3 +259,32 @@ must be installed beforehand.
 There is no bundle signature or new trust system; integrity comes from the
 existing signed record and content hashes. An export key is never embedded as
 authority for the recipient.
+
+## Require a proof for your own rule and facts
+
+The recipient selects the trusted key, rule and facts independently of the bundle:
+
+```sh
+sg require check.sg.json --trust PUBLIC_KEY --rule expected.wpl --facts expected.json
+```
+
+Exit 0 / `satisfied` requires a verified policy-bound accept, the exact expected
+UTF-8 rule bytes, and the expected canonical boolean facts. Whitespace changes
+in a rule change its identity; JSON fact formatting and key order do not.
+Both files are required, and facts must exactly match the rule declarations.
+A trusted author cannot substitute an easier rule such as `check true`.
+
+Exit 4 / `unsatisfied` preserves the successful verification under `verification`
+and reports `policy_missing`, `rule_mismatch`, `facts_mismatch`, or `decision_reject`
+(in that order). A valid record for another request is not an invalid record.
+Malformed input or failed verification retains exit 2; missing bytes, resource
+limits and I/O failures use 3. These failures never become an unsatisfied decision.
+`verify-bundle` still returns exit 0 for a verified reject; `require` does not.
+
+Python: `stargate.bundle.require_bundle(raw, trusted_keys, rule=source, facts=inputs)`
+returns the same report and preserves verification exceptions. It reads no local
+object store and performs no action beyond checking the requirement. The expected
+hashes are included in the report, but the report is not a new signed artifact.
+This does not establish real-world fact truth, freshness, or one-time use: the
+same bundle can satisfy the same request repeatedly. No record/bundle format or
+Kelvin change is introduced.

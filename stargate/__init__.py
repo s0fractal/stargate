@@ -1,5 +1,5 @@
 """Stargate: one current contract, one Python implementation."""
 
-__version__ = "7"
+__version__ = "8"
 KELVIN = 32
 CONTRACT_STATUS = "draft"
