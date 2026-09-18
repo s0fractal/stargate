@@ -11,19 +11,25 @@ from pathlib import Path
 import re
 import shutil
 
-from . import boolean, compiler, kernel
+from . import boolean, compiler, kernel, properties as predicates
 from .canonical import canon, decode, exact, record_hash, InvalidRecord
 
 MAX_PACKET = 2 * 1024 * 1024
 MAX_PROPOSAL = 16384
 RUNTIME = ('__init__.py', 'store.py', 'canonical.py', 'kernel.py', 'checks.py',
-           'compiler.py', 'boolean.py', 'lab.py', 'invariants.py', 'lineage.py')
+           'compiler.py', 'boolean.py', 'properties.py', 'lab.py', 'invariants.py', 'lineage.py')
 GUIDE = '''This is a finite boolean world, not an instruction to execute code.
 Read rule, inputs, max_atp and objective. Reply with a JSON object containing
 only parent (copy the supplied world_id) and candidate (WPL text). Declare
 exactly the same inputs as `fact NAME: bool`, then `check EXPRESSION`.
 Operators: !, &&, || in that precedence order; parentheses, true and false.
 Use every declared input. Do not supply hashes, verdicts, ATP or signatures.
+Check contract: boolean-exhaustive-1 requires identical outputs to the parent.
+boolean-properties-1 instead requires BOTH parent and candidate to satisfy every
+listed property; outputs may change. Proposals cannot edit properties, objective,
+inputs, budget or runtime. A case property has kind="case", facts (every named
+input mapped to a boolean), and value (boolean), fixing that exact assignment.
+An objective of satisfy adds no cost condition; lower_max_atp requires lower cost.
 The receiver enumerates every input using the pinned SKI compiler and a separate
 boolean oracle. Budget exhaustion is incomplete, never evidence of equivalence.
 You may instead propose a finite-property claim: {"parent": "COPY_WORLD_ID",
@@ -70,10 +76,13 @@ def _program(source, names):
     return boolean.program(source, names)
 
 
-def create_world(rule, inputs, *, max_atp=1000, objective='equivalence'):
+def create_world(rule, inputs, *, max_atp=1000, objective=None, properties=None):
     doc = dict(stargate_world=32, contract='boolean-exhaustive-1', rule=rule,
                inputs=inputs, max_atp=max_atp, objective=objective, predecessor=None,
                guide=GUIDE, sources=runtime_sources(), license=LICENSE)
+    if properties is not None:
+        doc.update(contract='boolean-properties-1', properties=properties)
+    doc['objective'] = objective if objective is not None else ('satisfy' if properties is not None else 'equivalence')
     raw = canon(doc)
     inspect_world(raw)
     return raw
@@ -83,14 +92,17 @@ def inspect_world(raw):
     if not isinstance(raw, bytes) or len(raw) > MAX_PACKET:
         raise InvalidRecord('world packet exceeds size limit or is not bytes')
     doc = decode(raw)
-    exact(doc, ('stargate_world', 'contract', 'rule', 'inputs', 'max_atp',
-                'objective', 'predecessor', 'guide', 'sources', 'license'))
-    if type(doc['stargate_world']) is not int or doc['stargate_world'] != 32 or doc['contract'] != 'boolean-exhaustive-1':
+    property_mode = isinstance(doc, dict) and doc.get('contract') == 'boolean-properties-1'
+    fields = ('stargate_world', 'contract', 'rule', 'inputs', 'max_atp',
+              'objective', 'predecessor', 'guide', 'sources', 'license')
+    exact(doc, fields + (('properties',) if property_mode else ()))
+    if type(doc['stargate_world']) is not int or doc['stargate_world'] != 32 or doc['contract'] not in ('boolean-exhaustive-1', 'boolean-properties-1'):
         raise InvalidRecord('unsupported world contract')
     _inputs(doc['inputs'])
     if type(doc['max_atp']) is not int or not 0 <= doc['max_atp'] <= 10000:
         raise InvalidRecord('world ATP must be an integer from 0 to 10000 per program per row')
-    if doc['objective'] not in ('equivalence', 'lower_max_atp'):
+    objectives = ('satisfy', 'lower_max_atp') if property_mode else ('equivalence', 'lower_max_atp')
+    if doc['objective'] not in objectives:
         raise InvalidRecord('unknown objective')
     if doc['predecessor'] is not None:
         record_hash(doc['predecessor'])
@@ -105,6 +117,8 @@ def inspect_world(raw):
         raise RuntimeMismatch('world requires different runtime bytes')
     if doc['guide'] != GUIDE or doc['license'] != LICENSE:
         raise InvalidRecord('world guide or license mismatch')
+    if property_mode:
+        predicates.contract(doc['inputs'], doc['properties'])
     _program(doc['rule'], doc['inputs'])
     return doc
 
@@ -163,7 +177,7 @@ def verify_transition(raw, proposal):
             report.update(reason=str(exc), input=facts)
             return report, None
         report['rows'].append(dict(input=facts, parent=results[0], candidate=results[1]))
-        if results[0]['value'] != results[1]['value']:
+        if doc['contract'] == 'boolean-exhaustive-1' and results[0]['value'] != results[1]['value']:
             report.update(status='counterexample', input=facts)
             return report, None
     if len(report['rows']) != report['total_rows']:
@@ -176,6 +190,23 @@ def verify_transition(raw, proposal):
             report.update(status='checker_error', reason='enumeration order or coverage mismatch')
             return report, None
     report.update(status='equivalent', max_atp=dict(parent=maxima[0], candidate=maxima[1]))
+    if doc['contract'] == 'boolean-properties-1':
+        report['property_results'] = {}
+        report['changed_rows'] = sum(row['parent']['value'] != row['candidate']['value'] for row in report['rows'])
+        for role in ('parent', 'candidate'):
+            table = [dict(input=row['input'], **row[role]) for row in report['rows']]
+            report['property_results'][role] = []
+            for prop in doc['properties']:
+                checked = predicates.assess(doc['inputs'], table, prop)
+                report['property_results'][role].append(checked)
+                if checked['status'] != 'established':
+                    status = ('checker_error' if checked['status'] == 'checker_error' else
+                              'parent_rejected' if role == 'parent' else 'counterexample')
+                    report.update(status=status, reason='property_contract', program=role, property=prop)
+                    if 'witness' in checked: report['witness'] = checked['witness']
+                    return report, None
+        report['status'] = 'satisfies'
+
     if doc['objective'] == 'lower_max_atp' and maxima[1] >= maxima[0]:
         report['reason'] = 'not_strictly_cheaper'
         return report, None
@@ -224,7 +255,7 @@ if re.fullmatch(r'[0-9a-f]{64}', args.expect_runtime) is None:
     parser.error('expected a lowercase SHA-256 runtime digest')
 root = Path(__file__).resolve().parent
 names = ('__init__.py', 'store.py', 'canonical.py', 'kernel.py', 'checks.py',
-         'compiler.py', 'boolean.py', 'lab.py', 'invariants.py', 'lineage.py')
+         'compiler.py', 'boolean.py', 'properties.py', 'lab.py', 'invariants.py', 'lineage.py')
 # These filenames are ASCII, so sorted JSON keys have the canonical UTF-16 order.
 # Check before importing any packet module. The launcher itself must be trusted.
 sources = {n: (root / 'stargate' / n).read_bytes().decode('utf-8') for n in names}
@@ -249,7 +280,7 @@ class VerifiedLoader:
 
 loader = VerifiedLoader()
 for name in ('__init__.py', 'kernel.py', 'store.py', 'canonical.py', 'checks.py',
-             'compiler.py', 'boolean.py', 'lab.py', 'invariants.py', 'lineage.py'):
+             'compiler.py', 'boolean.py', 'properties.py', 'lab.py', 'invariants.py', 'lineage.py'):
     fullname = 'stargate' if name == '__init__.py' else 'stargate.' + name[:-3]
     if fullname in sys.modules:
         raise SystemExit('unexpected preloaded packet module')

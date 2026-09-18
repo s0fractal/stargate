@@ -59,6 +59,7 @@ def search(raw, *, max_candidates=32, experience=None):
     if type(max_candidates) is not int or not 1 <= max_candidates <= 256:
         raise InvalidRecord('search candidate limit must be an integer from 1 to 256')
     doc = lab.inspect_world(raw)
+    property_mode = doc['contract'] == 'boolean-properties-1'
     parent = lab.identity(raw)
     runtime = lab.runtime_digest(doc['sources'])
     memory = dict(parent=parent, runtime_digest=runtime, counterexamples=[])
@@ -73,6 +74,8 @@ def search(raw, *, max_candidates=32, experience=None):
         examples = incoming['counterexamples']
         if not isinstance(examples, list) or len(examples) > 256:
             raise InvalidRecord('experience must contain at most 256 counterexamples')
+        if property_mode and examples:
+            raise InvalidRecord('equivalence counterexamples cannot screen a property world')
         for example in examples:
             exact(example, ('candidate', 'input'))
             facts = example['input']
@@ -136,7 +139,10 @@ def search(raw, *, max_candidates=32, experience=None):
             report.update(status='found', proposal=dict(parent=parent, candidate=candidate),
                           successor=lab.identity(successor))
             return report, successor
-        if verified['status'] == 'counterexample':
+        if verified['status'] == 'parent_rejected':
+            report.update(status='parent_rejected', reason='parent violates its property contract')
+            return report, None
+        if verified['status'] == 'counterexample' and not property_mode:
             facts = verified['input']
             if not any(e['input'] == facts for e in memory['counterexamples']):
                 memory['counterexamples'].append(dict(candidate=candidate, input=facts))

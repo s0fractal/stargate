@@ -1,7 +1,7 @@
 # Stargate contract
 
 Status: **32K — DRAFT, implemented for the flows described below**.
-Build 18 is a local development implementation, not an adopted or published
+Build 19 is a local development implementation, not an adopted or published
 standard. It is not a Warrant verifier.
 
 ## One temperature
@@ -560,7 +560,7 @@ No trust set, key or founder service participates in `lab-check`. It establishes
 only a finite computation claim, not author identity or facts about external
 artifacts. Existing signed-record trust requirements are unchanged.
 
-A canonical JSON packet has exactly: `stargate_world:32`,
+An equivalence-world canonical JSON packet has exactly: `stargate_world:32`,
 `contract:"boolean-exhaustive-1"`, `rule`, `inputs`, `max_atp`, `objective`,
 `predecessor`, `guide`, `sources`, `license`. Its ID is SHA-256 of those bytes.
 `inputs` is a sorted list of zero to eight unique non-reserved WPL names;
@@ -818,3 +818,69 @@ and exits 3 without a tip, including when the independently supplied history
 requires another source-file set. Only these two exception classes are translated;
 unexpected checker exceptions remain failures, not claims that input is invalid. Other
 minimal-replay exception limitations above remain in force.
+
+## Property-constrained worlds (build 19, draft)
+
+The current finite lab supports two explicit contracts. boolean-exhaustive-1 keeps
+its exact existing fields, semantic equality condition and objectives equivalence
+(default) or lower_max_atp. boolean-properties-1 additionally requires properties:
+a list of 1..32 distinct property objects. Its objectives are satisfy (default)
+and lower_max_atp. The two objective sets are not interchangeable. CLI lab-create
+--properties FILE selects the latter; an empty list or JSON null is invalid.
+API properties=None selects the original mode. Property worlds still have 0..8
+inputs, and the same input naming, runtime, per-program ATP and packet limits.
+
+constant/independent/monotone have their build-17 meanings. The additional case
+property has exactly kind="case", facts and value. facts names every input once
+with strict Boolean values; value is a strict Boolean. It establishes precisely
+that row's output. It has one obligation, but checking still requires a complete
+table. Duplicate canonical property objects are invalid; list order is preserved
+and determines the first reported violation. Contradictory properties are not a
+schema error, but no evaluated parent can satisfy them all.
+
+Proposal fields remain exactly parent and candidate. Neither can carry overrides
+for contract, properties, inputs, budget, objective or runtime. The accepted child
+inherits all parent fields except rule and predecessor, including the unchanged
+property list. Thus the anchored lineage root fixes the allowed behavior family;
+changing the root's contract changes its ID rather than continuing that lineage.
+
+For property worlds evaluate both programs at every assignment through the
+existing compiler/SKI path and independent Boolean oracle. Unlike equivalence
+mode, output differences do not stop evaluation. Existing exhaustive length/order
+checks still apply. Then assess properties over the parent table, in list order,
+followed by the candidate table. A parent violation returns parent_rejected with
+program=parent; a candidate violation returns counterexample with
+program=candidate. Both include the property and a concrete witness; admitted is
+false and there are no successor bytes. Faults during evaluation/assessment remain
+incomplete or checker_error and are not property refutations. A reported property
+violation is returned only after complete evaluation of both tables.
+
+After both property sets hold, status is satisfies. changed_rows counts actual
+output differences; no equivalence claim is implied even if that count is zero.
+The optional lower_max_atp objective then requires a strict reduction in maximum
+ATP. If cost fails, satisfies/admitted=false with reason not_strictly_cheaper
+produces no successor. CLI lab-check returns 0 only when admitted, 4 on property,
+parent or cost refusal, 3 on incomplete and 1 on checker_error. Ordinary structural
+invalidity is 2. Existing standalone replay and lineage dispatch use these same
+admission results without a separate property gate.
+
+Properties are structurally checked during create/inspect; parent satisfaction is
+checked only during evaluated transitions. A zero-transition lineage does not
+establish parent satisfaction. lab-discover / lab-check-invariant observe the
+function independently of its contract: for a property world they evaluate an
+internal equivalence view with the identical rule, inputs, budget and runtime,
+then discard that view and any successor. Reports still bind the original world
+ID. This projection has no authority to admit a change to the original world.
+
+Pure predicate validation/assessment lives in properties.py at x2 and is shared
+by lab (x3) and invariants (x4). Every assessment requires a complete ordered table
+with strict Boolean outputs; the point-case index is binary order over sorted
+input names. The portable closure includes properties.py before lab.py. The
+catalog generator remains 2+2N (no automatic enumeration of exact-case hypotheses).
+
+For property-world search every candidate goes to the full gate. No output-
+difference witness is cached or used for screening; nonempty incoming equivalence
+experience is refused before search. A parent_rejected stops search with CLI 4.
+Other search budgeting/incomplete rules remain as before. Candidate generation
+has no added authority. Minimal/constant programs can satisfy weak contracts;
+this mode makes no implicit nontriviality, novelty, usefulness or safety promise.

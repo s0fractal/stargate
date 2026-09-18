@@ -279,7 +279,7 @@ class Lab(unittest.TestCase):
             marker = root/'executed'
             bad = root/'stargate/lab.py'
             bad.write_text("from pathlib import Path\nPath(" + repr(str(marker)) + ").touch()\n" +
-                           sources['lab.py'].replace("if results[0]['value'] != results[1]['value']:", 'if False:'))
+                           sources['lab.py'].replace("if doc['contract'] == 'boolean-exhaustive-1' and results[0]['value'] != results[1]['value']:", 'if False:'))
             # Keep packet and extracted malicious runtime mutually consistent:
             # without independent preflight, their self-pin would pass.
             changed = decode(raw)
