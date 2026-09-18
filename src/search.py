@@ -32,7 +32,7 @@ def _mutations(node):
 
 def candidates(doc):
     """Finite one-edit neighborhood, preorder; not a complete synthesis grammar."""
-    expr, _ = compiler.parse(doc['rule'], dict.fromkeys(doc['inputs'], False))
+    expr, _ = compiler.parse(doc['rule'], dict.fromkeys(doc['inputs'], False), allow_unused=True)
     declarations = ''.join('fact ' + name + ': bool\n' for name in doc['inputs'])
     for node in _mutations(expr):
         yield declarations + 'check ' + _render(node)
@@ -43,8 +43,8 @@ def _probe(doc, candidate, facts):
     row = dict(input=facts)
     try:
         for name, source in [('parent', doc['rule']), ('candidate', candidate)]:
-            code = boolean.program(source, doc['inputs'])
-            result = compiler.compile_source(source, facts=facts, max_atp=doc['max_atp'])
+            code = boolean.program(source, doc['inputs'], allow_unused=True)
+            result = compiler.compile_source(source, facts=facts, max_atp=doc['max_atp'], allow_unused=True)
             if result.value != boolean.evaluate(code, facts):
                 return dict(status='checker_error', reason='independent oracle disagreement'), None
             row[name] = dict(value=result.value, atp=result.atp_spent, term=result.check['term'])

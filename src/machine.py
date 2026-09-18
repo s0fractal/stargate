@@ -10,7 +10,7 @@ from .canonical import canon, decode, exact, record_hash, InvalidRecord
 MAX_MACHINE = 4 * 1024 * 1024
 GUIDE = '''A finite synchronous Boolean machine. state has 1..6 bits; events 0..2.
 Each next rule is WPL over ALL state and event names; invariant is WPL over ALL
-state names. Every declared fact must be used (tautologies may express irrelevance).
+state names. Every name must be declared; expressions may ignore irrelevant names.
 All next bits read the SAME old state and event. Every event valuation is possible
 at every reached state; initial is the complete listed initial-state set.
 Check safety on every reachable state, including initial states. A counterexample
@@ -141,7 +141,7 @@ def verify(raw, expected_machine, *, max_edges=256):
                   reachable=[], edges=[], checked_invariants=0, checked_edges=0)
     def key(state): return tuple(state[n] for n in state_names)
     def evaluate(source, code, facts):
-        result = compiler.compile_source(source, facts=facts, max_atp=doc['max_atp'])
+        result = compiler.compile_source(source, facts=facts, max_atp=doc['max_atp'], allow_unused=True)
         if result.value != boolean.evaluate(code, facts):
             raise compiler.CompilerBug('machine independent oracle disagreement')
         return result.value
@@ -266,7 +266,7 @@ def replay_trace(raw, trace):
     invariant = lab._program(doc['invariant'], doc['state'])
     codes = {n:lab._program(source, names) for n, source in doc['next'].items()}
     def evaluate(source, code, facts):
-        result = compiler.compile_source(source, facts=facts, max_atp=doc['max_atp'])
+        result = compiler.compile_source(source, facts=facts, max_atp=doc['max_atp'], allow_unused=True)
         if result.value != boolean.evaluate(code, facts):
             raise compiler.CompilerBug('trace independent oracle disagreement')
         return result.value
@@ -311,7 +311,7 @@ def _observed_graph(raw, expected_machine, max_edges):
     if lab.identity(raw) != expected_machine: raise InvalidRecord('machine does not match recipient anchor')
     # Observation-only view: never admit or return these machine bytes.
     source = ''.join('fact '+n+': bool\n' for n in doc['state'])
-    source += 'check ' + ' && '.join('('+n+' || !'+n+')' for n in doc['state'])
+    source += 'check true'
     observed = canon(dict(doc, invariant=source))
     graph = verify(observed, lab.identity(observed), max_edges=max_edges)
     base = dict(machine_id=expected_machine, runtime_digest=lab.runtime_digest(doc['sources']),

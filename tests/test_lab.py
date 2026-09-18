@@ -56,8 +56,8 @@ class Lab(unittest.TestCase):
     def test_parser_mutation_reaches_independent_comparison(self):
         raw = lab.create_world(rule('a || b'), ['a', 'b'])
         original = compiler.parse
-        def broken(source, inputs=None):
-            return original(source.replace('||', '&&'), inputs)
+        def broken(source, inputs=None, **kw):
+            return original(source.replace('||', '&&'), inputs, **kw)
         with patch.object(compiler, 'parse', broken), patch.object(boolean, 'evaluate', wraps=boolean.evaluate) as second:
             report, child = lab.verify_transition(raw, proposal(raw, rule('a || b')))
         self.assertGreater(second.call_count, 0)
@@ -71,8 +71,8 @@ class Lab(unittest.TestCase):
         raw = lab.create_world(rule('a || b'), ['a', 'b'])
         candidate = rule('!(!a && !b)')
         original = compiler.parse
-        def broken(source, inputs=None):
-            return original(source.replace('||', '&&'), inputs)
+        def broken(source, inputs=None, **kw):
+            return original(source.replace('||', '&&'), inputs, **kw)
         with patch.object(compiler, 'parse', broken):
             report, child = lab.verify_transition(raw, proposal(raw, candidate))
         self.assertEqual(report['status'], 'checker_error')
@@ -99,8 +99,8 @@ class Lab(unittest.TestCase):
     def test_candidate_also_has_to_agree_with_oracle(self):
         raw = lab.create_world(rule('!(!a && !b)'), ['a', 'b'])
         original = compiler.parse
-        def broken(source, inputs=None):
-            return original(source.replace('||', '&&'), inputs)
+        def broken(source, inputs=None, **kw):
+            return original(source.replace('||', '&&'), inputs, **kw)
         with patch.object(compiler, 'parse', broken):
             report, child = lab.verify_transition(raw, proposal(raw, rule('a || b')))
         self.assertEqual(report['status'], 'checker_error')

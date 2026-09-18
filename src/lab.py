@@ -23,7 +23,7 @@ Read rule, inputs, max_atp and objective. Reply with a JSON object containing
 only parent (copy the supplied world_id) and candidate (WPL text). Declare
 exactly the same inputs as `fact NAME: bool`, then `check EXPRESSION`.
 Operators: !, &&, || in that precedence order; parentheses, true and false.
-Use every declared input. Do not supply hashes, verdicts, ATP or signatures.
+Declare every input; the expression may ignore irrelevant inputs. Do not supply hashes, verdicts, ATP or signatures.
 Check contract: boolean-exhaustive-1 requires identical outputs to the parent.
 boolean-properties-1 instead requires BOTH parent and candidate to satisfy every
 listed property; outputs may change. Proposals cannot edit properties, objective,
@@ -77,8 +77,8 @@ def _inputs(names):
 def _program(source, names):
     # Both parsers validate before any semantic classification. Neither parser's
     # AST is handed to the other. Compiler limits remain the admission limits.
-    compiler.parse(source, dict.fromkeys(names, False))
-    return boolean.program(source, names)
+    compiler.parse(source, dict.fromkeys(names, False), allow_unused=True)
+    return boolean.program(source, names, allow_unused=True)
 
 
 def create_world(rule, inputs, *, max_atp=1000, objective=None, properties=None):
@@ -239,7 +239,7 @@ def _transition_steps(doc, proposal, parent, codes, report):
         results = []
         try:
             for index, source in enumerate((doc['rule'], proposal['candidate'])):
-                compiled = compiler.compile_source(source, facts=facts, max_atp=doc['max_atp'])
+                compiled = compiler.compile_source(source, facts=facts, max_atp=doc['max_atp'], allow_unused=True)
                 other = boolean.evaluate(codes[index], facts)
                 if compiled.value != other:
                     report.update(status='checker_error', reason='independent oracle disagreement',

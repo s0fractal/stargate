@@ -104,7 +104,7 @@ class Invariants(unittest.TestCase):
         self.assertEqual(inv.verify_claim(raw,claim(raw,'independent',input='b'))['status'],'incomplete')
         with self.assertRaises(InvalidRecord): inv.verify_claim(raw,claim(raw,'independent',input='no'))
         raw=world('a || b');original=compiler.parse
-        def broken(source,inputs=None):return original(source.replace('||','&&'),inputs)
+        def broken(source,inputs=None,**kw):return original(source.replace('||','&&'),inputs,**kw)
         with patch.object(compiler,'parse',broken):
             r=inv.discover(raw)
         self.assertEqual((r['status'],r['results']),('checker_error',[]))
