@@ -14,7 +14,7 @@ from .store import Store, StoreError, hex_hash
 from .bundle import export_bundle, verify_bundle, read_bundle, write_bundle, require_bundle
 from .policy import author_policy, CompilerBug, DEFAULT_MAX_ATP
 from .case import pack_case, inspect_case, read_case, unpack_case
-from . import lab, search, invariants, lineage
+from . import lab, search, invariants, lineage, labtask
 from .artifact import subject_hash, admit_bundle, admit_all, measure_subject
 
 
@@ -121,6 +121,16 @@ def parser():
     q = cmd("lab-check-invariant", "recompute a finite property claim without trusting its author")
     q.add_argument("path", type=Path)
     q.add_argument("claim", type=Path)
+    for name in ('lab-task-start', 'lab-task-resume', 'lab-task-inspect', 'lab-task-unpack'):
+        q = cmd(name, 'transfer lab work; imported progress is always recomputed')
+        q.add_argument('path', type=Path)
+        if name == 'lab-task-start': q.add_argument('proposal', type=Path)
+        if name == 'lab-task-resume': q.add_argument('--expect-task', required=True)
+        if name in ('lab-task-start', 'lab-task-resume'):
+            q.add_argument('--rows', type=int, default=0, help='new rows AFTER prefix replay (0..256)')
+        if name != 'lab-task-inspect':
+            q.add_argument('--output', type=Path, required=True,
+                           help='new task if suspended, world if admitted; never overwrite')
     for name in ('lineage-start', 'lineage-append', 'lineage-check', 'lineage-unpack'):
         q = cmd(name, 'create, extend, replay or materialize an anchored world history')
         q.add_argument('path', type=Path)
@@ -176,6 +186,22 @@ def read_admission_plan(path):
 
 
 def execute(args):
+    if args.command.startswith('lab-task-'):
+        try:
+            raw = lab.read_world(args.path) if args.command == 'lab-task-start' else labtask.read(args.path)
+            if args.command == 'lab-task-start':
+                with args.proposal.open('rb') as stream:
+                    proposal = lab.read_proposal(stream.read(lab.MAX_PROPOSAL + 1))
+        except OSError as exc:
+            raise StoreError('cannot read lab task input: ' + str(exc)) from exc
+        if args.command == 'lab-task-inspect': return labtask.describe(raw)
+        if args.command == 'lab-task-unpack': return labtask.unpack(raw, args.output)
+        if args.command == 'lab-task-start':
+            report, output = labtask.start(raw, proposal, rows=args.rows)
+        else:
+            report, output = labtask.resume(raw, args.expect_task, rows=args.rows)
+        if output is not None: write_bundle(args.output, output)
+        return report
     if args.command.startswith('lineage-'):
         try:
             raw = lab.read_world(args.path) if args.command == 'lineage-start' else lineage.read(args.path)
@@ -399,8 +425,8 @@ def main(argv=None):
         if result['status'] == 'found': return 0
         if result['status'] == 'checker_error': return 1
         return 4 if result['status'] in ('neighborhood_exhausted', 'parent_rejected') else 3
-    if args.command == 'lab-check':
-        if result['status'] == 'incomplete': return 3
+    if args.command in ('lab-check', 'lab-task-start', 'lab-task-resume'):
+        if result['status'] in ('incomplete', 'suspended'): return 3
         if result['status'] == 'checker_error': return 1
         return 0 if result['admitted'] else 4
     return 4 if result.get("status") == "unsatisfied" else 0

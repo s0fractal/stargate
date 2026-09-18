@@ -928,3 +928,67 @@ This API grants no trust to imported progress. There is no serialization,
 portable verified prefix, persisted checkpoint or CLI resume command. A future
 transport must define how another process establishes the correctness of work
 it did not execute; integrity hashes alone are not that evidence.
+
+## Portable lab tasks (Build 21)
+
+A lab task is canonical JSON, at most 4 MiB, with exactly stargate_task (integer
+32), world (embedded world), proposal (parent/candidate), prefix (list). World
+runtime checks retain their existing classification. Proposal is limited to
+MAX_PROPOSAL bytes and must bind the embedded world and parse under its domain.
+The stable task ID is SHA256(canon({world: SHA256(canon(world)), proposal})); the
+packet ID hashes all task bytes including the prefix. Neither is authorization.
+Recipient resume requires an independently selected expected task ID before any
+row evaluation. This binds the requested world AND candidate, not just the root.
+
+A prefix MUST have length 0 <= n < 2**len(inputs), exact canonical binary order,
+and rows with exactly input, parent, candidate. Input has all declared names and
+strict bool values. Each result has exactly value (bool), atp (integer, not bool,
+0..world.max_atp), term (lowercase SHA256). Structural inspection cannot establish
+those results; describe/CLI inspect MUST report unverified_progress. No status,
+successor, aggregate cost, current index or claimed admission field is accepted.
+
+start(world, proposal, rows=N) evaluates locally and returns (report, output).
+resume(task, expected_task, rows=N) reconstructs a NEW in-process transition,
+recomputes exactly n claimed rows, and compares the complete recomputed rows to
+the prefix. Recomputed status must still be suspended. A semantic terminal result
+inside a claimed pending prefix or a mismatching row is InvalidRecord; no new
+row may run first. Resource/compile inability to replay is incomplete; checker
+disagreement is checker_error. Neither accuses the packet of false data, admits
+anything, writes a renewed task, nor runs the requested new rows.
+
+Only after successful prefix replay does resume grant N NEW rows to the same
+owned state. N is an exact integer 0..256. It does not change world.max_atp.
+Zero still pays the prefix replay cost. Report contains status, task_id,
+replayed_rows (completed replay rows), new_rows (completed additional rows),
+verification (fresh lab report), admitted and output_kind. For suspended status,
+output_kind is task and output bytes carry the accumulated prefix, with packet_id
+in the report. For admitted terminal status output_kind is world and output is
+the successor. All other terminal outcomes have output_kind null and no output.
+No full or partial claimed result bypasses final lab coverage, property or cost
+checks. Lowering/independent-oracle checks remain the lab's own checks.
+
+Progress is intentionally not part of the stable anchor: a prefix may be shortened
+or removed without changing the task. This conveys no chronology, authorship,
+latest-progress guarantee, or commitment to how much a sender actually computed.
+The original task/world contract remains binding. Inter-process cost includes
+recomputation; only work newly completed in the receiving process is retained
+without replay inside that process.
+
+CLI lab-task-start WORLD PROPOSAL --rows N --output FILE;
+lab-task-resume TASK --expect-task ID --rows N --output FILE;
+lab-task-inspect TASK; lab-task-unpack TASK --output DIRECTORY.
+Rows default to zero. Start/resume exit 0 only for admission, 3 for suspended,
+incomplete or unavailable runtime/material, 4 for completed refusal, 2 for invalid
+input/anchor/prefix, 1 for checker/operation error. Inspection/unpack exit 0 means
+structural success only. Writes are exclusive. A suspended output is a TASK,
+never a WORLD. A refused check creates no output; existing files survive.
+
+Unpack includes task.json alongside the existing world and independently
+verifiable replay/runtime sources. It does not evaluate rows. Offline replay
+--task requires --expect-task, --expect-runtime and --rows; --task, --lineage
+and --invariant are mutually exclusive. Task mode has the same report/output
+and exit classification as installed resume; the optional positional output is
+a task while suspended or a world on admission. No included code executes merely
+from inspection/unpacking. Existing independently authenticated launcher/runtime
+requirements and Python/stdlib trust apply. This format is a work request with
+claimed progress, not a serialized continuation or a proof of previous work.

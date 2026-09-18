@@ -120,3 +120,10 @@ lab; no new runtime, solver or network dependency is added. x0 remains empty.
 The neighbor lesson applied is specification-guided candidate admission rather
 than accepting a search heuristic's verdict; Sigma's receipts and the independent
 Boolean oracle still own evaluation. No neighbor implementation was copied.
+
+Build 21 adds `labtask` at x4, depending only on `lab` and `canonical`.
+It transports claimed prefixes and replays them through the owned x3 lab state;
+it does not deserialize state or introduce an upward lab import. The standalone
+launcher includes this module after lab in its verified source snapshot closure.
+CLI exposes task creation, resumption, structural inspection and unpacking.
+x0 remains empty.
