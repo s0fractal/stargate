@@ -11,7 +11,7 @@ In the default equivalence mode, a changed answer produces a concrete
 counterexample. A cheaper equivalent rule
 can become the next world; an unfinished check establishes nothing.
 
-**Build 24 · 32K draft.** The contract can change incompatibly. This is an
+**Build 25 · 32K draft.** The contract can change incompatibly. This is an
 experimental implementation, not a stable release or a general program prover.
 Python only; commands `sg` and `stargate`. MIT licensed.
 
@@ -1140,3 +1140,57 @@ The search heuristic is installed tooling, outside the pinned offline checker.
 Send its `proposal` to a chat participant: the existing offline `--machine-change`
 mode can independently admit or refuse it. No new trusted author, plugin, search
 server or history certificate is introduced.
+
+
+### Discover properties of reachable states (Build 25)
+
+The machine package can now answer a second question: which relationships between
+state bits hold everywhere the machine can reach? `machine-discover` builds one
+complete graph and checks a small explicit catalog: each bit always false/true,
+equality of each pair, and each directed implication (`left` implies `right`).
+Implication means `!left || right`, not causality or a next-step relationship.
+
+```sh
+sg machine-discover parent-machine.json --expect-machine "$MACHINE_ID" > discovered.json
+python - <<'PYTHON'
+import json
+from pathlib import Path
+r = json.loads(Path('discovered.json').read_text())
+Path('machine-claim.json').write_text(json.dumps(dict(parent=r['machine_id'],
+    property={'kind': 'bit', 'name': 'a', 'value': False})))
+PYTHON
+sg machine-claim parent-machine.json machine-claim.json --expect-machine "$MACHINE_ID"
+```
+
+Use the parent from the preceding examples. A chat participant can submit a claim
+with just `parent` and `property`: no invented digest of results, proof or verdict.
+A claim is checked by recomputing the graph. A false property returns a shortest
+path to a state that violates it; unreachable assignments do not refute a property.
+
+This is observation, **not a stronger contract**. The checker temporarily uses a
+tautological invariant to explore past states that violate the original invariant.
+The output identifies the original machine and the separate observation graph.
+It returns no replacement machine and never changes the original admission rules.
+Thus even an unsafe machine can have true discovered properties. To adopt a stronger
+invariant, choose a new root explicitly; these commands do not do that.
+
+`complete` discovery exits 0 even when some catalog properties are refuted. A single
+claim gives `established`/0 or `counterexample`/4. Incomplete graph exploration gives
+3 **with no property verdicts**, even if the partial graph already contains a bad
+state. Checker disagreement gives 1, invalid claims or anchors give 2. `--max-edges`
+applies to the observation graph; the original per-expression ATP ceiling is kept.
+The observation tautology has its own cost, so a small budget can prevent discovery.
+
+After unpacking and independently authenticating the launcher/runtime, the same
+operations work offline:
+
+```sh
+python -I -S machine-offline/replay.py machine-offline/machine.json \
+  --machine-discover --expect-machine "$MACHINE_ID" --expect-runtime "$RUNTIME_DIGEST"
+python -I -S machine-offline/replay.py machine-claim.json \
+  --machine-claim --expect-machine "$MACHINE_ID" --expect-runtime "$RUNTIME_DIGEST"
+```
+
+Neither mode accepts an output path; reports go to stdout. These are finite
+reachable-state predicates, not liveness, fairness, inductive-invariant synthesis,
+or a guarantee that the catalog captures what matters to your application.

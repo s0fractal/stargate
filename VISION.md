@@ -261,3 +261,12 @@ counterexample is executable evidence, not authority: its original failure is
 recomputed, and only events transfer to another candidate. The pinned checker
 still decides admission independently of the search heuristic. This is a finite
 local experiment, not autonomous integration or open-ended program synthesis.
+
+
+Build 25 adds reachable-state observation to those machines. One complete graph
+supports discovery of constant bits, bit equalities and implications, with shortest
+paths refuting false hypotheses. A participant may submit a property claim without
+supplying computed evidence; the recipient recomputes it, including offline. The
+observation can cross violations of the machine's declared invariant without
+changing that invariant or admitting a new machine. This keeps finding a property,
+checking it, and adopting it as a contract as three separate actions.

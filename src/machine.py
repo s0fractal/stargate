@@ -31,6 +31,15 @@ Installed machine-search proposes one-rule edits and can reuse recomputed event
 traces to reject unsafe candidates. A trace that passes is NOT safety; every found
 proposal must still pass machine-change. Search itself is not included offline;
 its emitted proposal is checked by the existing offline change mode.
+machine-discover observes the full reachable graph once and checks: bit constants,
+equality of two bits, and left implies right (not left OR right) at every reached
+state. machine-claim takes {"parent":"COPY_MACHINE_ID","property":PROPERTY}.
+PROPERTY is {"kind":"bit","name":NAME,"value":BOOL} or
+{"kind":"equal"|"implies","left":NAME,"right":OTHER_NAME}.
+These observations do not check, replace or strengthen the declared invariant.
+Incomplete observation establishes nothing. Offline --machine-discover takes the
+machine file; --machine-claim takes a claim and uses adjacent machine.json.
+Neither mode admits a successor. Every refutation includes a shortest trace.
 Choose machine ID and runtime/launcher digests independently. Included source
 is data until explicitly executed; this is not a sandbox or self-authentication.
 '''
@@ -276,6 +285,101 @@ def replay_trace(raw, trace):
     except (compiler.CompileIncomplete, kernel.ResourceFault, kernel.AdmissionRefused) as exc:
         return dict(report, status='incomplete', reason=str(exc))
     return report
+
+
+def _property(doc, prop):
+    prop = decode(canon(prop))
+    if type(prop) is not dict: raise InvalidRecord('machine property must be an object')
+    kind = prop.get('kind')
+    if kind == 'bit':
+        exact(prop, ('kind', 'name', 'value'))
+        if type(prop['value']) is not bool: raise InvalidRecord('bit value must be Boolean')
+        names = [prop['name']]
+    elif kind in ('equal', 'implies'):
+        exact(prop, ('kind', 'left', 'right'))
+        names = [prop['left'], prop['right']]
+        if prop['left'] == prop['right']: raise InvalidRecord('property requires distinct bits')
+    else: raise InvalidRecord('unknown machine property')
+    if any(type(n) is not str or n not in doc['state'] for n in names):
+        raise InvalidRecord('unknown machine state bit')
+    return prop
+
+
+def _observed_graph(raw, expected_machine, max_edges):
+    doc = inspect(raw)
+    record_hash(expected_machine)
+    if lab.identity(raw) != expected_machine: raise InvalidRecord('machine does not match recipient anchor')
+    # Observation-only view: never admit or return these machine bytes.
+    source = ''.join('fact '+n+': bool\n' for n in doc['state'])
+    source += 'check ' + ' && '.join('('+n+' || !'+n+')' for n in doc['state'])
+    observed = canon(dict(doc, invariant=source))
+    graph = verify(observed, lab.identity(observed), max_edges=max_edges)
+    base = dict(machine_id=expected_machine, runtime_digest=lab.runtime_digest(doc['sources']),
+                observation=graph, results=[])
+    if graph['status'] != 'established':
+        status = 'incomplete' if graph['status'] == 'incomplete' else 'checker_error'
+        return doc, dict(base, status=status, reason=graph.get('reason','observation view disagreed')), None
+    def key(state): return tuple(state[n] for n in doc['state'])
+    states = {key(state):state for state in graph['reachable']}
+    event_rows = list(itertools.product((False, True), repeat=len(doc['events'])))
+    if (len(states) != len(graph['reachable']) or
+            not all(key(s) in states for s in doc['initial']) or
+            not _closed(graph, states, doc['state'], doc['events'], event_rows)):
+        return doc, dict(base, status='checker_error', reason='observation graph incomplete'), None
+    edges = {(key(e['state']),tuple(e['event'][n] for n in doc['events'])):e for e in graph['edges']}
+    parents = {key(s):None for s in doc['initial']}
+    queue = list(parents)
+    for old in queue:
+        for event in event_rows:
+            edge = edges[old,event]; target = key(edge['next'])
+            if target not in parents:
+                parents[target] = (old, edge['event']); queue.append(target)
+    if queue != list(states):
+        return doc, dict(base, status='checker_error', reason='observation reachability order mismatch'), None
+    return doc, base, (states, parents)
+
+
+def _assess_property(prop, states, parents):
+    result = dict(property=prop, status='established', checked_states=0)
+    for key, state in states.items():
+        if prop['kind'] == 'bit': holds = state[prop['name']] == prop['value']
+        elif prop['kind'] == 'equal': holds = state[prop['left']] == state[prop['right']]
+        else: holds = not state[prop['left']] or state[prop['right']]
+        result['checked_states'] += 1
+        if not holds:
+            return dict(result, status='counterexample', trace=_witness(key, states, parents))
+    if result['checked_states'] != len(states):
+        return dict(result, status='checker_error', reason='property obligations incomplete')
+    return result
+
+
+def discover_properties(raw, expected_machine, *, max_edges=256):
+    doc, report, graph = _observed_graph(raw, expected_machine, max_edges)
+    if graph is None: return report
+    props = [dict(kind='bit', name=n, value=v) for n in doc['state'] for v in (False, True)]
+    props += [dict(kind='equal', left=a, right=b) for i,a in enumerate(doc['state']) for b in doc['state'][i+1:]]
+    props += [dict(kind='implies', left=a, right=b) for a in doc['state'] for b in doc['state'] if a != b]
+    for prop in props:
+        result = _assess_property(prop, *graph)
+        report['results'].append(result)
+        if result['status'] == 'checker_error':
+            return dict(report, status='checker_error', reason=result['reason'])
+    expected = 2*len(doc['state']) + 3*len(doc['state'])*(len(doc['state'])-1)//2
+    if len(report['results']) != expected:
+        return dict(report, status='checker_error', reason='property catalog incomplete')
+    return dict(report, status='complete', hypotheses=expected)
+
+
+def verify_property(raw, claim, expected_machine, *, max_edges=256):
+    doc = inspect(raw)
+    claim = decode(canon(claim))
+    exact(claim, ('parent', 'property'))
+    if claim['parent'] != lab.identity(raw): raise InvalidRecord('machine property parent mismatch')
+    prop = _property(doc, claim['property'])  # validate before any observation work
+    _, report, graph = _observed_graph(raw, expected_machine, max_edges)
+    if graph is None: return dict(report, claim=claim)
+    result = _assess_property(prop, *graph)
+    return dict(report, **result, claim=claim)
 
 
 def unpack(raw, output):
