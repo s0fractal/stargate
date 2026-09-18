@@ -7,10 +7,11 @@ The finite lab needs no author key, account or service.
 
 Today the lab checks **Boolean rules with at most eight inputs**: every input is
 run through an SKI evaluator and compared with a separate Boolean oracle.
-A changed answer produces a concrete counterexample. A cheaper equivalent rule
+In the default equivalence mode, a changed answer produces a concrete
+counterexample. A cheaper equivalent rule
 can become the next world; an unfinished check establishes nothing.
 
-**Build 18 · 32K draft.** The contract can change incompatibly. This is an
+**Build 19 · 32K draft.** The contract can change incompatibly. This is an
 experimental implementation, not a stable release or a general program prover.
 Python only; commands `sg` and `stargate`. MIT licensed.
 
@@ -39,7 +40,8 @@ sg lineage-append history.json proposal.json --expect-root "$ROOT_ID" --output n
 sg lineage-check next-history.json --expect-root "$ROOT_ID" --output checked-world.json
 ```
 
-The search finds `!!!!(a || b) || c` → `!!(a || b) || c`, reducing worst-case
+The search finds a rule equivalent to `!!(a || b) || c` from
+`!!!!(a || b) || c`, reducing worst-case
 ATP from **61 to 43**. The history checker reconstructs the same successor by
 replaying the transition. Search is only a proposal generator; it cannot bypass
 the gate. Run search again on `checked-world.json` to continue.
@@ -53,7 +55,8 @@ In this local example the root ID comes from the world you just created. When
 receiving someone else's history, choose your expected root independently.
 
 Next: [portable worlds and offline replay](#a-boolean-laboratory-you-can-hand-to-a-chat),
-[finite properties](#discover-finite-inputoutput-properties), and
+[finite properties](#discover-finite-inputoutput-properties),
+[explicit behavior contracts](#let-behavior-change-within-explicit-properties), and
 [replayable histories](#carry-a-replayable-history-to-the-next-participant).
 See [VISION.md](VISION.md) for direction and [SPEC.md](SPEC.md) for the contract.
 Packet integrity alone does not authenticate its checker; offline replay needs
@@ -832,3 +835,54 @@ are limited to 4 MiB and 32 proposals; each proposal has the existing 16 KiB
 limit. These limits do not promise a wall-time bound. Every append replays the
 prefix again: no cached report becomes authority. New build-18 runtime packets
 are required; previous packet bytes are left intact.
+
+## Let behavior change within explicit properties
+
+The default lab preserves the parent's entire truth table. A **property world**
+uses a different explicit contract: parent and candidate must both satisfy every
+listed property, but their other answers may differ. The properties belong to the
+root world and are inherited unchanged; a proposal still contains only parent
+and candidate. Choosing that root chooses what changes are allowed.
+
+```sh
+sg lab-create examples/property-parent.wpl --input a --input b \
+  --properties examples/property-contract.json --output property-world.json
+sg lab-inspect property-world.json
+sg lab-search property-world.json --output property-successor.json
+```
+
+This world starts with `a && b`. It requires non-decreasing behavior in both
+inputs, false at `00`, and true at `11`. Search finds a rule equivalent to
+`a || b`: both requirements at the corners and both monotonicity conditions hold,
+while **two of four answers change**. The gate says `satisfies`, not `equivalent`.
+With the default `satisfy` objective, equal cost (14 → 14 ATP) is allowed. Add
+`--objective lower_max_atp` to also demand a strict cost decrease.
+
+Properties are `constant`, `independent`, `monotone` as above, plus an exact case:
+`{"kind":"case","facts":{"a":false,"b":true},"value":true}`.
+A case names every input with a Boolean value; partial assignments are invalid.
+The contract is a nonempty list of at most 32 distinct properties. In this example,
+the two cases exclude the always-true and always-false functions. Weaker contracts
+may admit trivial or unwanted programs: the checker establishes exactly the
+chosen properties, not usefulness, safety or unstated intentions.
+
+Both full truth tables are cross-checked before property assessment. A failing
+parent yields `parent_rejected`; a candidate violating a property yields
+`counterexample`, with the property and a concrete row or pair. No successor is
+produced in either case (CLI 4). Exhaustion is still `incomplete`/3 and checker
+failure is 1. Creating/inspecting a root is structural validation, not a claim
+that its rule satisfies its properties. An invalid parent cannot be repaired by
+an admitted transition; choose a new root contract or rule explicitly.
+
+Lineage and offline replay use the same gate and retain the exact properties.
+The recipient's root anchor therefore binds this permission to change behavior.
+An empty history retains its existing zero-transition meaning; it does not check
+root properties. Invariant discovery can still describe a rule that violates its
+own contract: observation grants no transition authority. The discovery catalog
+remains the existing 2+2N properties; exact cases can be submitted individually.
+
+Search uses full gate checks in this mode and saves no equivalence counterexamples.
+A differing answer is permitted, so screening against remembered parent/candidate
+differences would be unsound. Nonempty equivalence experience is rejected for
+property worlds; empty experience is harmless. Existing equivalence-world search
+keeps its previous screening. This is an explicit opt-in mode, not a weaker default.

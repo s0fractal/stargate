@@ -98,8 +98,9 @@ def parser():
     q.add_argument("rule", type=Path)
     q.add_argument("--input", action="append", default=[], dest="inputs")
     q.add_argument("--max-atp", type=int, default=1000)
-    q.add_argument("--objective", choices=("equivalence", "lower_max_atp"), default="equivalence")
+    q.add_argument("--objective", choices=("equivalence", "satisfy", "lower_max_atp"), default=None)
     q.add_argument("--output", required=True, type=Path)
+    q.add_argument("--properties", type=Path, help="JSON property contract; explicitly permits behavior changes")
     q = cmd("lab-inspect", "describe a finite experiment; never run included code")
     q.add_argument("path", type=Path)
     q = cmd("lab-check", "exhaustively check a text proposal without trusted keys")
@@ -221,8 +222,12 @@ def execute(args):
             write_bundle(args.output, successor)
         return report
     if args.command == "lab-create":
+        props = read_facts(args.properties) if args.properties else None
+        if args.properties is not None and props is None:
+            raise ValueError("property contract must be a nonempty list, not null")
         raw = lab.create_world(args.rule.read_bytes().decode('utf-8'), sorted(args.inputs),
-                               max_atp=args.max_atp, objective=args.objective)
+                               max_atp=args.max_atp, objective=args.objective,
+                               properties=props)
         write_bundle(args.output, raw)
         return dict(status='created', world_id=lab.identity(raw), path=str(args.output))
     if args.command in ('lab-inspect', 'lab-check', 'lab-unpack'):
@@ -247,6 +252,7 @@ def execute(args):
                     runtime_digest=lab.runtime_digest(doc['sources']),
                     replay_digest=lab.identity(lab.REPLAY.encode()), guide=doc['guide'],
                     rule=doc['rule'], inputs=doc['inputs'], max_atp=doc['max_atp'],
+                    contract=doc['contract'], properties=doc.get('properties'),
                     objective=doc['objective'], predecessor=doc['predecessor'])
     if args.command == "case-inspect":
         return inspect_case(read_case(args.path))[0]
@@ -392,7 +398,7 @@ def main(argv=None):
     if args.command == 'lab-search':
         if result['status'] == 'found': return 0
         if result['status'] == 'checker_error': return 1
-        return 4 if result['status'] == 'neighborhood_exhausted' else 3
+        return 4 if result['status'] in ('neighborhood_exhausted', 'parent_rejected') else 3
     if args.command == 'lab-check':
         if result['status'] == 'incomplete': return 3
         if result['status'] == 'checker_error': return 1

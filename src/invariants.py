@@ -3,7 +3,7 @@
 Discovery generates hypotheses; checking recomputes the complete finite table
 through the existing SKI + independent-oracle gate. No saved report is trusted.
 """
-from . import lab
+from . import lab, properties
 from .canonical import canon, decode, exact, record_hash, InvalidRecord
 
 
@@ -13,19 +13,7 @@ def _claim(doc, parent, claim):
     record_hash(claim['parent'])
     if claim['parent'] != parent:
         raise InvalidRecord('invariant parent mismatch')
-    prop = claim['property']
-    if not isinstance(prop, dict):
-        raise InvalidRecord('property must be an object')
-    if prop.get('kind') == 'constant':
-        exact(prop, ('kind', 'value'))
-        if type(prop['value']) is not bool:
-            raise InvalidRecord('constant value must be boolean')
-    elif prop.get('kind') in ('independent', 'monotone'):
-        exact(prop, ('kind', 'input'))
-        if not isinstance(prop['input'], str) or prop['input'] not in doc['inputs']:
-            raise InvalidRecord('unknown property input')
-    else:
-        raise InvalidRecord('unsupported finite property')
+    claim['property'] = properties.validate(doc['inputs'], claim['property'])
     return claim
 
 
@@ -33,6 +21,12 @@ def _table(raw, doc):
     # A self-comparison reuses both parsers, receipts and coverage controls.
     # Cost admission is irrelevant: equivalent/not_strictly_cheaper still gives
     # a complete checked table. Any constructed successor is deliberately ignored.
+    if doc['contract'] == 'boolean-properties-1':
+        # Observation-only equivalence view: evaluate even a root that violates
+        # its declared properties. Never return/admit this view or its successor.
+        view = dict(doc, contract='boolean-exhaustive-1', objective='equivalence')
+        del view['properties']
+        raw = canon(view)
     verified, _ = lab.verify_transition(raw, {'parent':lab.identity(raw), 'candidate':doc['rule']})
     if verified['status'] != 'equivalent':
         status = 'incomplete' if verified['status'] == 'incomplete' else 'checker_error'
@@ -49,31 +43,9 @@ def _table(raw, doc):
 
 
 def _assess(doc, rows, claim):
-    prop = claim['property']
-    result = dict(claim=claim, status='established', checked=0)
-    if prop['kind'] == 'constant':
-        expected_checks = len(rows)
-        for row in rows:
-            result['checked'] += 1
-            if row['value'] != prop['value']:
-                result.update(status='counterexample', witness=[row])
-                return result
-    else:
-        mask = 1 << (len(doc['inputs']) - doc['inputs'].index(prop['input']) - 1)
-        expected_checks = len(rows)//2
-        for index, low in enumerate(rows):
-            if index & mask:
-                continue
-            high = rows[index | mask]
-            result['checked'] += 1
-            violates = (low['value'] != high['value'] if prop['kind'] == 'independent'
-                        else low['value'] and not high['value'])
-            if violates:
-                result.update(status='counterexample', witness=[low, high])
-                return result
-    if result['checked'] != expected_checks:
-        result.update(status='checker_error', reason='property obligations not fully checked')
-    return result
+    result = properties.assess(doc['inputs'], rows, claim['property'])
+    del result['property']
+    return dict(result, claim=claim)
 
 
 def verify_claim(raw, claim):

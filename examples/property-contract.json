@@ -1,0 +1,6 @@
+[
+  {"kind": "monotone", "input": "a"},
+  {"kind": "monotone", "input": "b"},
+  {"kind": "case", "facts": {"a": false, "b": false}, "value": false},
+  {"kind": "case", "facts": {"a": true, "b": true}, "value": true}
+]

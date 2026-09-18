@@ -110,3 +110,13 @@ principle (saved admitted flags are insufficient), without copying its code or
 PDF/governance machinery. Warrant's refusal/verdict boundary remains explicit;
 Sigma's receipt checks remain owned by the existing lab evaluation path. x0 is
 still empty; there is no imported archive or revived retired system.
+
+Build 19 moves pure finite property validation/assessment into `properties` at
+x2 (only canonical dependency). `lab` at x3 uses it for explicit property-world
+admission; `invariants` at x4 uses the same predicates for observation. This avoids
+a lab -> invariants -> lab cycle. Properties belong to the anchored root, never
+to a candidate's optional assertions. The snapshot loader loads properties before
+lab; no new runtime, solver or network dependency is added. x0 remains empty.
+The neighbor lesson applied is specification-guided candidate admission rather
+than accepting a search heuristic's verdict; Sigma's receipts and the independent
+Boolean oracle still own evaluation. No neighbor implementation was copied.
