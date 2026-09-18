@@ -8,6 +8,7 @@ import tempfile
 
 from .bundle import require_bundle
 from .store import StoreError
+from .facts import FactDeriver
 
 
 def _subject_chunks(path):
@@ -38,13 +39,29 @@ def subject_hash(path):
     return digest.hexdigest()
 
 
-def admit_bundle(raw, trusted_keys, *, rule, facts, subject, output):
+def measure_subject(path, profile):
+    """Hash and derive facts from one read of the same regular-file bytes."""
+    if path is None:
+        raise ValueError('derived facts require a subject file')
+    deriver = FactDeriver(profile)
+    digest = hashlib.sha256()
+    with closing(_subject_chunks(path)) as chunks:
+        for chunk in chunks:
+            digest.update(chunk)
+            deriver.update(chunk)
+    return dict(subject=digest.hexdigest(), facts=deriver.finish(), profile=deriver.profile)
+
+
+def admit_bundle(raw, trusted_keys, *, rule, subject, output, facts=None, derive=None):
     """Stage, require, then exclusively publish the same bytes (mode 0600).
 
     Source read failures are unverified; output failures are OSError. An
     unsatisfied request returns without publishing. No existing path is replaced.
     The caller must control the output directory; this is not a filesystem sandbox.
     """
+    if (facts is None) == (derive is None):
+        raise ValueError('provide exactly one of facts or derive')
+    deriver = FactDeriver(derive) if derive is not None else None
     output = Path(output)
     fd, tmp = tempfile.mkstemp(prefix='.sg-admit-', dir=output.parent)
     try:
@@ -60,8 +77,14 @@ def admit_bundle(raw, trusted_keys, *, rule, facts, subject, output):
                         raise StoreError('cannot read subject: ' + str(exc)) from exc
                     staged.write(chunk)
                     digest.update(chunk)
+                    if deriver is not None:
+                        deriver.update(chunk)
         h = digest.hexdigest()
+        if deriver is not None:
+            facts = deriver.finish()
         report = require_bundle(raw, trusted_keys, rule=rule, facts=facts, subject=h)
+        if deriver is not None:
+            report['derivation'] = dict(profile=deriver.profile, facts=facts, subject=h)
         if report['status'] != 'satisfied':
             return dict(report, artifact=None)
         os.link(tmp, output)  # exclusive publication of staged bytes, no reread
