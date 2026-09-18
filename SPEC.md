@@ -463,3 +463,45 @@ facts and subject, not the method by which a signer obtained them. Thus a bundle
 alone is not evidence that any derivation was performed. Only these byte
 properties are measured; no broader content safety or real-world fact truth is
 established. Signed body/bundle formats and 32K remain unchanged.
+
+
+## Joint admission (local recipient operation)
+
+admit_all(requirements, *, subject, output) requires 1–32 named requests before
+publishing one artifact. Each request is an object with exactly name, bundle
+(bytes), trust (nonempty public-key collection), rule (text), and one of facts
+(boolean map) or derive (profile). Names are unique nonempty strings of at most
+64 characters. All configuration is snapshotted and its shape/rule input domain
+validated before reading the subject. Trust is checked separately for each
+request; it is never pooled across requests.
+
+The subject is read once into a private stage. That stream feeds one SHA-256 and
+every requested derivation. In plan order, require_bundle receives that SAME
+digest, the request's own trust/rule/facts and bundle. Only when ALL reports are
+satisfied is the stage exclusively linked to output (0600, no replacement).
+Source changes after staging cannot change either request's subject or the
+published bytes. The caller must control the output directory, as for admit.
+
+Success is {status:admitted, artifact:{path,sha256}, requirements:[{name,report}]}.
+First unsatisfied stops the run and returns {status:unsatisfied, failed:NAME,
+artifact:null, requirements:[{name,report}, ...]}; this list contains only the
+visited prefix, including the refusal. It does NOT claim anything about later
+proofs. Invalid/unverified/local-operation exceptions retain their classifications
+and abort without publication; no aggregate verdict is fabricated. The temporary
+stage is removed on every path. Reports and plans are unsigned local objects,
+not transferable proofs, quorum rules, or assertions of independent signers.
+Multiple requests may deliberately trust the same signer.
+
+CLI: sg admit-all PLAN --subject FILE --output FILE. PLAN is a JSON list with the
+same per-request keys; bundle, rule and facts/derive values are local file paths,
+resolved relative to the plan's directory (absolute paths allowed). Duplicate
+JSON keys and unknown request fields are invalid. All referenced inputs are read
+before staging. Missing/unreadable plan inputs are unverified/3, malformed inputs
+invalid/2, verified refusal unsatisfied/4, destination errors operation_error/1,
+and completed publication admitted/0. There is no global trust flag, implicit
+sender-selected requirement, or network fetch. The operator selects this plan;
+accepting an untrusted sender's plan would let that sender choose the policy.
+
+admit_bundle uses the same staging/checking implementation for its single request
+and retains its existing report shape. Signed records, bundles and the 32K draft
+contract temperature are unchanged.

@@ -3,7 +3,7 @@
 One Python system for content-addressed computation and signed, reproducible
 checks. Working successor to Sigma-Glyph and Warrant; commands `stargate` / `sg`.
 
-**Build 11 · 32K draft (derived artifact facts candidate).** The evaluator, object store and one signed-check flow
+**Build 12 · 32K draft (joint admission candidate).** The evaluator, object store and one signed-check flow
 work. This is a development implementation, not an independently accepted
 release. Predecessor repositories remain unchanged.
 
@@ -437,3 +437,48 @@ staging. Exactly one of facts or derive is required. Invalid derivation profiles
 Manual --facts mode remains
 an assertion supplied by the caller. No claim is made about properties beyond
 these three byte predicates, and no signed format or Kelvin change is added.
+
+
+### Admit only when every requirement holds
+
+`sg admit-all` checks several decisions about **one staged artifact** before
+publishing anything. Use it when a reviewer asserts a judgment and the recipient
+also measures the bytes. Each requirement has its own trusted keys; passing one
+does not grant trust to another.
+
+Create an operator-controlled `plan.json`:
+
+```json
+[
+  {"name": "review", "bundle": "review.json", "trust": ["REVIEWER_PUBLIC_KEY"],
+   "rule": "review.wpl", "facts": "review-facts.json"},
+  {"name": "bytes", "bundle": "bytes.json", "trust": ["MEASURER_PUBLIC_KEY"],
+   "rule": "bytes.wpl", "derive": "byte-profile.json"}
+]
+```
+
+Replace the public-key placeholders with the trusted 64-character lowercase hex
+keys. Paths in the plan are relative to the plan file, regardless of the working
+directory. Then:
+
+```sh
+sg admit-all plan.json --subject candidate.whl --output approved.whl
+```
+
+The source is read once. Every derivation and every subject check uses those
+same staged bytes. Publication occurs only after all named requests pass;
+refusal or a missing/corrupt second proof leaves no output or temporary stage.
+An existing output is never overwritten. The usual 0/1/2/3/4 exit meanings apply.
+
+The report lists `requirements` in plan order. On `unsatisfied`, `failed` names
+the first refusal and later requirements have **not been checked**. Each nested
+report carries its own signer, expected rule/facts and optional derivation.
+A plan requires 1–32 entries with unique names. It is recipient configuration:
+choose it yourself, rather than adopting a sender's proposed policy. Neither
+this plan nor its local report is a signed, portable proof of conjunction.
+
+Python: `stargate.artifact.admit_all(requests, subject=path, output=path)`.
+Each request uses the same keys, with bundle **bytes**, rule **text**, facts or
+derive **dictionaries**, and a nonempty collection of trusted public keys. The
+single-request `admit_bundle` shares the implementation. The release-gate example
+now uses joint admission for its reviewer judgment and byte measurements.

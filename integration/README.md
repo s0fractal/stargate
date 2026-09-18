@@ -49,11 +49,13 @@ and the venv imports `sigma_glyph` at version `0.7.0`.
 
 ## What the gate does, and why in that order
 
-1. **`admit` the bytes decision.** One read of the candidate feeds the digest,
-   the staged copy and the derived measurements; the requirement is checked
-   before anything is published. Nothing afterwards reads the candidate again.
-2. **`require` the judgment decision against the admitted digest** — not against
-   the candidate path, which could have changed in between.
+1. **`admit_all` the bytes and judgment decisions together.** One read of the
+   candidate feeds the digest, the stage and derived measurements. Both named
+   requirements must hold before the core publishes the integration's temporary
+   admitted copy. Nothing afterwards reads the candidate again.
+2. **Retain each requirement's report.** The same admitted digest is used for
+   both; the integration no longer manually composes a second `require` after
+   publishing a copy for only the first decision.
 3. **Name the admitted file from its own bytes** (`.dist-info/METADATA` and
    `WHEEL`), because `pip` refuses a wheel whose filename is not
    `{name}-{version}-{python}-{abi}-{platform}.whl` and no signed decision says

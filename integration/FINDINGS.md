@@ -281,3 +281,14 @@ exit 1), separate from a detected foreign hook. Neither preflight refusal drops
 the admitted digest: reports carry `artifact.sha256` with `path: null`, because
 no final copy has been published. The hook override cannot waive an unresolved
 root.
+
+
+## Build 12 follow-up: joint admission
+
+F3 now has a product operation: admit_all/sg admit-all stages once and checks all
+named recipient requirements before publication. This integration uses it for
+both measurements and reviewer judgment; it no longer publishes a single-proof
+stage before manually checking the second proof. Per-request trust is supported
+by the API; this example deliberately retains its operator-supplied shared trust
+set. F2 remains a conjunction of separate records, not a new mixed-fact signed
+rule. F6 remains open: the conjunction report is unsigned and local.
