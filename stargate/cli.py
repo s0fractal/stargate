@@ -13,7 +13,7 @@ from .records import canon, decode, capture_environment, create_record, public_k
 from .store import Store, StoreError, hex_hash
 from .bundle import export_bundle, verify_bundle, read_bundle, write_bundle, require_bundle
 from .policy import author_policy, CompilerBug, DEFAULT_MAX_ATP
-from .artifact import subject_hash, admit_bundle, measure_subject
+from .artifact import subject_hash, admit_bundle, admit_all, measure_subject
 
 
 def parser():
@@ -79,6 +79,10 @@ def parser():
     inputs.add_argument("--derive", type=Path, help="derive boolean facts from subject bytes using this JSON profile")
     q.add_argument("--subject", required=True, type=Path)
     q.add_argument("--output", required=True, type=Path)
+    q = cmd("admit-all", "publish one artifact only after every named requirement holds")
+    q.add_argument("plan", type=Path, help="recipient JSON plan; paths relative to this file")
+    q.add_argument("--subject", required=True, type=Path)
+    q.add_argument("--output", required=True, type=Path)
     return p
 
 
@@ -101,7 +105,34 @@ def selected_facts(args):
     return read_facts(args.facts), subject_hash(args.subject), None
 
 
+def read_admission_plan(path):
+    """Read every local input before staging. Trust is selected per requirement."""
+    try:
+        plan = read_facts(path)
+        if not isinstance(plan, list) or not 1 <= len(plan) <= 32:
+            raise ValueError('admission plan must contain 1 to 32 requirements')
+        loaded = []
+        for req in plan:
+            if not isinstance(req, dict) or set(req) not in (
+                    {'name', 'bundle', 'trust', 'rule', 'facts'},
+                    {'name', 'bundle', 'trust', 'rule', 'derive'}):
+                raise ValueError('invalid admission plan requirement fields')
+            mode = 'derive' if 'derive' in req else 'facts'
+            for field in ('bundle', 'rule', mode):
+                if not isinstance(req[field], str) or not req[field]:
+                    raise ValueError('plan input paths must be nonempty strings')
+            loaded.append(dict(name=req['name'], trust=req['trust'],
+                bundle=read_bundle(path.parent / req['bundle']),
+                rule=(path.parent / req['rule']).read_bytes().decode('utf-8'),
+                **{mode: read_facts(path.parent / req[mode])}))
+        return loaded
+    except OSError as exc:
+        raise StoreError('cannot read admission plan input: ' + str(exc)) from exc
+
+
 def execute(args):
+    if args.command == "admit-all":
+        return admit_all(read_admission_plan(args.plan), subject=args.subject, output=args.output)
     if args.command == "admit":
         try:
             rule = args.rule.read_bytes().decode("utf-8")

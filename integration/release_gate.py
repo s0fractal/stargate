@@ -69,8 +69,8 @@ import zipfile
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from stargate.artifact import admit_bundle                      # noqa: E402
-from stargate.bundle import read_bundle, require_bundle          # noqa: E402
+from stargate.artifact import admit_all                      # noqa: E402
+from stargate.bundle import read_bundle          # noqa: E402
 from stargate.policy import PolicyError                          # noqa: E402
 from stargate.records import InvalidRecord                       # noqa: E402
 from stargate.store import StoreError                            # noqa: E402
@@ -297,9 +297,9 @@ def environment_holds(venv, payload, *, purelib=None):
 def gate(args):
     trusted = set(args.trust)
 
-    # 1. Admit: one read of the candidate feeds the digest, the staged copy and
-    #    the byte measurements. The requirement is checked before publication.
-    #    Every input is read and classified BEFORE anything is staged, so a
+    # 1. Joint admission: one stream feeds digest, copy and byte measurements.
+    #    Both requirements are checked before publishing the temporary copy.
+    #    Every input is read BEFORE anything is staged, so a
     #    missing proof is `unverified` with no partial admission on disk.
     bytes_bundle = read_input(args.bytes_bundle, "bytes proof")
     bytes_rule = read_input(args.bytes_rule, "bytes rule").decode("utf-8")
@@ -309,21 +309,19 @@ def gate(args):
     judgment_facts = read_json(args.judgment_facts, "expected facts")
 
     staged = Path(args.output_dir) / f".gate-{os.getpid()}-{os.urandom(4).hex()}.admitted"
-    admitted = admit_bundle(bytes_bundle, trusted, rule=bytes_rule, derive=bytes_profile,
-                            subject=args.artifact, output=staged)
+    admitted = admit_all([
+        dict(name="bytes", bundle=bytes_bundle, trust=trusted, rule=bytes_rule, derive=bytes_profile),
+        dict(name="judgment", bundle=judgment_bundle, trust=trusted,
+             rule=judgment_rule, facts=judgment_facts),
+    ], subject=args.artifact, output=staged)
     if admitted["status"] != "admitted":
-        return EXIT_UNSATISFIED, dict(stage="bytes", **admitted)
+        return EXIT_UNSATISFIED, dict(admitted["requirements"][-1]["report"],
+                                      stage=admitted["failed"], artifact=None)
 
     # The stage is owned from here until the final name owns the bytes. Every
     # exit from this block — return, refusal or exception — removes it.
     try:
-        # 2. Require the second decision against the ADMITTED bytes, never the
-        #    candidate path again.
-        judgment = require_bundle(judgment_bundle, trusted, rule=judgment_rule,
-                                  facts=judgment_facts,
-                                  subject=admitted["artifact"]["sha256"])
-        if judgment["status"] != "satisfied":
-            return EXIT_UNSATISFIED, dict(stage="judgment", **judgment)
+        bytes_report, judgment = [entry["report"] for entry in admitted["requirements"]]
 
         # 3. The name comes from the admitted bytes, and only then does the file
         #    get a name an installer will read.
@@ -350,7 +348,7 @@ def gate(args):
         staged.unlink(missing_ok=True)
 
     report = {"status": "approved", "artifact": dict(admitted["artifact"], path=str(final)),
-              "bytes_requirement": admitted["requirement"], "judgment_requirement": judgment}
+              "bytes_requirement": bytes_report, "judgment_requirement": judgment}
     if not args.install_into:
         return EXIT_OK, report
 
