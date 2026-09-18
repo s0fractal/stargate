@@ -21,6 +21,38 @@ class Architecture(unittest.TestCase):
         self.assertIn('high', graph['low'])
         self.assertIn('upward import: low -> high', errors)
 
+    def test_absolute_package_from_import_creates_edge(self):
+        graph, errors = a.check_sources(
+            {'low': 'from stargate import high as h', 'high': ''},
+            {'low': 1, 'high': 2})
+        self.assertEqual(graph['low'], {'high'})
+        self.assertEqual(errors, ['upward import: low -> high'])
+        # Same syntax must be permitted in the downward direction.
+        graph, errors = a.check_sources(
+            {'low': '', 'high': 'from stargate import low'}, {'low': 1, 'high': 2})
+        self.assertEqual(graph['high'], {'low'})
+        self.assertEqual(errors, [])
+
+    def test_absolute_module_from_import_creates_edge(self):
+        graph, errors = a.check_sources(
+            {'low': 'def f():\n from stargate.high import value as v', 'high': ''},
+            {'low': 1, 'high': 2})
+        self.assertEqual(graph['low'], {'high'})
+        self.assertEqual(errors, ['upward import: low -> high'])
+        graph, errors = a.check_sources(
+            {'low': '', 'high': 'from stargate.low import value'}, {'low': 1, 'high': 2})
+        self.assertEqual(graph['high'], {'low'})
+        self.assertEqual(errors, [])
+
+    def test_src_is_not_an_alternative_package_name(self):
+        for source in ('import src', 'import src.cli as c', 'from src import cli',
+                       'from src.cli import main'):
+            with self.subTest(source=source):
+                _, errors = a.check_sources({'a': source}, {'a': 1})
+                self.assertEqual(errors, ['a: use stargate imports, not the src directory name'])
+        # Unrelated third-party names must not be mistaken for src.
+        self.assertEqual(a.check_sources({'a': 'import src_tools'}, {'a': 1})[1], [])
+
     def test_planted_same_layer_cycle(self):
         _, errors = a.check_sources({'a': 'from .b import f', 'b': 'from .a import g'},
                                    {'a': 1, 'b': 1})

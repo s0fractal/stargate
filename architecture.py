@@ -28,6 +28,9 @@ def check_sources(sources, layers=LAYERS):
         for node in ast.walk(ast.parse(source, filename=name)):
             targets = []
             if isinstance(node, ast.ImportFrom):
+                if not node.level and node.module and (node.module == 'src' or node.module.startswith('src.')):
+                    errors.append(name + ': use stargate imports, not the src directory name')
+                    continue
                 if node.level:
                     if node.level != 1:
                         errors.append(name + ': relative import escapes package')
@@ -48,6 +51,9 @@ def check_sources(sources, layers=LAYERS):
                     targets = [node.module.split('.')[1]]
             elif isinstance(node, ast.Import):
                 for alias in node.names:
+                    if alias.name == 'src' or alias.name.startswith('src.'):
+                        errors.append(name + ': use stargate imports, not the src directory name')
+                        continue
                     if alias.name == 'stargate':
                         targets.append('__init__')
                     elif alias.name.startswith('stargate.'):

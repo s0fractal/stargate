@@ -58,3 +58,11 @@ adopted next, derive/check them against the same layer table rather than creatin
 a second classification. CLI commands describe user operations; they need not
 mirror filenames or get one file/layer per command. Lower layers must never call
 the CLI or shell out to sg to access higher functionality.
+
+Absolute imports through `src` (including `from src...`) are rejected in scanned
+package sources. `src` is a directory name, not a supported alternate package
+identity. This static rule does not prevent an external caller in the checkout
+from explicitly importing src; it prevents such imports from entering this
+package unnoticed. Both absolute `from stargate import module` and
+`from stargate.module import name` forms have positive downward and negative
+upward controls, including aliasing and a function-local import.
