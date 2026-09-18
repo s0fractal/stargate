@@ -26,7 +26,12 @@ would then be about different bytes. So the gate runs, in this order:
      signed decision says nothing about names — it is about bytes. So the gate
      reads `.dist-info/METADATA` out of the admitted copy and links it to the
      name those bytes declare. An operator-chosen name is never used.
-  4. Install the admitted file. The installer never sees the candidate path.
+  4. Install the admitted file, then READ THE ENVIRONMENT BACK. `pip` treats an
+     already-present distribution of the same version as satisfied and skips the
+     install, so "pip exited 0" does not mean the admitted code is in place: the
+     gate forces the install and then hashes every payload file the wheel's
+     RECORD names against what is now on disk. `installed` means that check
+     passed, and nothing else.
 
 Step 2 could not come first, and nothing in Stargate enforces this order — see
 integration/FINDINGS.md.
@@ -34,14 +39,20 @@ integration/FINDINGS.md.
 EXIT CODES mirror Stargate's, because a caller that only reads the exit code must
 be able to tell "refused" from "could not check":
 
-  0  installed          every decision satisfied and the install succeeded
-  1  operation_error    local I/O: the target name exists, directory missing, install failed
+  0  installed          every decision satisfied AND the environment now holds
+                     the admitted payload, verified file by file
+  1  operation_error    local I/O: the target name exists, directory missing,
+                     install failed, or the environment does not hold the
+                     admitted payload afterwards
   2  invalid            a bundle, key, rule or profile is malformed or untrusted, or
                      the admitted bytes are not an installable wheel
-  3  unverified         material missing or unreadable; NOTHING was decided
+  3  unverified         proof, rule, facts or artifact missing or unreadable;
+                     NOTHING was decided
   4  unsatisfied        a decision was reached and it does not admit this artifact
 """
 import argparse
+import base64
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -62,6 +73,16 @@ from stargate import kernel                                      # noqa: E402
 EXIT_OK, EXIT_OPERATION, EXIT_INVALID, EXIT_UNVERIFIED, EXIT_UNSATISFIED = 0, 1, 2, 3, 4
 
 
+def read_input(path, what):
+    """Read an input file. Missing or unreadable material is UNVERIFIED, not an
+    operation error: nothing has been decided yet, and a caller retrying on 3 is
+    right to do so."""
+    try:
+        return Path(path).read_bytes()
+    except OSError as exc:
+        raise StoreError(f"cannot read {what}: {exc}") from exc
+
+
 def read_json(path, what):
     """Read a JSON object, refusing duplicate keys the way the CLI does."""
     def unique(pairs):
@@ -71,7 +92,7 @@ def read_json(path, what):
                 raise PolicyError(f"duplicate key in {what}: {key}")
             out[key] = value
         return out
-    return json.loads(Path(path).read_text(encoding="utf-8"), object_pairs_hook=unique)
+    return json.loads(read_input(path, what).decode("utf-8"), object_pairs_hook=unique)
 
 
 WHEEL_NAME = re.compile(r"^[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?$")
@@ -115,55 +136,130 @@ def wheel_filename(path):
     return f"{distribution}-{fields['Version']}-{tags[0]}.whl"
 
 
+def wheel_payload(path):
+    """{installed relative path: sha256} for every payload file the wheel RECORDs.
+
+    `.dist-info/RECORD` is excluded because the installer rewrites it. Wheels
+    carrying a `.data/` tree are refused: their files land outside purelib and
+    this gate does not track them.
+    """
+    try:
+        archive = zipfile.ZipFile(path)
+    except zipfile.BadZipFile as exc:
+        raise NotAWheel(f"admitted bytes are not a readable wheel: {exc}") from exc
+    with archive:
+        records = [n for n in archive.namelist()
+                   if n.endswith(".dist-info/RECORD") and n.count("/") == 1]
+        if len(records) != 1:
+            raise NotAWheel("admitted wheel does not carry exactly one RECORD")
+        payload = {}
+        try:
+            lines = archive.read(records[0]).decode("utf-8", "strict").splitlines()
+        except (KeyError, UnicodeDecodeError, zipfile.BadZipFile) as exc:
+            raise NotAWheel(f"admitted wheel has an unreadable RECORD: {exc}") from exc
+        for line in lines:
+            if not line.strip():
+                continue
+            name, _, rest = line.partition(",")
+            if name.endswith(".dist-info/RECORD"):
+                continue
+            if ".data/" in name:
+                raise NotAWheel("this gate does not handle wheels with a .data payload")
+            digest = rest.split(",")[0]
+            if not digest.startswith("sha256="):
+                raise NotAWheel(f"RECORD entry without a sha256 digest: {name}")
+            try:
+                payload[name] = base64.urlsafe_b64decode(
+                    digest[7:] + "=" * (-len(digest[7:]) % 4)).hex()
+            except ValueError as exc:
+                raise NotAWheel(f"RECORD entry with an undecodable digest: {name}") from exc
+    if not payload:
+        raise NotAWheel("admitted wheel RECORDs no payload files")
+    return payload
+
+
+def environment_holds(venv, payload):
+    """Every RECORDed file, hashed where the installer put it. Returns a list of
+    complaints; empty means the environment holds exactly the admitted bytes."""
+    probe = subprocess.run([str(Path(venv) / "bin" / "python"), "-c",
+                            "import json,sysconfig;print(json.dumps(sysconfig.get_paths()))"],
+                           capture_output=True, text=True)
+    if probe.returncode != 0:
+        return [f"cannot ask the target interpreter where it installs: {probe.stderr.strip()[:200]}"]
+    purelib = Path(json.loads(probe.stdout)["purelib"])
+    problems = []
+    for name, want in sorted(payload.items()):
+        installed = purelib / name
+        try:
+            got = hashlib.sha256(installed.read_bytes()).hexdigest()
+        except OSError as exc:
+            problems.append(f"{name}: not installed ({exc.strerror})")
+            continue
+        if got != want:
+            problems.append(f"{name}: installed bytes differ from the admitted wheel")
+    return problems
+
+
 def gate(args):
     trusted = set(args.trust)
 
     # 1. Admit: one read of the candidate feeds the digest, the staged copy and
     #    the byte measurements. The requirement is checked before publication.
-    staged = Path(args.output_dir) / f".gate-{os.getpid()}.admitted"
-    admitted = admit_bundle(
-        read_bundle(args.bytes_bundle), trusted,
-        rule=Path(args.bytes_rule).read_text(encoding="utf-8"),
-        derive=read_json(args.bytes_profile, "derivation profile"),
-        subject=args.artifact, output=staged)
+    #    Every input is read and classified BEFORE anything is staged, so a
+    #    missing proof is `unverified` with no partial admission on disk.
+    bytes_bundle = read_input(args.bytes_bundle, "bytes proof")
+    bytes_rule = read_input(args.bytes_rule, "bytes rule").decode("utf-8")
+    bytes_profile = read_json(args.bytes_profile, "derivation profile")
+    judgment_bundle = read_input(args.judgment_bundle, "judgment proof")
+    judgment_rule = read_input(args.judgment_rule, "judgment rule").decode("utf-8")
+    judgment_facts = read_json(args.judgment_facts, "expected facts")
+
+    staged = Path(args.output_dir) / f".gate-{os.getpid()}-{os.urandom(4).hex()}.admitted"
+    admitted = admit_bundle(bytes_bundle, trusted, rule=bytes_rule, derive=bytes_profile,
+                            subject=args.artifact, output=staged)
     if admitted["status"] != "admitted":
         return EXIT_UNSATISFIED, dict(stage="bytes", **admitted)
 
-    # 2. Require the second decision against the ADMITTED bytes, never the
-    #    candidate path again.
-    judgment = require_bundle(
-        read_bundle(args.judgment_bundle), trusted,
-        rule=Path(args.judgment_rule).read_text(encoding="utf-8"),
-        facts=read_json(args.judgment_facts, "expected facts"),
-        subject=admitted["artifact"]["sha256"])
-    if judgment["status"] != "satisfied":
-        staged.unlink(missing_ok=True)              # admitted bytes are not approved
-        return EXIT_UNSATISFIED, dict(stage="judgment", **judgment)
-
-    # 3. The name comes from the admitted bytes, and only then does the file get
-    #    a name an installer will read. A failure here leaves nothing behind.
+    # The stage is owned from here until the final name owns the bytes. Every
+    # exit from this block — return, refusal or exception — removes it.
     try:
+        # 2. Require the second decision against the ADMITTED bytes, never the
+        #    candidate path again.
+        judgment = require_bundle(judgment_bundle, trusted, rule=judgment_rule,
+                                  facts=judgment_facts,
+                                  subject=admitted["artifact"]["sha256"])
+        if judgment["status"] != "satisfied":
+            return EXIT_UNSATISFIED, dict(stage="judgment", **judgment)
+
+        # 3. The name comes from the admitted bytes, and only then does the file
+        #    get a name an installer will read.
         final = Path(args.output_dir) / wheel_filename(staged)
+        payload = wheel_payload(staged)
         os.link(staged, final)                      # refuses to replace an existing name
-    except BaseException:
+    finally:
         staged.unlink(missing_ok=True)
-        raise
-    staged.unlink(missing_ok=True)
 
     report = {"status": "approved", "artifact": dict(admitted["artifact"], path=str(final)),
               "bytes_requirement": admitted["requirement"], "judgment_requirement": judgment}
     if not args.install_into:
         return EXIT_OK, report
 
-    # 4. Act. The installer is given the admitted path and nothing else.
+    # 4. Act, then read the environment back. `--force-reinstall` is not an
+    #    optimisation: without it pip treats an already-present distribution of
+    #    the same version as satisfied and silently keeps the OTHER artifact's
+    #    code (Codex, PR #11 review R1).
     done = subprocess.run([str(Path(args.install_into) / "bin" / "pip"), "install",
-                           "--no-deps", "--quiet", str(final)],
+                           "--no-deps", "--force-reinstall", "--quiet", str(final)],
                           capture_output=True, text=True)
     if done.returncode != 0:
         return EXIT_OPERATION, dict(report, status="install_failed",
                                     error=(done.stderr or done.stdout).strip()[:400])
+    problems = environment_holds(args.install_into, payload)
+    if problems:
+        return EXIT_OPERATION, dict(report, status="install_unverified", problems=problems)
     return EXIT_OK, dict(report, status="installed",
-                         installed_into=str(args.install_into))
+                         installed_into=str(args.install_into),
+                         payload_files_verified=len(payload))
 
 
 def main(argv=None):

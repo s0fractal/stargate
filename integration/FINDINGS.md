@@ -132,6 +132,38 @@ mistake the API could prevent.
 - **Derived facts caught a signed lie** in the shape that matters: I signed
   `is_text=true` for a wheel and the gate refused to publish.
 
+## F9. The action's success is not the action's postcondition
+
+Added after review. The first version of this gate ran `pip install` and treated
+exit 0 as `installed`. Codex preinstalled a **different** wheel with the same
+distribution and version, ran the gate with the approved one, and got
+`0 / installed` from a venv that still executed the other artifact's code — pip
+considers a same-version distribution already satisfied and skips.
+
+The label was wider than the predicate: "installed" meant "the installer exited
+zero". The gate now forces the install **and reads the environment back**,
+hashing every payload file the wheel's `RECORD` names against what is on disk;
+`installed` is that check passing and nothing else, and a mismatch is
+`install_unverified` (exit 1). Dropping `--force-reinstall` now fails the test
+with `(1, 'install_unverified') != (0, 'installed')` — the readback catches the
+original defect even without the flag, which is why both are there.
+
+The general shape is worth stating, because it is not specific to pip: **a gate
+that ends at "the action returned success" has verified the action, not the
+world.** Every integrator wiring Stargate to a real effect needs a postcondition
+they can check, and Stargate's vocabulary (bytes) rarely reaches it.
+
+## F10. A refusal must not leave an admitted file behind
+
+Also from review: an error in the *second* decision — missing or malformed
+judgment proof — left `.gate-*.admitted` in the output directory, and a missing
+proof file was classified `operation_error` (1) instead of `unverified` (3).
+Both are now fixed: every input is read and classified before anything is
+staged, and the staged file is owned by a `try/finally` that spans the second
+decision, the naming and the publication. The lesson is the same one this project
+keeps learning at a different layer: the interesting paths are the ones that
+refuse, and they need the same care as the one that succeeds.
+
 ## Method note
 
 My first failure battery reported five bogus failures because `zsh` does not

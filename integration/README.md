@@ -59,15 +59,18 @@ and the venv imports `sigma_glyph` at version `0.7.0`.
    `WHEEL`), because `pip` refuses a wheel whose filename is not
    `{name}-{version}-{python}-{abi}-{platform}.whl` and no signed decision says
    anything about names.
-4. **Install the admitted path**, which the installer sees and the candidate
-   path, which it never does.
+4. **Install the admitted path** — forced, because `pip` skips a distribution
+   whose name and version are already present — and then **read the environment
+   back**: every payload file in the wheel's `RECORD` is hashed where the
+   installer put it. `installed` means that check passed; a mismatch is
+   `install_unverified`, exit 1.
 
 ## Outcomes
 
 | exit | status | meaning |
 |---|---|---|
 | 0 | `approved` / `installed` | both decisions hold for these bytes |
-| 1 | `operation_error` | local I/O: target name taken, missing directory, install failed |
+| 1 | `operation_error` / `install_unverified` | local I/O: target name taken, missing directory, install failed, or the environment does not hold the admitted payload |
 | 2 | `invalid` / `artifact_not_a_wheel` | malformed or untrusted input, or verified bytes that are not installable |
 | 3 | `unverified` | material missing or unreadable — **nothing was decided** |
 | 4 | `unsatisfied` | a decision was reached and it does not admit this artifact |
@@ -83,8 +86,11 @@ python3 integration/test_release_gate.py --with-install   # plus a venv install
 ```
 
 They cover approval and naming, a tampered artifact, an untrusted key, a missing
-artifact, verified bytes that are not a wheel, a taken target name, and a
-candidate whose *path* name is misleading.
+artifact, verified bytes that are not a wheel, a taken target name, a candidate
+whose *path* name is misleading, missing and malformed second proofs (with no
+staging left behind and a retry that still works), the environment readback on
+its own, and — with `--with-install` — a venv where a **different** wheel of the
+same name and version was already installed.
 
 ## What this cost
 

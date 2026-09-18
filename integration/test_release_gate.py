@@ -9,6 +9,7 @@ surface. Nothing here reaches the network or the repository tree, and the
 installation step is exercised separately in `--with-install` mode because it
 needs a venv and is slow.
 """
+import base64
 import hashlib
 import json
 import os
@@ -54,18 +55,30 @@ check tests_passed && !known_advisories
 JUDGMENT_FACTS = {"tests_passed": True, "known_advisories": False}
 
 
-def build_wheel(path, name="gatedemo", version="0.1.0", pad=2048):
-    """A minimal but genuine wheel: pip parses its name from these bytes."""
+def build_wheel(path, name="gatedemo", version="0.1.0", value=1, pad=2048):
+    """A minimal but genuine wheel, with a RECORD the gate can check against.
+
+    `value` changes the payload WITHOUT changing name or version — that pair is
+    what an installer uses to decide it has nothing to do.
+    """
     dist = f"{name}-{version}.dist-info"
+    entries = {
+        f"{name}/__init__.py": f"VALUE = {value}\n".encode(),
+        f"{dist}/METADATA":
+            f"Metadata-Version: 2.1\nName: {name}\nVersion: {version}\n\nbody\n".encode(),
+        f"{dist}/WHEEL": (b"Wheel-Version: 1.0\nGenerator: test\nRoot-Is-Purelib: true\n"
+                          b"Tag: py3-none-any\n"),
+        f"{dist}/filler": ("0" * pad).encode(),          # push past size_at_least
+    }
+    record = []
+    for member, raw in entries.items():
+        digest = base64.urlsafe_b64encode(hashlib.sha256(raw).digest()).rstrip(b"=").decode()
+        record.append(f"{member},sha256={digest},{len(raw)}")
+    record.append(f"{dist}/RECORD,,")
     with zipfile.ZipFile(path, "w") as archive:
-        archive.writestr(f"{name}/__init__.py", "VALUE = 1\n")
-        archive.writestr(f"{dist}/METADATA",
-                         f"Metadata-Version: 2.1\nName: {name}\nVersion: {version}\n\nbody\n")
-        archive.writestr(f"{dist}/WHEEL",
-                         "Wheel-Version: 1.0\nGenerator: test\nRoot-Is-Purelib: true\n"
-                         "Tag: py3-none-any\n")
-        archive.writestr(f"{dist}/RECORD", "")
-        archive.writestr(f"{dist}/filler", "0" * pad)   # push past size_at_least
+        for member, raw in entries.items():
+            archive.writestr(member, raw)
+        archive.writestr(f"{dist}/RECORD", "\n".join(record) + "\n")
     return path
 
 
@@ -90,7 +103,7 @@ class ReleaseGate(unittest.TestCase):
             raw, _ = B.export_bundle(cls.store.read(record["object"]), cls.store, {cls.trust})
             (cls.dir / name).write_bytes(raw)
 
-    def run_gate(self, artifact=None, trust=None, out=None, extra=()):
+    def run_gate(self, artifact=None, trust=None, out=None, extra=(), judgment_bundle=None):
         out = out or Path(tempfile.mkdtemp(dir=self.dir))
         argv = [sys.executable, str(GATE),
                 "--artifact", str(artifact or self.wheel),
@@ -98,7 +111,7 @@ class ReleaseGate(unittest.TestCase):
                 "--bytes-bundle", str(self.dir / "bytes.sg.json"),
                 "--bytes-rule", str(self.dir / "bytes.wpl"),
                 "--bytes-profile", str(self.dir / "bytes.json"),
-                "--judgment-bundle", str(self.dir / "judgment.sg.json"),
+                "--judgment-bundle", str(judgment_bundle or self.dir / "judgment.sg.json"),
                 "--judgment-rule", str(self.dir / "judgment.wpl"),
                 "--judgment-facts", str(self.dir / "judgment-facts.json"),
                 "--output-dir", str(out), *extra]
@@ -172,23 +185,103 @@ class ReleaseGate(unittest.TestCase):
         self.assertEqual(files, ["gatedemo-0.1.0-py3-none-any.whl"])
 
 
+    def test_missing_judgment_proof_is_unverified_and_leaves_no_stage(self):
+        out = Path(tempfile.mkdtemp(dir=self.dir))
+        code, report, files = self.run_gate(
+            out=out, extra=(), judgment_bundle=self.dir / "absent.sg.json")
+        self.assertEqual((code, report["status"]), (3, "unverified"))
+        self.assertEqual(files, [])
+
+    def test_malformed_judgment_proof_is_invalid_and_leaves_no_stage(self):
+        broken = self.dir / "broken.sg.json"
+        broken.write_bytes(b"{not json")
+        out = Path(tempfile.mkdtemp(dir=self.dir))
+        code, report, files = self.run_gate(out=out, judgment_bundle=broken)
+        self.assertEqual((code, report["status"]), (2, "invalid"))
+        self.assertEqual(files, [])
+        # and a retry into the same directory still works: no stale stage name
+        code, report, files = self.run_gate(out=out)
+        self.assertEqual((code, report["status"]), (0, "approved"))
+        self.assertEqual(files, ["gatedemo-0.1.0-py3-none-any.whl"])
+
+
+class EnvironmentReadback(unittest.TestCase):
+    """`environment_holds` on its own: the install step's postcondition check.
+
+    The impostor test below proves the gate installs the right bytes; this proves
+    the gate would NOTICE if it had not, which is a different claim."""
+
+    @unittest.skipUnless("--with-install" in sys.argv, "needs a venv; pass --with-install")
+    def test_notices_when_the_environment_does_not_hold_the_payload(self):
+        sys.path.insert(0, str(ROOT / "integration"))
+        from release_gate import environment_holds, wheel_payload
+        ReleaseGate.setUpClass()
+        try:
+            venv = Path(ReleaseGate.dir) / "readback-venv"
+            subprocess.run([sys.executable, "-m", "venv", str(venv)], check=True,
+                           capture_output=True)
+            # pip refuses `candidate.whl`: the name must be the canonical wheel
+            # name (FINDINGS.md F1, which this test tripped over too).
+            named = Path(ReleaseGate.dir) / "readback" / "gatedemo-0.1.0-py3-none-any.whl"
+            named.parent.mkdir(exist_ok=True)
+            named.write_bytes(ReleaseGate.wheel.read_bytes())
+            subprocess.run([str(venv / "bin" / "pip"), "install", "--no-deps", "--quiet",
+                            str(named)], check=True, capture_output=True,
+                           env={**os.environ, "PIP_NO_INDEX": "1"})
+            payload = wheel_payload(ReleaseGate.wheel)
+            self.assertEqual(environment_holds(venv, payload), [],
+                             "a correct install must produce no complaints")
+
+            probe = subprocess.run([str(venv / "bin" / "python"), "-c",
+                                    "import json,sysconfig;print(json.dumps(sysconfig.get_paths()))"],
+                                   capture_output=True, text=True)
+            purelib = Path(json.loads(probe.stdout)["purelib"])
+            (purelib / "gatedemo" / "__init__.py").write_text("VALUE = 999\n")
+            complaints = environment_holds(venv, payload)
+            self.assertTrue(any("gatedemo/__init__.py" in c for c in complaints), complaints)
+
+            (purelib / "gatedemo" / "__init__.py").unlink()
+            self.assertTrue(any("not installed" in c for c in environment_holds(venv, payload)))
+        finally:
+            ReleaseGate.tmp.cleanup()
+
+
 class Installation(unittest.TestCase):
     """The action itself. Skipped unless --with-install is given: it builds a venv."""
 
     @unittest.skipUnless("--with-install" in sys.argv, "needs a venv; pass --with-install")
-    def test_installs_only_the_admitted_copy(self):
+    def test_installed_means_the_environment_runs_the_admitted_payload(self):
+        """The case the first version of this gate got wrong (Codex R1).
+
+        A DIFFERENT wheel with the SAME name and version is already installed.
+        `pip` would treat that as satisfied and skip; `installed` must therefore
+        mean the environment was read back and holds the admitted payload."""
         case = ReleaseGate()
         ReleaseGate.setUpClass()
         try:
             venv = Path(ReleaseGate.dir) / "venv"
             subprocess.run([sys.executable, "-m", "venv", str(venv)], check=True,
                            capture_output=True)
-            code, report, files = case.run_gate(extra=("--install-into", str(venv)))
+            impostor = ReleaseGate.dir / "impostor" / "gatedemo-0.1.0-py3-none-any.whl"
+            impostor.parent.mkdir()
+            build_wheel(impostor, value=999)
+            subprocess.run([str(venv / "bin" / "pip"), "install", "--no-deps", "--quiet",
+                            str(impostor)], check=True, capture_output=True,
+                           env={**os.environ, "PIP_NO_INDEX": "1"})
+            before = subprocess.run([str(venv / "bin" / "python"), "-c",
+                                     "import gatedemo; print(gatedemo.VALUE)"],
+                                    capture_output=True, text=True)
+            self.assertEqual(before.stdout.strip(), "999", "fixture: impostor not installed")
+
+            code, report, _ = case.run_gate(extra=("--install-into", str(venv)))
             self.assertEqual((code, report["status"]), (0, "installed"))
-            shown = subprocess.run([str(venv / "bin" / "python"), "-c",
-                                    "import importlib.metadata as m; print(m.version('gatedemo'))"],
+            self.assertGreater(report["payload_files_verified"], 0)
+
+            after = subprocess.run([str(venv / "bin" / "python"), "-c",
+                                    "import gatedemo; print(gatedemo.VALUE)"],
                                    capture_output=True, text=True)
-            self.assertEqual(shown.stdout.strip(), "0.1.0")
+            self.assertEqual(after.stdout.strip(), "1",
+                             "the environment must run the ADMITTED payload, not the impostor")
         finally:
             ReleaseGate.tmp.cleanup()
 
