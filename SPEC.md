@@ -952,8 +952,12 @@ resume(task, expected_task, rows=N) reconstructs a NEW in-process transition,
 recomputes exactly n claimed rows, and compares the complete recomputed rows to
 the prefix. Recomputed status must still be suspended. A semantic terminal result
 inside a claimed pending prefix or a mismatching row is InvalidRecord; no new
-row may run first. Resource/compile inability to replay is incomplete; checker
-disagreement is checker_error. Neither accuses the packet of false data, admits
+row may run first. Canonical ATP exhaustion while replaying a claimed completed
+row contradicts the prefix and is InvalidRecord (exit 2). The compiler marks this
+as CompileBudgetExhausted, a CompileIncomplete subtype; lab reports terminal
+incomplete with incomplete_kind=world_budget. Task replay uses that typed marker,
+never exception-message matching. Local ResourceFault/AdmissionRefused or other
+compile inability remains incomplete (exit 3); checker disagreement is checker_error. Neither accuses the packet of false data, admits
 anything, writes a renewed task, nor runs the requested new rows.
 
 Only after successful prefix replay does resume grant N NEW rows to the same
@@ -992,3 +996,7 @@ a task while suspended or a world on admission. No included code executes merely
 from inspection/unpacking. Existing independently authenticated launcher/runtime
 requirements and Python/stdlib trust apply. This format is a work request with
 claimed progress, not a serialized continuation or a proof of previous work.
+
+World-budget exhaustion in NEW task rows remains ordinary incomplete (exit 3),
+with no output: those rows were never claimed as completed. This classification
+change applies only to the imported prefix.

@@ -970,7 +970,10 @@ a sandbox and still trusts Python and its standard library.
 A task is canonical JSON with `stargate_task: 32`, `world`, `proposal`, and
 `prefix`. It contains no continuation objects or trusted verdicts. Prefix results
 are compared in full (inputs, values, term hashes and ATP), not by trusting a
-sender's digest. A complete table is not a pending task. Dropping a suffix or
+sender's digest. A completed-prefix claim that exhausts the fixed world ATP
+budget on replay is invalid (exit 2), even if its claimed ATP fits the budget.
+A local resource failure remains incomplete (exit 3). Exhaustion in new rows
+also remains incomplete: nobody claimed those rows were completed. A complete table is not a pending task. Dropping a suffix or
 resetting the prefix to empty is allowed; it merely discards claimed progress.
 A different candidate or world requires a different task anchor.
 

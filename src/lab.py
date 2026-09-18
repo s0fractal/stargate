@@ -252,6 +252,9 @@ def _transition_steps(doc, proposal, parent, codes, report):
         except compiler.CompilerBug as exc:
             report.update(status='checker_error', reason=str(exc), input=facts)
             return report, None
+        except compiler.CompileBudgetExhausted as exc:
+            report.update(reason=str(exc), input=facts, incomplete_kind='world_budget')
+            return report, None
         except (compiler.CompileIncomplete, kernel.ResourceFault, kernel.AdmissionRefused) as exc:
             report.update(reason=str(exc), input=facts)
             return report, None

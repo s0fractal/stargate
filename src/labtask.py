@@ -90,6 +90,9 @@ def resume(raw, expected_task, *, rows):
     count = len(doc['prefix'])
     state = lab.start_transition(world, doc['proposal'], rows=count)
     replayed = len(state.report['rows'])
+    # A completed-prefix claim contradicts deterministic world-budget exhaustion.
+    if state.status == 'incomplete' and state.report.get('incomplete_kind') == 'world_budget':
+        raise InvalidRecord('claimed lab prefix does not reproduce: world budget exhausted')
     # Local inability to recheck is not evidence that the sender lied.
     if state.status in ('incomplete', 'checker_error'):
         return _result(doc, state, replayed, 0)

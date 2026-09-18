@@ -132,6 +132,41 @@ class LabTask(unittest.TestCase):
         self.assertEqual((result['replayed_rows'],result['new_rows']),(0,8))
         self.assertEqual(tip,lab.verify_transition(world,proposal)[1])
 
+    def test_claimed_completed_row_cannot_exhaust_fixed_world_budget(self):
+        _,_,_,raw=packet(rows=1)
+        for claimed in (5, 6):
+            doc=decode(raw)
+            doc['world']['max_atp']=5
+            world=canon(doc['world'])
+            doc['proposal']['parent']=lab.identity(world)
+            for role in ('parent','candidate'): doc['prefix'][0][role]['atp']=claimed
+            with self.subTest(claimed=claimed):
+                if claimed == 5:
+                    # Well-shaped lie: only actual execution can refute it.
+                    self.assertEqual(labtask.describe(canon(doc))['status'],'unverified_progress')
+                with self.assertRaises(InvalidRecord) as caught:
+                    labtask.resume(canon(doc),labtask.identity(world,doc['proposal']),rows=256)
+                if claimed == 5:
+                    self.assertIn('prefix does not reproduce: world budget exhausted',str(caught.exception))
+        # Without a completion claim the same budget failure is not a lie.
+        doc['prefix']=[]
+        result,output=labtask.resume(canon(doc),labtask.identity(world,doc['proposal']),rows=1)
+        self.assertEqual(result['status'],'incomplete')
+        self.assertEqual(result['verification'].get('incomplete_kind'),'world_budget')
+        self.assertIsNone(output)
+
+    def test_local_fault_with_budget_message_is_still_unverified(self):
+        world,proposal,_,raw=packet(rows=1)
+        # Same text as budget exhaustion: classification must follow the type.
+        fault=kernel.ResourceFault('policy did not finish within the compile budget')
+        with patch.object(kernel,'eval_receipt',side_effect=fault) as calls:
+            report,output=labtask.resume(raw,labtask.identity(world,proposal),rows=256)
+        self.assertEqual(calls.call_count,1)
+        self.assertEqual((report['status'],report['new_rows'],report['output_kind']),('incomplete',0,None))
+        self.assertNotIn('incomplete_kind',report['verification'])
+        self.assertFalse(report['admitted'])
+        self.assertIsNone(output)
+
     def test_local_replay_failure_is_not_accusation_or_forward_progress(self):
         world, proposal, _, raw=packet()
         for fault,status in [(kernel.ResourceFault('limit'),'incomplete'),
@@ -207,6 +242,18 @@ class LabTask(unittest.TestCase):
             code,_,output=run(raw,1,'0'*64);self.assertEqual(code,2);self.assertIsNone(output)
             foreign=decode(raw);foreign['world']['sources']['lab.py']+='\n# foreign'
             code,_,output=run(canon(foreign),1);self.assertEqual(code,3);self.assertIsNone(output)
+            for claimed in (5,6):
+                forged=decode(raw);forged['world']['max_atp']=5
+                altered_world=canon(forged['world'])
+                forged['proposal']['parent']=lab.identity(altered_world)
+                for row in forged['prefix']:
+                    for role in ('parent','candidate'): row[role]['atp']=claimed
+                forged_anchor=labtask.identity(altered_world,forged['proposal'])
+                code,_,output=run(canon(forged),256,forged_anchor)
+                self.assertEqual(code,2);self.assertIsNone(output)
+            forged['prefix']=[]
+            code,report,output=run(canon(forged),1,forged_anchor)
+            self.assertEqual((code,report['status']),(3,'incomplete'));self.assertIsNone(output)
             syntax=decode(raw);syntax['proposal']['candidate']=rule('a &&')
             code,_,output=run(canon(syntax),1);self.assertEqual(code,2);self.assertIsNone(output)
 
