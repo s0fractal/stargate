@@ -252,3 +252,12 @@ rules. This lets a proposal change behavior over time without granting its autho
 permission to weaken the safety question. The gate provides an independently
 recomputable admission edge, not a machine-history protocol or a proof that the
 chosen invariant captures everything the recipient cares about.
+
+
+Build 24 closes a small mutation loop for finite machines: propose a transition
+rule, obtain a violating event sequence, reuse it to screen further proposals,
+and pass surviving proposals through complete safety admission. An imported
+counterexample is executable evidence, not authority: its original failure is
+recomputed, and only events transfer to another candidate. The pinned checker
+still decides admission independently of the search heuristic. This is a finite
+local experiment, not autonomous integration or open-ended program synthesis.

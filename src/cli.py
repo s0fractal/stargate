@@ -121,14 +121,18 @@ def parser():
     q = cmd("lab-check-invariant", "recompute a finite property claim without trusting its author")
     q.add_argument("path", type=Path)
     q.add_argument("claim", type=Path)
-    for name in ('machine-create', 'machine-inspect', 'machine-check', 'machine-unpack', 'machine-change'):
+    for name in ('machine-create', 'machine-inspect', 'machine-check', 'machine-unpack', 'machine-change', 'machine-search'):
         q = cmd(name, 'check a finite synchronous machine on all reachable states')
         q.add_argument('path', type=Path)
         if name in ('machine-create', 'machine-unpack'): q.add_argument('--output', type=Path, required=True)
         if name == 'machine-change':
             q.add_argument('proposal', type=Path)
             q.add_argument('--output', type=Path)
-        if name in ('machine-check', 'machine-change'):
+        if name == 'machine-search':
+            q.add_argument('--max-candidates', type=int, default=32)
+            q.add_argument('--experience', type=Path)
+            q.add_argument('--output', type=Path)
+        if name in ('machine-check', 'machine-change', 'machine-search'):
             q.add_argument('--expect-machine', required=True)
             q.add_argument('--max-edges', type=int, default=256)
     for name in ('lab-task-start', 'lab-task-resume', 'lab-task-inspect', 'lab-task-unpack'):
@@ -200,6 +204,10 @@ def execute(args):
         try:
             raw = machine.read(args.path)
             if args.command == 'machine-change': proposal = machine.read_change(args.proposal)
+            if args.command == 'machine-search':
+                experience = read_facts(args.experience) if args.experience else None
+                if args.experience is not None and experience is None:
+                    raise ValueError('machine experience must be an object, not null')
         except OSError as exc:
             raise StoreError('cannot read machine input: ' + str(exc)) from exc
         if args.command == 'machine-create':
@@ -215,6 +223,11 @@ def execute(args):
             return machine.describe(created)
         if args.command == 'machine-inspect': return machine.describe(raw)
         if args.command == 'machine-unpack': return machine.unpack(raw, args.output)
+        if args.command == 'machine-search':
+            report, output = search.search_machine(raw, args.expect_machine, max_candidates=args.max_candidates,
+                max_edges=args.max_edges, experience=experience)
+            if output is not None and args.output is not None: write_bundle(args.output, output)
+            return report
         if args.command == 'machine-change':
             report, output = machine.verify_change(raw, proposal, args.expect_machine, max_edges=args.max_edges)
             if output is not None and args.output is not None: write_bundle(args.output, output)
@@ -455,7 +468,7 @@ def main(argv=None):
         if result['status'] in ('complete', 'established'): return 0
         if result['status'] == 'checker_error': return 1
         return 3 if result['status'] == 'incomplete' else 4
-    if args.command == 'lab-search':
+    if args.command in ('lab-search', 'machine-search'):
         if result['status'] == 'found': return 0
         if result['status'] == 'checker_error': return 1
         return 4 if result['status'] in ('neighborhood_exhausted', 'parent_rejected') else 3

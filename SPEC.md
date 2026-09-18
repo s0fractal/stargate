@@ -1116,3 +1116,63 @@ unpacked machine.json as parent: replay.py PROPOSAL [OUTPUT] --machine-change
 with other modes, runs the authenticated source loader under -I -S, and produces
 the same report and successor bytes as the installed CLI. These checks inherit
 the existing Python/stdlib and runtime-authentication assumptions.
+
+
+## Counterexample-guided machine search (Build 24)
+
+search_machine(raw, expected_parent, max_candidates=32, max_edges=256,
+experience=None) proposes complete next maps, changing one rule at a time with
+the existing WPL one-edit neighborhood, in sorted state-name/preorder order.
+The exact parent rule map and repeated rule maps are skipped. Invalid generated
+rules are recorded as invalid attempts. Limits are exact integers: candidates
+1..256 and edges 0..256. An attempt consumes candidate quota even when duplicate
+or invalid. Search is a heuristic outside the pinned offline runtime and is not
+part of admission authority. No equivalence, novelty, improvement or complete
+synthesis claim follows from found.
+
+First validate/anchor the parent and perform its full safety check. A parent
+counterexample returns parent_rejected; incomplete/checker_error propagate before
+experience validation or generation. Experience is exactly {parent,runtime_digest,
+counterexamples}; at most 256 entries, each exactly {next,trace}. Parent/runtime
+must match. Each entry's next must define a valid machine under the parent's
+contract, and its trace must reproduce exactly as a counterexample. Invalid
+claims are rejected, not silently discarded. Failure to execute experience gives
+incomplete or checker_error; no search runs. Identical entries are deduplicated.
+
+replay_trace(packet, trace) validates a Boolean initial state belonging to the
+machine's initial set and a steps list of {event,state} maps in the exact domains.
+Length must be less than 2**state_bits (the maximum shortest violating path).
+It starts from initial, checks the invariant, then computes each synchronous next
+state from old state + the supplied event and checks the invariant again. Every
+expression passes SKI and the independent Boolean oracle. Claimed states are
+shape-checked but never used to compute the run. The report includes actual trace
+and checked_steps; status is trace_passed, counterexample, incomplete or
+checker_error. A violation stops replay immediately. trace_passed means only
+that this finite event sequence did not violate the invariant, not graph safety.
+For imported evidence, the actual counterexample must equal the supplied trace;
+for screening another candidate, only initial/events transfer, never old states.
+
+Search screens each candidate against validated traces. A reproduced violation
+records screened and its actual witness. Incomplete screening skips/counts that
+candidate; checker_error stops. Otherwise call verify_change, including its parent
+and candidate graph checks, with max_edges forwarded unchanged. Only its admitted
+successor produces found. Counterexamples from full checks enter experience up to
+the 256-entry bound; incomplete cases never do. Incomplete full checks skip/count
+the candidate; checker_error/parent_rejected stop. Neighborhood exhaustion is
+neighborhood_exhausted if no candidates were incomplete, search_incomplete
+otherwise. Reaching the candidate cap is search_incomplete even if the stream
+would end immediately afterwards (no lookahead). No unsuccessful result yields
+successor bytes.
+
+Report: status,parent,parent_check,attempted,full_checks,trace_checks,screened,
+incomplete_candidates,attempts,experience; found adds proposal and successor ID.
+full_checks counts verify_change calls, excluding the initial parent preflight.
+trace_checks counts replay_trace calls including experience validation. Reports
+are measurements of these operations, not a CPU-time or aggregate-ATP budget.
+
+CLI machine-search FILE --expect-machine ID [--max-candidates N] [--max-edges N]
+[--experience FILE] [--output FILE] uses existing refusal/output conventions:
+found=0; neighborhood_exhausted/parent_rejected=4; search_incomplete/incomplete/
+runtime unavailable/missing material=3; invalid=2; checker/operation failure=1.
+Offline generation is not provided; the emitted proposal is independently checked
+by offline machine-change. Sender-provided experience cannot certify a successor.

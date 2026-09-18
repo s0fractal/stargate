@@ -11,7 +11,7 @@ In the default equivalence mode, a changed answer produces a concrete
 counterexample. A cheaper equivalent rule
 can become the next world; an unfinished check establishes nothing.
 
-**Build 23 · 32K draft.** The contract can change incompatibly. This is an
+**Build 24 · 32K draft.** The contract can change incompatibly. This is an
 experimental implementation, not a stable release or a general program prover.
 Python only; commands `sg` and `stargate`. MIT licensed.
 
@@ -1090,3 +1090,53 @@ A weak invariant can admit undesirable behavior; the gate does not invent the
 missing requirements. Repairing an unsafe root requires explicitly choosing a new
 root, not calling it an admitted change. Keep the parent and proposal to replay
 an admission: the successor alone carries no lineage or admission certificate.
+
+
+### Let counterexamples guide machine mutations (Build 24)
+
+```sh
+sg machine-search parent-machine.json --expect-machine "$MACHINE_ID" \
+  --max-candidates 32 --output found-machine.json > machine-search-report.json
+python - <<'PYTHON'
+import json
+from pathlib import Path
+r = json.loads(Path('machine-search-report.json').read_text())
+Path('machine-experience.json').write_text(json.dumps(r['experience']))
+Path('found-proposal.json').write_text(json.dumps(r['proposal']))
+PYTHON
+sg machine-change parent-machine.json found-proposal.json \
+  --expect-machine "$MACHINE_ID" --output independently-checked-machine.json
+sg machine-search parent-machine.json --expect-machine "$MACHINE_ID" \
+  --experience machine-experience.json > repeated-search-report.json
+```
+
+Use the safe parent from the previous example. Search changes one transition rule
+at a time using the existing finite WPL mutation neighborhood. It returns the first
+safe, syntactically different rule map; that may still mean identical behavior.
+There is no optimization, completeness or usefulness guarantee.
+
+A failed full check contributes a concrete trace. For each later candidate, the
+search replays that trace's **events from its initial state**, computing new states
+and checking each invariant through SKI and the independent Boolean evaluator.
+It never rejects a candidate just because somebody else's path had a bad state.
+Imported experience includes the rules that failed and the exact trace: the
+failure must reproduce before use, under the same parent and runtime.
+
+Passing saved traces is not admission. Every found candidate still goes through
+`machine-change`, including both full safety checks. `full_checks` counts those
+calls; `trace_checks` includes imported-experience validation and screening. The
+separate `parent_check` always runs first. For the example, reuse reduces full
+checks from 2 to 1, while trace checks increase from 2 to 4; this is **not** a claim
+of less CPU time in every case.
+
+An unfinished candidate is counted and skipped without adding experience. Checker
+errors stop the search. Exhausting the neighborhood with any unfinished candidates,
+or hitting the candidate limit, gives exit 3; a completely checked neighborhood
+with nothing found gives 4. `found` gives 0; unsafe parent gives 4; invalid inputs
+2; checker/operation failures 1. Output is written only for `found`, without
+overwriting. `--max-edges` is per full graph, not a trace-replay or wall-clock quota.
+
+The search heuristic is installed tooling, outside the pinned offline checker.
+Send its `proposal` to a chat participant: the existing offline `--machine-change`
+mode can independently admit or refuse it. No new trusted author, plugin, search
+server or history certificate is introduced.
