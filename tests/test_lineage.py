@@ -210,6 +210,48 @@ class Lineage(unittest.TestCase):
             self.assertNotIn('"status": "invalid"', r.stderr)
             self.assertFalse(output.exists())
 
+    def test_historical_and_foreign_runtimes_agree_across_all_entrypoints(self):
+        historical = Path(__file__).with_name('world-build17-9a52255.json').read_bytes()
+        self.assertEqual(lab.identity(historical), '3ef32eb7c844bcf93b5b60e4113ea980365e2d805e751e64a663870d2b1f74b9')
+        current = lab.create_world('check true', [])
+        changed = decode(current); changed['sources']['lab.py'] += '\n# foreign runtime'
+        removed = decode(current); del removed['sources']['lineage.py']
+        added = decode(current); added['sources']['future.py'] = '# future module'
+        malformed = decode(historical); malformed['sources']['lab.py'] = None
+        cases = [('historical',historical,3,'runtime_unavailable'),
+                 ('changed-bytes',canon(changed),3,'runtime_unavailable'),
+                 ('removed-module',canon(removed),3,'runtime_unavailable'),
+                 ('added-module',canon(added),3,'runtime_unavailable'),
+                 ('malformed',canon(malformed),2,'invalid')]
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp); offline = path/'offline'
+            # The launcher/runtime are current; the supplied history is independent.
+            lineage.unpack(lineage.create(current), offline)
+            runtime = lab.runtime_digest(decode(current)['sources'])
+            for name,root,expected,status in cases:
+                with self.subTest(case=name):
+                    world_path = path/'foreign-world.json'; world_path.write_bytes(root)
+                    history_path = path/'foreign-history.json'
+                    history_path.write_bytes(canon(dict(stargate_lineage=32,root=decode(root),proposals=[])))
+                    output = path/'must-not-exist.json'
+                    anchor = lab.identity(root)
+                    for args in [('lab-inspect',str(world_path)),
+                                 ('lineage-check',str(history_path),'--expect-root',anchor,'--output',str(output))]:
+                        out,err=io.StringIO(),io.StringIO()
+                        with redirect_stdout(out),redirect_stderr(err): code=cli.main(list(args))
+                        self.assertEqual(code,expected)
+                        self.assertEqual(json.loads(err.getvalue())['status'],status)
+                        self.assertEqual(out.getvalue(),'')
+                        self.assertFalse(output.exists())
+                    run=subprocess.run([sys.executable,'-I','-S',str(offline/'replay.py'),
+                        str(history_path),str(output),'--lineage','--expect-root',anchor,
+                        '--expect-runtime',runtime],cwd='/',capture_output=True,text=True)
+                    self.assertEqual(run.returncode,expected,run.stderr)
+                    self.assertEqual(json.loads(run.stderr)['status'],status)
+                    self.assertNotIn('Traceback',run.stderr)
+                    self.assertEqual(run.stdout,'')
+                    self.assertFalse(output.exists())
+
     def test_cli_distinguishes_incomplete_invalid_and_checker_failure(self):
         raw, root, _, _ = history()
         with tempfile.TemporaryDirectory() as tmp:
