@@ -14,6 +14,7 @@ from .store import Store, StoreError, hex_hash
 from .bundle import export_bundle, verify_bundle, read_bundle, write_bundle, require_bundle
 from .policy import author_policy, CompilerBug, DEFAULT_MAX_ATP
 from .case import pack_case, inspect_case, read_case, unpack_case
+from . import lab
 from .artifact import subject_hash, admit_bundle, admit_all, measure_subject
 
 
@@ -93,6 +94,21 @@ def parser():
     q = cmd("case-unpack", "materialize evidence in a new directory; never execute it")
     q.add_argument("path", type=Path)
     q.add_argument("--output", required=True, type=Path)
+    q = cmd("lab-create", "create a portable finite boolean experiment (no keys)")
+    q.add_argument("rule", type=Path)
+    q.add_argument("--input", action="append", default=[], dest="inputs")
+    q.add_argument("--max-atp", type=int, default=1000)
+    q.add_argument("--objective", choices=("equivalence", "lower_max_atp"), default="equivalence")
+    q.add_argument("--output", required=True, type=Path)
+    q = cmd("lab-inspect", "describe a finite experiment; never run included code")
+    q.add_argument("path", type=Path)
+    q = cmd("lab-check", "exhaustively check a text proposal without trusted keys")
+    q.add_argument("path", type=Path)
+    q.add_argument("proposal", type=Path)
+    q.add_argument("--output", type=Path, help="write an admitted successor, never overwrite")
+    q = cmd("lab-unpack", "extract a standalone checker for explicit offline replay")
+    q.add_argument("path", type=Path)
+    q.add_argument("--output", required=True, type=Path)
     return p
 
 
@@ -141,6 +157,32 @@ def read_admission_plan(path):
 
 
 def execute(args):
+    if args.command == "lab-create":
+        raw = lab.create_world(args.rule.read_bytes().decode('utf-8'), sorted(args.inputs),
+                               max_atp=args.max_atp, objective=args.objective)
+        write_bundle(args.output, raw)
+        return dict(status='created', world_id=lab.identity(raw), path=str(args.output))
+    if args.command in ('lab-inspect', 'lab-check', 'lab-unpack'):
+        try:
+            raw = lab.read_world(args.path)
+        except OSError as exc:
+            raise StoreError('cannot read experiment: ' + str(exc)) from exc
+        if args.command == 'lab-unpack':
+            return lab.unpack_world(raw, args.output)
+        if args.command == 'lab-check':
+            try:
+                with args.proposal.open('rb') as stream:
+                    proposal = lab.read_proposal(stream.read(lab.MAX_PROPOSAL + 1))
+            except OSError as exc:
+                raise StoreError('cannot read proposal: ' + str(exc)) from exc
+            report, successor = lab.verify_transition(raw, proposal)
+            if successor is not None and args.output is not None:
+                write_bundle(args.output, successor)
+            return report
+        doc = lab.inspect_world(raw)
+        return dict(status='intact', world_id=lab.identity(raw), guide=doc['guide'],
+                    rule=doc['rule'], inputs=doc['inputs'], max_atp=doc['max_atp'],
+                    objective=doc['objective'], predecessor=doc['predecessor'])
     if args.command == "case-inspect":
         return inspect_case(read_case(args.path))[0]
     if args.command == "case-unpack":
@@ -257,6 +299,9 @@ def main(argv=None):
         return 0
     try:
         result = execute(args)
+    except lab.RuntimeMismatch as exc:
+        print(json.dumps({"status": "runtime_unavailable", "error": str(exc)}), file=sys.stderr)
+        return 3
     except CompilerBug as exc:
         print(json.dumps({"status": "compiler_error", "error": str(exc)}), file=sys.stderr)
         return 1
@@ -271,4 +316,8 @@ def main(argv=None):
         print(json.dumps({"status": "invalid", "error": str(exc)}), file=sys.stderr)
         return 2
     print(json.dumps(result, ensure_ascii=False, sort_keys=True))
+    if args.command == 'lab-check':
+        if result['status'] == 'incomplete': return 3
+        if result['status'] == 'checker_error': return 1
+        return 0 if result['admitted'] else 4
     return 4 if result.get("status") == "unsatisfied" else 0

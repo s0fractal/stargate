@@ -1,0 +1,9 @@
+fact a: bool
+fact b: bool
+fact c: bool
+fact d: bool
+fact e: bool
+fact f: bool
+fact g: bool
+fact h: bool
+check !!(a || b || c || d || e || f || g || h)

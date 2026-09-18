@@ -3,7 +3,7 @@
 One Python system for content-addressed computation and signed, reproducible
 checks. Working successor to Sigma-Glyph and Warrant; commands `stargate` / `sg`.
 
-**Build 14 · 32K draft (flat src and checked layers candidate).** The evaluator, object store and one signed-check flow
+**Build 15 · 32K draft (finite boolean laboratory candidate).** The evaluator, object store and one signed-check flow
 work. This is a development implementation, not an independently accepted
 release. Predecessor repositories remain unchanged.
 
@@ -537,3 +537,58 @@ commits. Rebuilding requires those commits; receiving/replaying the packets does
 [Dependency direction and filename coordinates](ARCHITECTURE.md) records the
 Trinity-inspired architecture recommendation. Build 14 relocates Python sources to `src/`, breaks the records/policy cycle
 and enforces the layer table; coordinate filename prefixes remain a later choice.
+
+## A boolean laboratory you can hand to a chat
+
+Build 15 implements the first finite experiment from [VISION.md](VISION.md).
+No signer or trusted key is needed. A model proposes **text**, then a matching
+checker recomputes the whole truth table and produces a successor only when
+the fixed objective holds. It does not modify your checkout or run generated
+Python. WPL programs have up to eight inputs (at most 256 rows).
+
+```sh
+sg lab-create examples/lab-parent.wpl \
+  --input a --input b --input c --input d \
+  --input e --input f --input g --input h \
+  --objective lower_max_atp --output experiment.json
+sg lab-inspect experiment.json
+```
+
+Give the packet and the `world_id` from inspection to the model. The packet
+contains a readable guide, the rule and exact checker sources. Ask it to return
+only the following JSON shape, copying the parent ID verbatim:
+
+```json
+{"parent":"COPY_WORLD_ID_HERE","candidate":"fact a: bool\n...\ncheck ..."}
+```
+
+The ellipses above are placeholders, not valid WPL. All eight declarations must
+be present and used. [lab-candidate.wpl](examples/lab-candidate.wpl) is a complete
+valid candidate for the example. Save the model's JSON response as `proposal.json`.
+It supplies no verdicts, digests, ATP claims or signatures.
+
+```sh
+sg lab-check experiment.json proposal.json --output successor.json
+sg lab-unpack experiment.json --output received-experiment
+# After inspecting the extracted code, explicitly execute it:
+python -I -S received-experiment/replay.py proposal.json successor-offline.json
+```
+
+The extracted copy needs only Python >=3.11, with no installed Stargate, plugins,
+keys, network or original repository. Extraction does not execute sources;
+explicit replay executes Python with your permissions, **not in a sandbox**.
+The provided example checks 256 rows and reduces worst-case ATP from 98 to 80.
+A cheaper program with a different truth table is refused with a concrete input.
+
+`lab-check` exit codes: 0 admitted; 4 counterexample or equivalent without the
+required improvement; 3 incomplete or unavailable matching runtime; 2 invalid
+input; 1 checker or local operation failure. A small budget must produce
+`incomplete`, never a false equivalence. Existing outputs are not overwritten.
+The console report is an observation, not a signed proof; the next checker must
+recompute. A successor's parent pointer alone does not establish a valid change.
+
+This finite mode has an independent parser/oracle, not an independently developed
+second implementation of Stargate or a formal proof of its Python verifier.
+The tests separately exercise a shared-parser fault, an internal lowering fault
+and budget exhaustion. The packet pins exact source bytes; updating the runtime
+requires an explicit new experiment rather than quietly reinterpreting an old one.

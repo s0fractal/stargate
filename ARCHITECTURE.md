@@ -66,3 +66,9 @@ from explicitly importing src; it prevents such imports from entering this
 package unnoticed. Both absolute `from stargate import module` and
 `from stargate.module import name` forms have positive downward and negative
 upward controls, including aliasing and a function-local import.
+
+Build 15 adds `boolean` at x2 and `lab` at x3. `boolean` has its own WPL
+lexer and shunting-yard evaluator and imports no compiler or kernel code. `lab`
+compares it against compiled SKI results, carries the exact runtime closure as
+inert data, and constructs finite-program successors. Neither imports records,
+policy, bundle or CLI. x0 remains empty.
