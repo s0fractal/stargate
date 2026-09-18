@@ -94,6 +94,19 @@ class Subject(unittest.TestCase):
         fifo = self.root/'pipe'; os.mkfifo(fifo)
         with self.assertRaisesRegex(ValueError, 'regular file'): cli.subject_hash(fifo)
 
+    def test_directory_is_invalid_before_wrapping_and_descriptor_is_closed(self):
+        actual_open = cli.os.open
+        opened = []
+        def tracked_open(*args, **kwargs):
+            fd = actual_open(*args, **kwargs)
+            opened.append(fd)
+            return fd
+        with patch.object(cli.os, 'open', side_effect=tracked_open):
+            with self.assertRaisesRegex(ValueError, 'subject must be a regular file'):
+                cli.subject_hash(self.root)
+        self.assertEqual(len(opened), 1)
+        with self.assertRaises(OSError): os.fstat(opened[0])
+
     def test_file_change_detected(self):
         a = self.root/'a'; a.write_bytes(A)
         before = a.stat()
@@ -136,6 +149,11 @@ class Subject(unittest.TestCase):
             result = run(args, dest); self.assertEqual(result.returncode, 4, result.stderr)
             self.assertEqual(json.loads(result.stdout)['reason'], 'subject_mismatch')
             (root/'different-name').unlink()
+            (root/'different-name').mkdir()
+            result = run(args, dest); self.assertEqual(result.returncode, 2, result.stderr)
+            self.assertEqual(json.loads(result.stderr)['status'], 'invalid')
+            self.assertEqual(json.loads(result.stderr)['error'], 'subject must be a regular file')
+            (root/'different-name').rmdir()
             result = run(args, dest); self.assertEqual(result.returncode, 3)
             self.assertEqual(json.loads(result.stderr)['status'], 'unverified')
             self.assertEqual(sorted(p.name for p in root.iterdir()), ['facts', 'proof', 'rule'])

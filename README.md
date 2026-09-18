@@ -111,7 +111,7 @@ Python 3.14 is the tested environment for this port; metadata permits Python
 subprocess CLI flow, corruption, signature/decision tampering, unsupported
 editions, local refusal, and the isolated same-result/different-exit case.
 
-Local artifact-subject validation: all 75 tests passed both in the checkout and against a
+Local artifact-subject validation: all 76 tests passed both in the checkout and against a
 wheel-installed package outside the checkout, including the 49 imported kernel
 cases. Both console aliases report build 7 / 32K. An external in-memory mutation
 omitting actual exit from the fingerprint makes the isolating test fail by an
@@ -303,7 +303,9 @@ Author and recipient hash their own file bytes. The signed body contains
 Identical bytes under another filename satisfy the requirement; different bytes
 produce `unsatisfied` / `subject_mismatch` (exit 4), even with the correct rule,
 facts, trusted signer and accept result. Missing/unreadable recipient files give
-`unverified` (3). Only regular files are accepted. Hashing streams in bounded
+`unverified` (3). Only regular files are accepted; directories and FIFOs are invalid (2).
+Symlinks are followed: the opened target bytes are hashed, not the link or its name.
+Hashing streams in bounded
 chunks and refuses a change detected in file size or modification metadata.
 
 Omitting `--subject` explicitly requires subject null, not a wildcard. A bound
