@@ -218,3 +218,11 @@ Build 19 додає явний світ із властивостями. Йог�
 заданих меж. Властивості не може послабити пропозиція; їх змінюють лише вибором
 іншого кореня. Слабкий контракт може допустити небажану або тривіальну програму —
 перевіряч не вгадує намірів, яких у властивостях немає.
+
+Build 20 adds a bounded local step toward resumable experiments: an owned Python
+lab continuation keeps completed rows across calls without repeating their work.
+Session row quotas are separate from the world's per-program ATP ceiling. This
+supports both equivalence and inherited-property contracts. It does not transfer
+verified progress between chats or processes: imported results still require
+recomputation or a separately specified proof mechanism. Mid-row persistence,
+state-machine reachability and composition of worlds remain future work.
