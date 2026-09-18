@@ -507,3 +507,48 @@ accepting an untrusted sender's plan would let that sender choose the policy.
 admit_bundle uses the same staging/checking implementation for its single request
 and retains its existing report shape. Signed records, bundles and the 32K draft
 contract temperature are unchanged.
+
+## Counterexample packets (inert evidence)
+
+A case is canonical JSON with exactly stargate_case (integer 32), manifest and
+files. Manifest has exactly title, claim, scope, limits, source, entrypoint and
+expected. The first three and expected are nonempty text, limits a nonempty list
+of nonempty text; source has repository (nonempty text) and commit (40 lowercase
+hex Git SHA-1). These are attributed claims supplied by the packer, NOT verified
+repository history or authenticated provenance. Entrypoint names an included file.
+
+Files maps 1–64 logical relative paths to {sha256,hex}. Hex is lowercase, even
+length; digest must equal SHA-256 of decoded bytes. Paths are at most 240 ASCII
+characters, with slash-separated [A-Za-z0-9_.-]+ components, excluding . and .. .
+Absolute paths, backslashes, case-fold duplicate names and file/directory prefix
+collisions are rejected. The local packet limit is 16 MiB. case_id is SHA-256 of
+the entire canonical packet, including narrative metadata and payloads.
+
+inspect_case returns status:intact plus metadata/file hashes and decoded payloads.
+Intact means structure and bytes agree, NOT that the claim is true, the author
+is authentic, the code is safe, or reproduction has run. An attacker who rewrites
+payload and digest can create a different intact packet. Pin the whole case_id
+out of band or use existing signed subject mechanisms if authentication is needed.
+Neither provenance text nor the expected outcome is accepted as a replay result.
+
+pack_case(manifest, files) takes a logical-name-to-bytes map. CLI case-pack takes
+an ordinary JSON {manifest,files:[names]} document, --root and --output; duplicate
+JSON keys refuse. It reads bounded regular files under the resolved root, then
+publishes exclusively. Source paths resolve symlinks inside that root; outside
+root resolution refuses. Caller controls the source/output directories during use;
+this is not a filesystem sandbox against a concurrent directory mutator.
+
+case-inspect FILE reads only packet data. case-unpack FILE --output DIR validates
+all contents before exclusively creating a new 0700 directory; files are 0600.
+No file is imported or executed, no network lookup occurs, no permissions are made
+executable, and existing destinations (including symlinks) refuse unchanged.
+Success is status:materialized, executed:false. On write exceptions it attempts to
+remove the newly owned directory. Directory publication is not atomic: process
+death or cleanup failure may leave partial files; their presence is not completion.
+The caller must control the destination parent while unpacking.
+
+CLI codes: intact/materialized 0, output operation errors 1, malformed packet 2,
+missing/unreadable inputs or local size refusal 3. There is no automatic replay
+command and no transfer from expected text into a verified/satisfied decision.
+Executing an extracted reproducer is a separate operator action with the operator's
+permissions. Python -I is import isolation, not a sandbox.

@@ -13,6 +13,7 @@ from .records import canon, decode, capture_environment, create_record, public_k
 from .store import Store, StoreError, hex_hash
 from .bundle import export_bundle, verify_bundle, read_bundle, write_bundle, require_bundle
 from .policy import author_policy, CompilerBug, DEFAULT_MAX_ATP
+from .case import pack_case, inspect_case, read_case, unpack_case
 from .artifact import subject_hash, admit_bundle, admit_all, measure_subject
 
 
@@ -83,6 +84,15 @@ def parser():
     q.add_argument("plan", type=Path, help="recipient JSON plan; paths relative to this file")
     q.add_argument("--subject", required=True, type=Path)
     q.add_argument("--output", required=True, type=Path)
+    q = cmd("case-pack", "pack counterexample evidence as inert data")
+    q.add_argument("manifest", type=Path)
+    q.add_argument("--root", required=True, type=Path)
+    q.add_argument("--output", required=True, type=Path)
+    q = cmd("case-inspect", "check packet integrity; never execute its contents")
+    q.add_argument("path", type=Path)
+    q = cmd("case-unpack", "materialize evidence in a new directory; never execute it")
+    q.add_argument("path", type=Path)
+    q.add_argument("--output", required=True, type=Path)
     return p
 
 
@@ -131,6 +141,43 @@ def read_admission_plan(path):
 
 
 def execute(args):
+    if args.command == "case-inspect":
+        return inspect_case(read_case(args.path))[0]
+    if args.command == "case-unpack":
+        return unpack_case(read_case(args.path), args.output)
+    if args.command == "case-pack":
+        from .case import _path, MAX_FILES, MAX_CASE_BYTES
+        try:
+            spec = read_facts(args.manifest)
+            if not isinstance(spec, dict) or set(spec) != {'manifest', 'files'}:
+                raise ValueError('expected manifest and files')
+            names = spec['files']
+            if (not isinstance(names, list) or not 1 <= len(names) <= MAX_FILES or
+                    not all(isinstance(n, str) for n in names) or len(set(names)) != len(names)):
+                raise ValueError('expected 1 to 64 unique file names')
+            root = args.root.resolve()
+            files, total = {}, 0
+            for name in names:
+                _path(name)
+                path = (root / name).resolve()
+                if root not in path.parents:
+                    raise ValueError('case input escapes root')
+                # Reuse regular-file streaming checks; packing is not code execution.
+                from .artifact import _subject_chunks
+                from contextlib import closing
+                data = bytearray()
+                with closing(_subject_chunks(path)) as chunks:
+                    for chunk in chunks:
+                        total += len(chunk)
+                        if total > MAX_CASE_BYTES // 2:
+                            raise StoreError('case payload exceeds local size limit')
+                        data.extend(chunk)
+                files[name] = bytes(data)
+        except OSError as exc:
+            raise StoreError('cannot read case input: ' + str(exc)) from exc
+        raw = pack_case(spec['manifest'], files)
+        write_bundle(args.output, raw)
+        return dict(inspect_case(raw)[0], path=str(args.output))
     if args.command == "admit-all":
         return admit_all(read_admission_plan(args.plan), subject=args.subject, output=args.output)
     if args.command == "admit":
