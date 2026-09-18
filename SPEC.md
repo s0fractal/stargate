@@ -1187,8 +1187,8 @@ by offline machine-change. Sender-provided experience cannot certify a successor
 
 machine-discover and machine-claim observe a machine independently of whether its
 declared invariant holds. They anchor the exact original MachineID before evaluation.
-An internal observation view replaces ONLY invariant with the conjunction of
-(n || !n) for every state name. The inherited runtime, next rules, event domain,
+An internal observation view replaces ONLY invariant with `check true`, retaining
+all state declarations. The inherited runtime, next rules, event domain,
 initials and per-expression ATP ceiling remain unchanged. This view is never
 returned as machine bytes, admitted, or used to alter any stored contract.
 Its full graph is checked through the existing machine verifier (SKI and the
