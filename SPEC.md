@@ -574,7 +574,15 @@ for a computed successor. A predecessor field alone is not proof of a transition
 The packet carries exact UTF-8 source bytes for the installed checker closure,
 the MIT license and a fixed guide. This implementation requires equality with
 its own source files before checking; different bytes give `runtime_unavailable`,
-not a counterexample. Files in `sources` are never automatically loaded or
+not a counterexample. Validate packet structure, textual guide/license and the
+source-file map with textual names and values first. Compare runtime bytes before
+requiring the current guide/license text: a different runtime may legitimately
+carry different text, and this verifier does not validate that runtime's claims.
+With matching sources, a changed guide/license remains invalid. A different
+textual file set (including added, removed or renamed modules) is an unavailable
+runtime, not malformed input. No source name is resolved or extracted before
+exact runtime equality; this does not add a historical loader.
+Files in `sources` are never automatically loaded or
 executed. The installed runtime and its source files must remain consistent
 and under the operator's control. Matching source bytes are not a proof that
 an interpreter, host or manually modified checker behaves correctly.

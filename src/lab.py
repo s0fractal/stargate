@@ -94,12 +94,17 @@ def inspect_world(raw):
         raise InvalidRecord('unknown objective')
     if doc['predecessor'] is not None:
         record_hash(doc['predecessor'])
-    if doc['guide'] != GUIDE or doc['license'] != LICENSE:
-        raise InvalidRecord('world guide or license mismatch')
-    if not isinstance(doc['sources'], dict) or set(doc['sources']) != set(RUNTIME):
-        raise InvalidRecord('world runtime file set mismatch')
+    if not isinstance(doc['guide'], str) or not isinstance(doc['license'], str):
+        raise InvalidRecord('world guide and license must be text')
+    if not isinstance(doc['sources'], dict):
+        raise InvalidRecord('world runtime sources must be a map')
+    if any(not isinstance(name, str) or not isinstance(source, str)
+           for name, source in doc['sources'].items()):
+        raise InvalidRecord('world runtime source names and contents must be text')
     if doc['sources'] != runtime_sources():
         raise RuntimeMismatch('world requires different runtime bytes')
+    if doc['guide'] != GUIDE or doc['license'] != LICENSE:
+        raise InvalidRecord('world guide or license mismatch')
     _program(doc['rule'], doc['inputs'])
     return doc
 

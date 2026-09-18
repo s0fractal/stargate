@@ -1,6 +1,6 @@
 import itertools
 import io
-from contextlib import redirect_stdout
+from contextlib import redirect_stdout, redirect_stderr
 import json
 import os
 from pathlib import Path
@@ -160,13 +160,60 @@ class Lab(unittest.TestCase):
         with self.assertRaises(lab.RuntimeMismatch):
             lab.verify_transition(canon(doc), proposal(canon(doc), 'check true'))
         doc = decode(raw); doc['sources']['../../escape'] = 'oops'
-        with self.assertRaises(InvalidRecord): lab.inspect_world(canon(doc))
+        with self.assertRaises(lab.RuntimeMismatch): lab.inspect_world(canon(doc))
         with self.assertRaises(InvalidRecord): lab.inspect_world(raw + b'\n')
         for field, value in [('inputs', list('abcdefghi')), ('max_atp', True),
                              ('inputs', ['b', 'a']), ('max_atp', 10001),
                              ('objective', 'trust_me')]:
             doc = decode(raw); doc[field] = value
             with self.subTest(field=field), self.assertRaises(InvalidRecord):
+                lab.inspect_world(canon(doc))
+
+    def test_historical_runtime_precedes_guide_and_license_matching(self):
+        # Captured from accepted 9a52255; all source strings match that Git tree.
+        raw = Path(__file__).with_name('world-build17-9a52255.json').read_bytes()
+        self.assertEqual(lab.identity(raw), '3ef32eb7c844bcf93b5b60e4113ea980365e2d805e751e64a663870d2b1f74b9')
+        old = decode(raw)
+        self.assertNotEqual(old['guide'], lab.GUIDE)
+        with self.assertRaises(lab.RuntimeMismatch): lab.inspect_world(raw)
+        out = io.StringIO()
+        with redirect_stderr(out):
+            code = cli.main(['lab-inspect', str(Path(__file__).with_name('world-build17-9a52255.json'))])
+        self.assertEqual((code, json.loads(out.getvalue())['status']), (3, 'runtime_unavailable'))
+        for field in ('guide', 'license'):
+            current = decode(lab.create_world('check true', []))
+            current[field] += '\nchanged text'
+            with self.subTest(field=field):
+                with self.assertRaises(InvalidRecord): lab.inspect_world(canon(current))
+                current['sources']['lab.py'] += '\n# other runtime'
+                with self.assertRaises(lab.RuntimeMismatch): lab.inspect_world(canon(current))
+
+    def test_different_text_source_sets_are_unavailable_not_invalid(self):
+        raw = lab.create_world('check true', [])
+        for change in ('add', 'remove', 'empty', 'rename'):
+            doc = decode(raw)
+            if change == 'add': doc['sources']['future.py'] = '# not executed'
+            elif change == 'remove': del doc['sources']['lineage.py']
+            elif change == 'empty': doc['sources'] = {}
+            else: doc['sources']['new-name.py'] = doc['sources'].pop('lineage.py')
+            with self.subTest(change=change), self.assertRaises(lab.RuntimeMismatch):
+                lab.inspect_world(canon(doc))
+        # Names are inert data; unsupported maps refuse before any extraction.
+        doc = decode(raw); doc['sources']['../../escape'] = 'raise AssertionError()'
+        with tempfile.TemporaryDirectory() as tmp:
+            output = Path(tmp)/'unpacked'
+            with self.assertRaises(lab.RuntimeMismatch): lab.unpack_world(canon(doc), output)
+            self.assertFalse(output.exists())
+
+    def test_malformed_runtime_material_is_still_invalid(self):
+        raw = Path(__file__).with_name('world-build17-9a52255.json').read_bytes()
+        for field in ('guide', 'license', 'sources'):
+            doc = decode(raw); doc[field] = None
+            with self.subTest(field=field), self.assertRaises(InvalidRecord):
+                lab.inspect_world(canon(doc))
+        for value in (None, 7, {}, []):
+            doc = decode(raw); doc['sources']['lab.py'] = value
+            with self.subTest(value=value), self.assertRaises(InvalidRecord):
                 lab.inspect_world(canon(doc))
 
     def test_independent_parser_precedence_and_random_truth(self):
