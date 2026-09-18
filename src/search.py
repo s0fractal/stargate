@@ -3,7 +3,7 @@
 Search is a proposal generator; only lab.verify_transition admits a successor.
 Inspired by CEGIS and evidence replay in neighboring projects; original MIT code.
 """
-from . import boolean, compiler, kernel, lab
+from . import boolean, compiler, kernel, lab, machine
 from .canonical import canon, decode, exact, InvalidRecord
 
 
@@ -151,5 +151,98 @@ def search(raw, *, max_candidates=32, experience=None):
         elif verified['status'] == 'checker_error':
             report.update(status=verified['status'], reason=verified.get('reason'))
             return report, None
+    report['reason'] = 'candidate_limit'
+    return report, None
+
+
+def machine_candidates(doc):
+    """Change one next rule at a time, in state-name order."""
+    for name in doc['state']:
+        for source in candidates(dict(rule=doc['next'][name], inputs=sorted(doc['state'] + doc['events']))):
+            yield dict(doc['next'], **{name: source})
+
+
+def search_machine(raw, expected_parent, *, max_candidates=32, max_edges=256, experience=None):
+    if type(max_candidates) is not int or not 1 <= max_candidates <= 256:
+        raise InvalidRecord('search candidate limit must be an integer from 1 to 256')
+    doc = machine.inspect(raw)
+    parent = lab.identity(raw)
+    # Establish the parent before screening could conceal an unsafe root.
+    checked = machine.verify(raw, expected_parent, max_edges=max_edges)
+    runtime = lab.runtime_digest(doc['sources'])
+    memory = dict(parent=parent, runtime_digest=runtime, counterexamples=[])
+    report = dict(status='search_incomplete', parent=parent, parent_check=checked,
+                  attempted=0, full_checks=0, trace_checks=0, screened=0,
+                  incomplete_candidates=0, attempts=[], experience=memory)
+    if checked['status'] != 'established':
+        report['status'] = 'parent_rejected' if checked['status'] == 'counterexample' else checked['status']
+        return report, None
+    if experience is not None:
+        incoming = decode(canon(experience))
+        exact(incoming, ('parent', 'runtime_digest', 'counterexamples'))
+        if incoming['parent'] != parent or incoming['runtime_digest'] != runtime:
+            raise InvalidRecord('experience belongs to another parent or runtime')
+        examples = incoming['counterexamples']
+        if type(examples) is not list or len(examples) > 256:
+            raise InvalidRecord('experience must contain at most 256 counterexamples')
+        for example in examples:
+            exact(example, ('next', 'trace'))
+            packet = canon(dict(doc, next=example['next']))
+            report['trace_checks'] += 1
+            result = machine.replay_trace(packet, example['trace'])
+            if result['status'] in ('incomplete', 'checker_error'):
+                report.update(status=result['status'], reason='experience replay: ' + result['reason'])
+                return report, None
+            if result['status'] != 'counterexample' or result['trace'] != example['trace']:
+                raise InvalidRecord('claimed machine counterexample does not reproduce')
+            if example not in memory['counterexamples']: memory['counterexamples'].append(example)
+    seen = {canon(doc['next'])}
+    stream = iter(machine_candidates(doc))
+    for _ in range(max_candidates):
+        try: rules = next(stream)
+        except StopIteration:
+            report['status'] = 'search_incomplete' if report['incomplete_candidates'] else 'neighborhood_exhausted'
+            return report, None
+        rules = decode(canon(rules))
+        attempt = dict(next=rules)
+        report['attempted'] += 1; report['attempts'].append(attempt)
+        key = canon(rules)
+        if key in seen:
+            attempt['status'] = 'duplicate'
+            continue
+        seen.add(key)
+        candidate = canon(dict(doc, next=rules))
+        try: machine.inspect(candidate)
+        except (InvalidRecord, compiler.PolicyError, boolean.BooleanSyntax) as exc:
+            attempt.update(status='invalid', reason=str(exc))
+            continue
+        blocked = False
+        for example in memory['counterexamples']:
+            report['trace_checks'] += 1
+            result = machine.replay_trace(candidate, example['trace'])
+            if result['status'] == 'checker_error':
+                attempt.update(result); report.update(status='checker_error', reason=result['reason'])
+                return report, None
+            if result['status'] == 'incomplete':
+                attempt.update(result); report['incomplete_candidates'] += 1
+                blocked = True; break
+            if result['status'] == 'counterexample':
+                attempt.update(status='screened', witness=result['trace'])
+                report['screened'] += 1; blocked = True; break
+        if blocked: continue
+        report['full_checks'] += 1
+        proposal = dict(parent=parent, next=rules)
+        result, successor = machine.verify_change(raw, proposal, expected_parent, max_edges=max_edges)
+        attempt.update(status=result['status'], verification=result)
+        if result['admitted']:
+            report.update(status='found', proposal=proposal, successor=lab.identity(successor))
+            return report, successor
+        if result['status'] in ('checker_error', 'parent_rejected'):
+            report.update(status=result['status']); return report, None
+        if result['status'] == 'incomplete': report['incomplete_candidates'] += 1
+        elif result['status'] == 'counterexample':
+            example = dict(next=rules, trace=result['checks']['candidate']['trace'])
+            if example not in memory['counterexamples'] and len(memory['counterexamples']) < 256:
+                memory['counterexamples'].append(example)
     report['reason'] = 'candidate_limit'
     return report, None

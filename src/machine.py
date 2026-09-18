@@ -27,6 +27,10 @@ Use machine-change PARENT PROPOSAL --expect-machine ID --output CHILD; offline
 replay PROPOSAL CHILD --machine-change --expect-machine ID --max-edges N.
 There is no machine history proof: a proposal and its parent are needed to replay
 the change. An identical rule set may be admitted with the same machine ID.
+Installed machine-search proposes one-rule edits and can reuse recomputed event
+traces to reject unsafe candidates. A trace that passes is NOT safety; every found
+proposal must still pass machine-change. Search itself is not included offline;
+its emitted proposal is checked by the existing offline change mode.
 Choose machine ID and runtime/launcher digests independently. Included source
 is data until explicitly executed; this is not a sandbox or self-authentication.
 '''
@@ -225,6 +229,53 @@ def verify_change(raw, proposal, expected_parent, *, max_edges=256):
             return report, None
     report.update(status='safety_preserved', admitted=True, successor=lab.identity(candidate))
     return report, candidate
+
+
+def replay_trace(raw, trace):
+    """Replay only initial + events on this machine; claimed states grant no authority.
+
+    A passing finite trace says nothing about paths that were not replayed.
+    """
+    doc = inspect(raw)
+    trace = decode(canon(trace))
+    exact(trace, ('initial', 'steps'))
+    def bits(value, names):
+        if type(value) is not dict or set(value) != set(names) or any(type(x) is not bool for x in value.values()):
+            raise InvalidRecord('trace must match the Boolean domain')
+    bits(trace['initial'], doc['state'])
+    if trace['initial'] not in doc['initial']:
+        raise InvalidRecord('trace must start at an initial state')
+    if type(trace['steps']) is not list or len(trace['steps']) >= 2**len(doc['state']):
+        raise InvalidRecord('trace exceeds shortest-path state bound')
+    for step in trace['steps']:
+        exact(step, ('event', 'state'))
+        bits(step['event'], doc['events']); bits(step['state'], doc['state'])
+    state = trace['initial']
+    actual = dict(initial=state, steps=[])
+    report = dict(status='trace_passed', trace=actual, checked_steps=0)
+    names = sorted(doc['state'] + doc['events'])
+    invariant = lab._program(doc['invariant'], doc['state'])
+    codes = {n:lab._program(source, names) for n, source in doc['next'].items()}
+    def evaluate(source, code, facts):
+        result = compiler.compile_source(source, facts=facts, max_atp=doc['max_atp'])
+        if result.value != boolean.evaluate(code, facts):
+            raise compiler.CompilerBug('trace independent oracle disagreement')
+        return result.value
+    try:
+        for index in range(len(trace['steps']) + 1):
+            if not evaluate(doc['invariant'], invariant, state):
+                return dict(report, status='counterexample')
+            if index == len(trace['steps']): break
+            event = trace['steps'][index]['event']
+            facts = dict(state, **event)
+            state = {n:evaluate(doc['next'][n], codes[n], facts) for n in doc['state']}
+            actual['steps'].append(dict(event=event, state=state))
+            report['checked_steps'] += 1
+    except compiler.CompilerBug as exc:
+        return dict(report, status='checker_error', reason=str(exc))
+    except (compiler.CompileIncomplete, kernel.ResourceFault, kernel.AdmissionRefused) as exc:
+        return dict(report, status='incomplete', reason=str(exc))
+    return report
 
 
 def unpack(raw, output):
