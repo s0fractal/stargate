@@ -86,6 +86,38 @@ class Lineage(unittest.TestCase):
             r, tip = lineage.verify(lineage.create(root), lab.identity(root))
         self.assertEqual((r['checked_steps'], r['total_steps'], tip), (0, 0, root))
 
+    def test_parent_rejected_is_visible_in_api_cli_and_offline(self):
+        root = lab.create_world('check false', [],
+                                properties=[dict(kind='constant', value=True)])
+        proposal = dict(parent=lab.identity(root), candidate='check true')
+        raw = canon(dict(stargate_lineage=32, root=decode(root), proposals=[proposal]))
+        report, tip = lineage.verify(raw, lab.identity(root))
+        self.assertEqual((report['status'], report['failed_step'], report['checked_steps']),
+                         ('parent_rejected', 0, 1))
+        self.assertEqual(report['transitions'][0]['status'], 'parent_rejected')
+        self.assertIsNone(tip)
+        self.assertNotIn('tip', report)
+        appended_report, appended = lineage.append(lineage.create(root), proposal, lab.identity(root))
+        self.assertEqual(appended_report, report)
+        self.assertIsNone(appended)
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp)
+            lineage.unpack(raw, path/'offline')
+            history_path = path/'offline'/'lineage.json'
+            output = path/'tip.json'
+            commands = [
+                [sys.executable, '-I', '-m', 'stargate', 'lineage-check', str(history_path),
+                 '--expect-root', lab.identity(root), '--output', str(output)],
+                [sys.executable, '-I', '-S', str(path/'offline'/'replay.py'),
+                 str(history_path), str(output), '--lineage', '--expect-root', lab.identity(root),
+                 '--expect-runtime', lab.runtime_digest(decode(root)['sources'])]]
+            for command in commands:
+                with self.subTest(command=command):
+                    result = subprocess.run(command, cwd='/', capture_output=True, text=True)
+                    self.assertEqual(result.returncode, 4, result.stderr)
+                    self.assertEqual(json.loads(result.stdout), report)
+                    self.assertFalse(output.exists())
+
     def test_incomplete_and_checker_error_are_not_refutations(self):
         raw, root, _, _ = history()
         doc = decode(raw); doc['root']['max_atp'] = 1
