@@ -21,6 +21,7 @@ class MachineGoals(unittest.TestCase):
         raw=world();anchor=lab.identity(raw)
         p=dict(parent=anchor,next={'q':wpl(['q'],'q')})
         report,child=machine.verify_change(raw,p,anchor)
+        self.assertFalse(report['admitted'])
         self.assertEqual((report['status'],report['program'],report['admitted'],child),
                          ('goal_unreachable','candidate',False,None))
         self.assertEqual(report['checks']['candidate']['unreached_goals'],[dict(q=True)])
