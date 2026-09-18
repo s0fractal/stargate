@@ -9,7 +9,7 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from cryptography.hazmat.primitives import serialization
 
 from . import CONTRACT_STATUS, KELVIN, __version__, kernel
-from .records import canon, capture_environment, create_record, public_key, record_id, verify_record
+from .records import canon, decode, capture_environment, create_record, public_key, record_id, verify_record
 from .store import Store, StoreError, hex_hash
 from .bundle import export_bundle, verify_bundle, read_bundle, write_bundle
 from .policy import author_policy, CompilerBug, DEFAULT_MAX_ATP
@@ -43,6 +43,7 @@ def parser():
                    help="JSON list defining the exact object domain; otherwise capture demanded objects")
     q = cmd("policy", "compile a boolean WPL file and sign its decision")
     q.add_argument("source", type=Path)
+    q.add_argument("--facts", required=True, type=Path)
     q.add_argument("--key", required=True, type=Path)
     q.add_argument("--max-atp", type=int, default=DEFAULT_MAX_ATP)
     q = cmd("verify", "verify a stored signed record by independent re-execution")
@@ -100,7 +101,17 @@ def execute(args):
                 "decision": envelope["body"]["decision"]}
     if args.command == "policy":
         key = Ed25519PrivateKey.from_private_bytes(bytes.fromhex(args.key.read_text().strip()))
-        return author_policy(args.source.read_text(encoding="utf-8"), store, key, max_atp=args.max_atp)
+        # Accept a readable JSON file, but reject duplicate keys before canonicalizing.
+        def unique(pairs):
+            out = {}
+            for name, value in pairs:
+                if name in out:
+                    raise ValueError("duplicate fact: " + name)
+                out[name] = value
+            return out
+        facts = json.loads(args.facts.read_text(encoding="utf-8"), object_pairs_hook=unique)
+        return author_policy(args.source.read_bytes().decode("utf-8"), facts, store, key,
+                             max_atp=args.max_atp)
     if args.command == "verify":
         return verify_record(store.read(args.object), store, set(args.trust))
     raise ValueError("unknown operation")

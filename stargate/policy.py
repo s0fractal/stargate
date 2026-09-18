@@ -24,7 +24,7 @@ class CompilerBug(RuntimeError):
     """Compiler output disagrees with the source interpreter or emission gate."""
 
 
-def parse(source):
+def parse(source, inputs=None):
     if not isinstance(source, str):
         raise PolicyError('source must be text')
     try:
@@ -60,11 +60,16 @@ def parse(source):
             raise PolicyError('invalid fact name')
         if name in facts:
             raise PolicyError('duplicate fact: ' + name)
-        take(':'); take('bool'); take('=')
-        value = take()
-        if value not in ('true', 'false'):
-            raise PolicyError('boolean facts require true or false')
-        facts[name] = value == 'true'
+        take(':'); take('bool')
+        if inputs is None:
+            take('='); value = take()
+            if value not in ('true', 'false'):
+                raise PolicyError('boolean facts require true or false')
+            facts[name] = value == 'true'
+        else:
+            if name not in inputs or type(inputs[name]) is not bool:
+                raise PolicyError('missing or non-boolean fact: ' + name)
+            facts[name] = inputs[name]
     take('check')
     def atom(depth):
         if depth > 32:
@@ -97,6 +102,8 @@ def parse(source):
         raise PolicyError('expected exactly one check and no trailing tokens')
     if used != set(facts):
         raise PolicyError('unused facts: ' + ', '.join(sorted(set(facts) - used)))
+    if inputs is not None and set(inputs) != set(facts):
+        raise PolicyError('facts must exactly match the rule declarations')
     return expression, facts
 
 
@@ -130,10 +137,13 @@ class CompiledPolicy:
     atp_spent: int
 
 
-def compile_source(source, *, max_atp=DEFAULT_MAX_ATP):
+def compile_source(source, *, max_atp=DEFAULT_MAX_ATP, facts=None, limits=None):
     if type(max_atp) is not int or not 0 <= max_atp <= k.VERIFIER_LIMITS['max_atp']:
         raise PolicyError('compile limit must be an integer within the verifier ATP ceiling')
-    expr, facts = parse(source)
+    if facts is not None and (not isinstance(facts, dict)
+                              or not all(isinstance(n, str) and type(v) is bool for n, v in facts.items())):
+        raise PolicyError('facts must be an object of boolean values')
+    expr, facts = parse(source, facts)
     value = interpret(expr, facts)
     term = lower(expr, facts)
     objects = {k.FALSE_H: k.FALSE_BYTES}
@@ -144,7 +154,10 @@ def compile_source(source, *, max_atp=DEFAULT_MAX_ATP):
             objects[k.sha(raw)] = raw
     materialize(term)
     h = k.term_hash(term)
-    receipt = k.eval_receipt(h, max_atp, objects, k.VERIFIER_LIMITS)
+    evaluator_limits = dict(k.VERIFIER_LIMITS)
+    if limits is not None:
+        evaluator_limits.update(limits)
+    receipt = k.eval_receipt(h, max_atp, objects, evaluator_limits)
     if receipt.exit != 'normal_form':
         raise PolicyError('policy did not finish within the compile budget')
     expected_value_hash = k.K_H if value else k.FALSE_H
@@ -155,7 +168,7 @@ def compile_source(source, *, max_atp=DEFAULT_MAX_ATP):
     check = decode(canon(dict(term=h.hex(), atp=receipt.atp_spent,
                              expect=k.K_H.hex(), exit='normal_form',
                              environment=sorted(h.hex() for h in objects))))
-    outcome = run_check(check, objects)
+    outcome = run_check(check, objects, limits=limits)
     if (outcome.result_hash != expected_value_hash.hex() or outcome.exit != 'normal_form'
             or outcome.atp_spent != receipt.atp_spent
             or outcome.verdict != ('pass' if value else 'fail')):
@@ -163,15 +176,23 @@ def compile_source(source, *, max_atp=DEFAULT_MAX_ATP):
     return CompiledPolicy(check, objects, value, receipt.atp_spent)
 
 
-def author_policy(source, store, key, *, max_atp=DEFAULT_MAX_ATP):
-    compiled = compile_source(source, max_atp=max_atp)
-    # Sign against the same staged byte environment before emitting artifacts.
-    envelope = create_record(compiled.check, compiled.objects, key)
-    for raw in compiled.objects.values():
+def author_policy(source, facts, store, key, *, max_atp=DEFAULT_MAX_ATP):
+    facts_raw = canon(facts)
+    facts = decode(facts_raw)
+    if not isinstance(facts, dict):
+        raise PolicyError('facts must be an object')
+    compiled = compile_source(source, max_atp=max_atp, facts=facts)
+    rule_raw = source.encode('utf-8')
+    rule_hash, facts_hash = k.sha(rule_raw).hex(), k.sha(facts_raw).hex()
+    provenance = dict(rule=rule_hash, facts=facts_hash)
+    staged = dict(compiled.objects)
+    staged[k.sha(rule_raw)] = rule_raw
+    staged[k.sha(facts_raw)] = facts_raw
+    envelope = create_record(compiled.check, staged, key, policy=provenance)
+    for raw in staged.values():
         store.put(raw)
-    source_object = store.put(source.encode('utf-8'))
     envelope_object = store.put(canon(envelope))
     return dict(record=record_id(envelope['body']), object=envelope_object,
-                decision=envelope['body']['decision'], source_object=source_object,
+                decision=envelope['body']['decision'], policy=provenance,
                 policy_value=compiled.value, atp_spent=compiled.atp_spent,
                 check=compiled.check)

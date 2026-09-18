@@ -3,7 +3,7 @@
 One Python system for content-addressed computation and signed, reproducible
 checks. Working successor to Sigma-Glyph and Warrant; commands `stargate` / `sg`.
 
-**Build 6 · 32K draft (portable-check candidate).** The evaluator, object store and one signed-check flow
+**Build 7 · 32K draft (policy provenance candidate).** The evaluator, object store and one signed-check flow
 work. This is a development implementation, not an independently accepted
 release. Predecessor repositories remain unchanged.
 
@@ -110,9 +110,9 @@ Python 3.14 is the tested environment for this port; metadata permits Python
 subprocess CLI flow, corruption, signature/decision tampering, unsupported
 editions, local refusal, and the isolated same-result/different-exit case.
 
-Local resume validation: all 48 tests passed both in the checkout and against a
+Local provenance validation: all 59 tests passed both in the checkout and against a
 wheel-installed package outside the checkout, including the 49 imported kernel
-cases. Both console aliases report build 6 / 32K. An external in-memory mutation
+cases. Both console aliases report build 7 / 32K. An external in-memory mutation
 omitting actual exit from the fingerprint makes the isolating test fail by an
 assertion. These are implementation checks, not an independent review.
 
@@ -158,48 +158,68 @@ or passing them between threads is unsupported. Discarding a suspended object
 abandons the computation. Existing fixed-budget `eval_receipt` and signed-record
 verification retain their canonical atp_exhausted behavior.
 
-## Author a readable boolean rule
+## A decision bound to its rule and facts
 
-Save this as `rule.wpl` (also available in `tests/eligibility.wpl`):
+Save a reusable `rule.wpl` (fixture: `tests/eligibility-rule.wpl`):
 
 ```text
-fact within_window: bool = true
-fact retroactive: bool = false
+fact within_window: bool
+fact retroactive: bool
 check within_window && !retroactive
+```
+
+Save `facts.json` (fixture: `tests/eligibility-facts.json`):
+
+```json
+{"within_window":true,"retroactive":false}
 ```
 
 ```sh
 sg keygen signing.key
-sg policy rule.wpl --key signing.key
-sg verify ENVELOPE_OBJECT_HASH --trust PUBLIC_KEY_FROM_KEYGEN
+sg policy rule.wpl --facts facts.json --key signing.key
+sg export ENVELOPE_OBJECT_HASH check.sg.json --trust PUBLIC_KEY_FROM_KEYGEN
+sg verify-bundle check.sg.json --trust PUBLIC_KEY_FROM_KEYGEN
 ```
 
-`policy` compiles the rule, verifies the exact-budget check and signs it. TRUE
-means accept; FALSE means reject. Change `retroactive` to true and author again:
-the new record verifies as reject; the earlier record remains unchanged.
-The JSON result reports the check, policy value, measured ATP, record/object
-IDs and a separately stored source_object.
+The body signs hashes of the exact UTF-8 rule bytes and canonical JSON facts.
+The recipient authenticates these bytes, recompiles the rule with those facts,
+compares the ENTIRE generated check and then re-executes the signed term.
+A verified report includes `policy.source` and `policy.inputs` as well as their
+hashes. Missing source or facts means unverified, never a policy reject.
 
-Only boolean facts, true/false, !, &&, || and parentheses are supported. WPL
-integer/string comparisons, membership and multiple checks are refused.
-One check per file, no unused or duplicate facts, no implicit truthiness.
-`--max-atp` controls the authoring measurement ceiling (default 100000), not
-an unchecked budget written into the record. Emission pins measured spend and
-re-runs the serialized check under that exact budget before storing artifacts.
-Compiler disagreement emits no record. Source bounds are 8192 UTF-8 bytes,
-256 tokens and 32 nested parentheses/negations.
+Changing retroactive to true produces a new signed reject under the SAME rule
+hash and a DIFFERENT facts hash. Renaming a fact can leave the computational
+term unchanged but changes the signed rule/facts identity. Signature verification
+alone is insufficient: even a trusted signer cannot attach unrelated rule/facts
+to an existing term and get a provenance-verified report.
 
-The verifier runs SKI, not the source parser. The compiler checks SKI against a
-separate direct boolean interpreter for this closed input; this is not a formal
-compiler proof. Source bytes are stored for reproducibility, but source_object
-is authoring metadata, NOT a signed source-to-term binding. Verifying the record
-alone does not authenticate source text or establish that facts are true in the
-world. No statement about settlement follows from a policy decision.
+Only boolean facts, true/false, !, &&, || and parentheses are supported. Facts
+must match declarations exactly: no duplicate, missing, extra, unused or coerced
+values. The CLI accepts readable JSON and stores its canonical form; duplicate
+keys are refused. Inline fact assignments are not accepted in rules supplied
+with a facts file. `compile_source` retains inline literals as a low-level test/
+compiler convenience, not another record format or historical evaluator.
+
+`--max-atp` bounds authoring measurement (default 100000). The record pins exact
+measured spend and always expects TRUE, so false means reject. Source limits:
+8192 UTF-8 bytes, 256 tokens, 32 nested parentheses/negations. Compiler errors
+emit no envelope; local resource failures remain unverified.
+
+This authenticates the rule/input/compiled-check relationship under the current
+compiler contract. It does not establish real-world truth of facts or formally
+prove the compiler: verifier and author use the same parser/lowering. A shared
+bug agreeing on this closed input remains possible; independent truth-table and
+mutation tests address examples, not all programs. Policy identity is in RecordID,
+not in the computational fingerprint, which still has no settlement consumer.
+
+Raw `sg record` has `policy: null` and makes only a computation claim. Its report
+likewise has `policy: null`; it cannot masquerade as a verified rule. The build-6
+body lacking this field is rejected. This is one changed UNRELEASED 32K draft,
+not an added compatibility branch.
 
 Boolean lowering follows Warrant `impl/ski_policy.py` at
 `16a3fae39af46222ff31f5fe10a717cb9ba8e39b`: TRUE=K, FALSE=K I,
-NOT p=p FALSE TRUE, p AND q=p q FALSE, p OR q=p TRUE q. This frontend uses the
-current local kernel directly, with no old runtime tag, loader or compiler gate.
+NOT p=p FALSE TRUE, p AND q=p q FALSE, p OR q=p TRUE q.
 
 ## Give someone a check they can verify offline
 
@@ -223,7 +243,8 @@ verification report as `sg verify` on a complete store, including verified/rejec
 Public-key delivery/authentication remains the recipient's responsibility.
 
 Export first verifies the signature, explicit trust and computation. It bundles
-the exact envelope and only the bytes actually fetched by that run. Intrinsic
+the exact envelope and bytes fetched by verification, including mandatory rule
+and facts material for policy records, plus demanded computational objects. Intrinsic
 I/K/S and unused declared objects need no payload; absent unused entries do not
 prevent export. The original signed environment and record identity stay intact.
 Removing a demanded object produces unverified (3); hash/encoding/signature
@@ -231,9 +252,9 @@ corruption is invalid (2). A declared absence stays absent regardless of local
 files. The container is canonical JSON, with a local 16 MiB file limit. Export
 refuses to overwrite an existing file and publishes only a fully written file.
 
-This is portability of the existing computation claim, not signed policy-source
-provenance: the unsigned source_object from `sg policy` is not included. Nor is
-it a self-executing package: Python dependencies must be installed beforehand.
+For policy records, the bundle now carries the authenticated rule and facts as
+well as the computation. It is not a self-executing package: Python dependencies
+must be installed beforehand.
 There is no bundle signature or new trust system; integrity comes from the
 existing signed record and content hashes. An export key is never embedded as
 authority for the recipient.

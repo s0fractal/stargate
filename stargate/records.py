@@ -176,23 +176,29 @@ def record_id(body):
 
 
 def validate_body(body):
-    exact(body, ("stargate", "build", "key", "check", "decision"))
+    exact(body, ("stargate", "build", "key", "check", "decision", "policy"))
     if type(body["stargate"]) is not int or body["stargate"] != KELVIN:
         raise InvalidRecord("unsupported Stargate temperature")
     if not isinstance(body["build"], str) or not body["build"].isascii() or not body["build"].isdigit():
         raise InvalidRecord("build must be a decimal string")
     record_hash(body["key"])
     validate_check(body["check"])
+    if body["policy"] is not None:
+        exact(body["policy"], ("rule", "facts"))
+        record_hash(body["policy"]["rule"])
+        record_hash(body["policy"]["facts"])
     if body["decision"] not in ("accept", "reject"):
         raise InvalidRecord("unknown decision")
 
 
-def create_record(check, store, key, *, limits=None):
+def create_record(check, store, key, *, limits=None, policy=None):
     # Snapshot caller-owned data before evaluation and signing.
     check = decode(canon(check))
     outcome = run_check(check, store, limits=limits)
     body = dict(stargate=KELVIN, build=__version__, key=public_key(key), check=check,
-                decision="accept" if outcome.verdict == "pass" else "reject")
+                decision="accept" if outcome.verdict == "pass" else "reject", policy=decode(canon(policy)))
+    validate_body(body)
+    verify_policy(body, store, limits=limits)
     rid = record_id(body)
     return dict(body=body, signature=key.sign(DOMAIN + bytes.fromhex(rid)).hex())
 
@@ -248,10 +254,49 @@ def verify_record(raw, store, trusted_keys, *, limits=None):
             bytes.fromhex(sig), DOMAIN + bytes.fromhex(rid))
     except (InvalidSignature, ValueError) as exc:
         raise InvalidRecord("signature does not verify") from exc
+    provenance = verify_policy(body, store, limits=limits)
     outcome = run_check(body["check"], store, limits=limits)
     decision = "accept" if outcome.verdict == "pass" else "reject"
     if body["decision"] != decision:
         raise InvalidRecord("signed decision disagrees with re-execution")
     return dict(status="verified", record=rid, decision=decision, key=body["key"],
                 verifier_build=__version__, stargate=KELVIN,
-                outcome=outcome.as_dict(), fingerprint=list(fingerprint(body["check"], outcome)))
+                outcome=outcome.as_dict(), fingerprint=list(fingerprint(body["check"], outcome)),
+                policy=provenance)
+
+
+def verify_policy(body, store, *, limits=None):
+    """Authenticate source bytes and reproduce their entire compiled check.
+
+    Called only after signature/trust on verification; before signing on creation.
+    Missing material is local unverified, never a policy decision.
+    """
+    if body['policy'] is None:
+        return None
+    from .policy import compile_source, PolicyError, CompilerBug
+    policy_limits = dict(kernel.VERIFIER_LIMITS)
+    if limits is not None:
+        policy_limits.update(limits)
+    kernel.admit(body['check']['atp'], policy_limits)
+    binding = body['policy']
+    def read(h):
+        raw = store.get(bytes.fromhex(h))
+        if raw is None:
+            raise StoreError('policy material missing: ' + h)
+        if not isinstance(raw, bytes) or hashlib.sha256(raw).hexdigest() != h:
+            raise StoreError('policy material hash mismatch: ' + h)
+        return raw
+    rule_raw, facts_raw = read(binding['rule']), read(binding['facts'])
+    try:
+        source = rule_raw.decode('utf-8')
+        facts = decode(facts_raw)
+        if not isinstance(facts, dict):
+            raise InvalidRecord('policy facts must be an object')
+        compiled = compile_source(source, facts=facts, max_atp=body['check']['atp'], limits=limits)
+    except (UnicodeError, PolicyError) as exc:
+        raise InvalidRecord('invalid policy provenance: ' + str(exc)) from exc
+    except CompilerBug as exc:
+        raise kernel.ResourceFault('compiler disagreement') from exc
+    if compiled.check != body['check']:
+        raise InvalidRecord('signed check does not match rule and facts')
+    return dict(rule=binding['rule'], facts=binding['facts'], source=source, inputs=facts)
