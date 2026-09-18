@@ -1,7 +1,7 @@
 # Stargate contract
 
 Status: **32K — DRAFT, implemented for the flows described below**.
-Build 17 is a local development implementation, not an adopted or published
+Build 18 is a local development implementation, not an adopted or published
 standard. It is not a Warrant verifier.
 
 ## One temperature
@@ -750,3 +750,55 @@ and only written on complete. The portable replay accepts --invariant and refuse
 an output successor argument in that mode. Its snapshot loader includes
 invariants.py in the hashed runtime closure, loaded after lab.py. Independent
 launcher/runtime authentication and interpreter trust remain necessary.
+
+## Anchored histories (build 18, draft)
+
+A lineage is canonical JSON with exactly stargate_lineage (integer 32), root
+(a complete world object) and proposals (an ordered list of 0..32 proposals).
+The serialized limit is 4 MiB. Each proposal has exactly parent and candidate,
+the existing canonical 16 KiB proposal limit and a rule valid for the root's
+input domain. No reports, tip bytes, saved verdicts or extra authority fields
+are accepted. Validate all structural fields and rule syntax before evaluation.
+The root must pass the installed lab runtime check; it is never executed as code.
+
+verify(raw, expected_root) requires an independently supplied SHA-256 root ID,
+compared with the canonical root's identity. Starting with those bytes, apply
+lab.verify_transition to every ordered proposal. Each parent must match the
+current reconstructed world. Only admitted transitions with a successor advance.
+An equivalent candidate that fails the world's cost objective does not advance.
+The end-to-end claim uses exactly the input domain, runtime, objective and budget
+of the anchored root; existing successor construction preserves these fields.
+
+verified_lineage requires checked_steps == total_steps and returns the exact tip
+world bytes separately. Each checked step contributes its complete lab report.
+At the first semantic/cost refusal return not_admitted, at resource refusal
+incomplete, at checker failure checker_error; include failed_step (zero-based),
+return no tip and no report tip field. Malformed parent links raise InvalidRecord.
+A successful prefix grants no success to a failed tail. Empty history is a
+vacuous transition claim returning the root unchanged, not evaluation of the root.
+This does not prove history before an anchored checkpoint, chronology, authorship,
+latest state, completeness of all branches or an optimal final rule. A valid
+prefix or alternate branch is a valid anchored history in its own right.
+
+append snapshots the new proposal, constructs a candidate transcript, then
+replays the whole transcript; it returns transcript bytes only after success.
+No cached prefix verdict is trusted. Caller inputs are not mutated. A start
+operation wraps a structurally valid world with an empty proposal list.
+
+CLI lineage-start WORLD --output HISTORY; lineage-append HISTORY PROPOSAL
+--expect-root ID --output NEW_HISTORY; lineage-check HISTORY --expect-root ID
+[--output TIP]; lineage-unpack HISTORY --output DIRECTORY. Writes are exclusive.
+Start/unpack make no semantic verification claim. Append/check exit 0 on
+verified_lineage, 4 not_admitted, 3 incomplete or unavailable runtime/material,
+2 invalid input/binding and 1 checker/operation error. Missing file reads are
+unverified/3; failed output writes are operation_error/1.
+
+Materialization uses the existing private world extraction and adds lineage.json
+as inert data. If that final write fails, clean up only the newly created output
+directory. An existing output is refused intact. Parent-directory control and
+non-atomic extraction limitations remain as for lab-unpack. The closure includes
+lineage.py loaded after lab.py from verified source snapshots. Standalone replay
+--lineage is mutually exclusive with --invariant, requires --expect-root as well
+as --expect-runtime, and emits a tip only on success. Runtime/launcher digests
+must be authenticated independently; the root anchor chooses the world, not the
+checker implementation. Python and its standard library remain trusted.

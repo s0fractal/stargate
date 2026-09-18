@@ -100,3 +100,13 @@ source snapshots after `lab`; the ordinary lab module does not import it.
 x0 remains empty. This extends the counterexample/refinement approach borrowed
 conceptually from Black-Heart: a guessed property is a claim to recheck, not a
 saved verdict to adopt. No neighboring implementation code is copied here.
+
+Build 18 adds `lineage` at x4 above `lab`/`canonical`. The minimal history stores
+one root plus ordered proposals; the existing gate reconstructs all descendants.
+It deliberately excludes cached verdicts, signatures and a new admission engine.
+Its checker joins the portable runtime closure, loaded from verified snapshots.
+This borrows Black-Heart Living Library LI-3's re-evaluation-before-successor
+principle (saved admitted flags are insufficient), without copying its code or
+PDF/governance machinery. Warrant's refusal/verdict boundary remains explicit;
+Sigma's receipt checks remain owned by the existing lab evaluation path. x0 is
+still empty; there is no imported archive or revived retired system.
