@@ -67,6 +67,48 @@ class MachineGoals(unittest.TestCase):
         with patch.object(machine,'_witness',side_effect=compiler.CompilerBug('broken trace')):
             self.assertEqual(machine.verify(raw,anchor)['status'],'checker_error')
 
+    def test_undiscovered_goal_at_quota_is_incomplete_in_verify_and_change(self):
+        raw=world();anchor=lab.identity(raw)
+        proposal=dict(parent=anchor,next={'q':wpl(['q'],'true')})
+        # A full run establishes the target; a quota stop before the first edge
+        # cannot establish its absence, either directly or as an admission parent.
+        self.assertEqual(machine.verify(raw,anchor)['status'],'established')
+        self.assertTrue(machine.verify_change(raw,proposal,anchor)[0]['admitted'])
+        direct=machine.verify(raw,anchor,max_edges=0)
+        change,child=machine.verify_change(raw,proposal,anchor,max_edges=0)
+        self.assertEqual(change['status'],'incomplete')
+        self.assertFalse(change['admitted']);self.assertIsNone(child)
+        self.assertEqual(change['program'],'parent')
+        for report in [direct,change['checks']['parent']]:
+            with self.subTest(path='direct' if report is direct else 'parent'):
+                self.assertEqual(report['status'],'incomplete')
+                self.assertEqual(report['reason'],'edge_quota')
+                self.assertNotIn(dict(q=True),report['reachable'])
+                self.assertNotIn('unreached_goals',report)
+                self.assertNotIn('goal_witnesses',report)
+
+        # Parent closes in two edges: 00 -> 11 -> 11.
+        # Candidate needs four: 00 -> 01 -> 10 -> 11 -> 10.
+        # Thus quota 2 finishes the parent but stops the candidate BEFORE its goal.
+        names=['a','b'];rule=lambda expr:wpl(names,expr)
+        raw=machine.create(dict(state=names,events=[],initial=[dict(a=False,b=False)],
+            next=dict(a=rule('true'),b=rule('true')),invariant=rule('true'),
+            goals=[dict(a=True,b=True)],max_atp=1000))
+        anchor=lab.identity(raw)
+        proposal=dict(parent=anchor,next=dict(a=rule('a || b'),b=rule('!b')))
+        complete,successor=machine.verify_change(raw,proposal,anchor,max_edges=4)
+        self.assertTrue(complete['admitted']);self.assertIsNotNone(successor)
+        change,child=machine.verify_change(raw,proposal,anchor,max_edges=2)
+        self.assertEqual(change['status'],'incomplete')
+        self.assertFalse(change['admitted']);self.assertIsNone(child)
+        self.assertEqual(change['program'],'candidate')
+        self.assertEqual(change['checks']['parent']['status'],'established')
+        report=change['checks']['candidate']
+        self.assertEqual(report['reason'],'edge_quota')
+        self.assertNotIn(dict(a=True,b=True),report['reachable'])
+        self.assertNotIn('unreached_goals',report)
+        self.assertNotIn('goal_witnesses',report)
+
     def test_goals_are_existential_and_initial_goals_need_no_transition(self):
         raw=world('q',initials=(False,True));r=machine.verify(raw,lab.identity(raw))
         self.assertEqual(r['status'],'established')
