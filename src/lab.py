@@ -28,7 +28,9 @@ The receiver enumerates every input using the pinned SKI compiler and a separate
 boolean oracle. Budget exhaustion is incomplete, never evidence of equivalence.
 You may instead propose a finite-property claim: {"parent": "COPY_WORLD_ID",
 "property": {"kind": "independent", "input": "NAME"}}. Other kinds are
-"monotone" with input NAME, or "constant" with boolean value. These properties
+"monotone" with input NAME means non-decreasing: changing that input from false
+to true, with all others fixed, must never change output from true to false.
+Or use "constant" with boolean value. These properties
 apply only to this finite input/output function, not future program states.
 Replay with --invariant recomputes the table; claims never create successors.
 Sources are included for explicit replay, not for automatic execution.
