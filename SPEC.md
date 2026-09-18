@@ -1043,7 +1043,10 @@ report, discovered states need not all have finished invariant checks; only
 established claims full coverage. A successful result requires event-domain
 coverage/order, exactly one edge for every reachable state/event pair, all edge
 targets in the reached set, and checked_invariants equal to reached-state count.
-Self-loops and already discovered states are not enqueued again.
+Self-loops and already discovered states are not enqueued again. The first
+discovery parent is preserved. Witness reconstruction visits at most the number
+of discovered states; cyclic or unknown ancestry is checker_error, never a
+partial trace or an unbounded loop.
 
 max_edges is a local exact-integer quota 0..256. Before each new edge, if the quota
 has been consumed, return incomplete with reason edge_quota. Finishing the entire

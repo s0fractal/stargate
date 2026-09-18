@@ -89,6 +89,20 @@ def _closed(report, states, state_names, event_names, event_rows):
             all(key(e['next']) in states for e in report['edges']))
 
 
+def _witness(target, states, parents):
+    steps = []
+    # A simple ancestry chain has at most N nodes, including its initial state.
+    for _ in range(len(states)):
+        if target not in states or target not in parents:
+            raise compiler.CompilerBug('witness ancestry references an unknown state')
+        if parents[target] is None:
+            return dict(initial=states[target], steps=list(reversed(steps)))
+        previous, event = parents[target]
+        steps.append(dict(event=event, state=states[target]))
+        target = previous
+    raise compiler.CompilerBug('witness ancestry exceeds reachable states')
+
+
 def verify(raw, expected_machine, *, max_edges=256):
     if type(max_edges) is not int or not 0 <= max_edges <= 256:
         raise InvalidRecord('edge quota must be an integer from 0 to 256')
@@ -109,18 +123,11 @@ def verify(raw, expected_machine, *, max_edges=256):
         if result.value != boolean.evaluate(code, facts):
             raise compiler.CompilerBug('machine independent oracle disagreement')
         return result.value
-    def witness(target):
-        steps = []
-        while parents[target] is not None:
-            previous, event = parents[target]
-            steps.append(dict(event=event, state=states[target]))
-            target = previous
-        return dict(initial=states[target], steps=list(reversed(steps)))
     def check_state(state):
         value = evaluate(doc['invariant'], invariant_code, state)
         report['checked_invariants'] += 1
         if not value:
-            report.update(status='counterexample', trace=witness(key(state)))
+            report.update(status='counterexample', trace=_witness(key(state), states, parents))
         return value
     states = {key(state):state for state in doc['initial']}
     parents = {k:None for k in states}

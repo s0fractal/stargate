@@ -36,6 +36,19 @@ def simple(next_expr='q || e', invariant='q', initial=True):
 def check(raw, **kw): return machine.verify(raw,lab.identity(raw),**kw)
 
 
+def branching_machine(edges, bad):
+    # A..F are literal integers 0..5, encoded in a,b,c; z chooses the edge.
+    names = ['a', 'b', 'c', 'z']
+    bits = lambda state: dict(a=bool(state & 4), b=bool(state & 2), c=bool(state & 1))
+    targets = [edges.get((index >> 1, bool(index & 1)), index >> 1) for index in range(16)]
+    rules = {name: table_rule(names, [bool(target & mask) for target in targets])
+             for name, mask in zip(['a', 'b', 'c'], [4, 2, 1])}
+    raw = machine.create(dict(state=['a', 'b', 'c'], events=['z'], initial=[bits(0)],
+        next=rules, invariant=table_rule(['a', 'b', 'c'], [state not in bad for state in range(8)]),
+        max_atp=1000))
+    return raw, bits
+
+
 class Machine(unittest.TestCase):
     def test_all_one_bit_event_machines_against_independent_graph(self):
         for mask in range(16):
@@ -81,6 +94,52 @@ class Machine(unittest.TestCase):
         self.assertEqual(r['checked_invariants'],3)
         # In-place updates would produce 10 instead of synchronous 11.
         self.assertEqual(r['edges'][-1]['next'],dict(a=True,b=True))
+
+    def test_fifo_finds_two_step_violation_before_three_step_branch(self):
+        # A→B→F(bad), A→C→D→E(bad). LIFO follows C first and returns length 3.
+        edges = {(0, False): 1, (0, True): 2,
+                 (1, False): 5, (1, True): 5,
+                 (2, False): 3, (2, True): 3,
+                 (3, False): 4, (3, True): 4}
+        raw, bits = branching_machine(edges, {4, 5})
+        result = check(raw)
+        self.assertEqual(result['status'], 'counterexample')
+        self.assertEqual(result['trace'], dict(initial=bits(0), steps=[
+            dict(event={'z': False}, state=bits(1)),
+            dict(event={'z': False}, state=bits(5))]))
+
+    def test_rediscovery_preserves_first_parent_and_shortest_trace(self):
+        # A→B→E→F(bad), A→C→B. Reparenting B through C lengthens the witness.
+        edges = {(0, False): 1, (0, True): 2,
+                 (1, False): 4, (1, True): 4,
+                 (2, False): 1, (2, True): 1,
+                 (4, False): 5, (4, True): 5}
+        raw, bits = branching_machine(edges, {5})
+        result = check(raw)
+        self.assertEqual(result['status'], 'counterexample')
+        self.assertEqual(result['trace'], dict(initial=bits(0), steps=[
+            dict(event={'z': False}, state=bits(1)),
+            dict(event={'z': False}, state=bits(4)),
+            dict(event={'z': False}, state=bits(5))]))
+        # Prove this fixture actually traverses the rediscovery edge C→B.
+        self.assertIn(dict(state=bits(2), event={'z': False}, next=bits(1)), result['edges'])
+
+    def test_cyclic_witness_ancestry_is_bounded_checker_error(self):
+        states = {(False,): {'q': False}, (True,): {'q': True}}
+        parents = {(False,): ((True,), {}), (True,): ((False,), {})}
+        real = machine._witness
+        with self.assertRaisesRegex(compiler.CompilerBug, 'exceeds reachable states'):
+            real((True,), states, parents)
+        # N nodes / N-1 edges is legitimate; the guard must not truncate it.
+        parents[(False,)] = None
+        self.assertEqual(real((True,), states, parents),
+                         dict(initial={'q': False}, steps=[dict(event={}, state={'q': True})]))
+        parents[(False,)] = ((True,), {})
+        with patch.object(machine, '_witness', side_effect=lambda *_: real((True,), states, parents)):
+            result = check(simple(initial=False))
+        self.assertEqual(result['status'], 'checker_error')
+        self.assertEqual(result['reason'], 'witness ancestry exceeds reachable states')
+        self.assertNotIn('trace', result)
 
     def test_unreachable_bad_states_do_not_refute_and_self_loops_close(self):
         raw=simple()
