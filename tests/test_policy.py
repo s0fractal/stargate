@@ -13,6 +13,8 @@ from stargate.records import canon, decode, public_key, verify_record
 from stargate.store import Store
 
 EXAMPLE = Path(__file__).with_name('eligibility.wpl').read_text()
+RULE = 'fact within_window: bool\nfact retroactive: bool\ncheck within_window && !retroactive'
+FACTS = {'within_window': True, 'retroactive': False}
 
 
 class Policy(unittest.TestCase):
@@ -24,7 +26,7 @@ class Policy(unittest.TestCase):
                       'check within_window && !retroactive')
             with self.subTest(window=window, retro=retro), tempfile.TemporaryDirectory() as tmp:
                 store = Store(tmp)
-                result = p.author_policy(source, store, key)
+                result = p.author_policy(RULE, dict(within_window=window, retroactive=retro), store, key)
                 expected = window and not retro
                 self.assertEqual(result['policy_value'], expected)
                 self.assertEqual(result['decision'], 'accept' if expected else 'reject')
@@ -34,7 +36,7 @@ class Policy(unittest.TestCase):
                 self.assertEqual(report['outcome']['exit'], 'normal_form')
                 self.assertEqual(report['outcome']['atp_spent'], result['atp_spent'])
                 self.assertEqual(result['check']['expect'], k.K_H.hex())
-                self.assertEqual(store.read(result['source_object']), source.encode())
+                self.assertEqual(store.read(result['policy']['rule']), RULE.encode())
 
     def test_precedence_parentheses_and_boolean_operators(self):
         cases = [
@@ -76,14 +78,14 @@ class Policy(unittest.TestCase):
         for budget in (-1, True, 1.5, 0, 2**32):
             with tempfile.TemporaryDirectory() as tmp:
                 with self.assertRaises(p.PolicyError):
-                    p.author_policy(EXAMPLE, Store(tmp), key, max_atp=budget)
+                    p.author_policy(RULE, FACTS, Store(tmp), key, max_atp=budget)
                 self.assertEqual(list(Path(tmp).iterdir()), [])
 
     def test_wrong_lowering_refused_before_emission(self):
         with tempfile.TemporaryDirectory() as tmp:
             with patch.object(p, 'lower', return_value=('thunk', k.K_H)):
                 with self.assertRaises(p.CompilerBug):
-                    p.author_policy('check false', Store(tmp), Ed25519PrivateKey.generate())
+                    p.author_policy('check false', {}, Store(tmp), Ed25519PrivateKey.generate())
             self.assertEqual(list(Path(tmp).iterdir()), [])
 
     def test_serialized_budget_mutation_is_caught(self):
@@ -101,11 +103,12 @@ class Policy(unittest.TestCase):
                 self.assertEqual(r.returncode, 0, r.stdout+r.stderr)
                 return json.loads(r.stdout)
             key_path = tmp+'/key'; pub = run('keygen', key_path)['key']
-            source = Path(tmp)/'rule.wpl'; source.write_text(EXAMPLE)
-            first = run('policy', str(source), '--key', key_path)
+            source = Path(tmp)/'rule.wpl'; source.write_text(RULE)
+            facts = Path(tmp)/'facts.json'; facts.write_text(json.dumps(FACTS))
+            first = run('policy', str(source), '--facts', str(facts), '--key', key_path)
             self.assertEqual(run('verify', first['object'], '--trust', pub)['decision'], 'accept')
-            source.write_text(EXAMPLE.replace('retroactive: bool = false', 'retroactive: bool = true'))
-            second = run('policy', str(source), '--key', key_path)
+            facts.write_text(json.dumps(dict(FACTS, retroactive=True)))
+            second = run('policy', str(source), '--facts', str(facts), '--key', key_path)
             self.assertEqual(run('verify', second['object'], '--trust', pub)['decision'], 'reject')
             self.assertNotEqual(first['record'], second['record'])
             # Retaining a changed local source cannot rewrite the first signed term.

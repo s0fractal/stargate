@@ -49,6 +49,9 @@ def verify_bundle(raw, trusted_keys):
     exact(doc['envelope'], ('body', 'signature'))
     validate_body(doc['envelope']['body'])
     domain = set(doc['envelope']['body']['check']['environment'])
+    policy = doc['envelope']['body']['policy']
+    if policy is not None:
+        domain.update(policy.values())
     if not isinstance(doc['objects'], dict):
         raise InvalidRecord('bundle objects must be a hash-to-hex mapping')
     objects = {}

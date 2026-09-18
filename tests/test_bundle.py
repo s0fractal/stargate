@@ -23,7 +23,7 @@ class PortableCheck(unittest.TestCase):
         self.trust = {public_key(self.key)}
 
     def export_policy(self, source='check true'):
-        authored = author_policy(source, self.store, self.key)
+        authored = author_policy(source, {}, self.store, self.key)
         raw, report = b.export_bundle(self.store.read(authored['object']), self.store, self.trust)
         return raw, report
 
@@ -88,7 +88,7 @@ class PortableCheck(unittest.TestCase):
             with self.assertRaises(StoreError): b.verify_bundle(raw, self.trust)
 
     def test_failed_export_cannot_emit_a_bundle(self):
-        authored = author_policy('check !false', self.store, self.key)
+        authored = author_policy('check !false', {}, self.store, self.key)
         env = self.store.read(authored['object'])
         term = decode(env)['body']['check']['term']
         (self.store.path/term).unlink()
@@ -98,7 +98,7 @@ class PortableCheck(unittest.TestCase):
     def test_cli_in_empty_directory_with_no_store(self):
         raw, _ = self.export_policy('check !false')
         # Use the actual export CLI, then take only the file to a fresh directory.
-        authored = author_policy('check !false', self.store, self.key)
+        authored = author_policy('check !false', {}, self.store, self.key)
         output = Path(self.tmp.name)/'portable.json'
         cmd = [sys.executable, '-m', 'stargate']
         export = subprocess.run(cmd+['--store', self.tmp.name, 'export', authored['object'],

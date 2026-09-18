@@ -1,0 +1,3 @@
+fact within_window: bool
+fact retroactive: bool
+check within_window && !retroactive

@@ -1,7 +1,7 @@
 # Stargate contract
 
 Status: **32K — DRAFT, implemented for the single signed-check flow below**.
-Build 6 is a local development implementation, not an adopted or published
+Build 7 is a local development implementation, not an adopted or published
 standard. It is not a Warrant verifier.
 
 ## One temperature
@@ -114,7 +114,7 @@ promised (the inherited evaluator adjusts Python's recursion limit).
 An envelope has exactly `body` and `signature`. Its body has exactly:
 
 ```json
-{"stargate":32,"build":"3","key":"<public key hex>","check":{"term":"<hash>","atp":4,"expect":"<hash>","exit":"normal_form","environment":["<term hash>"]},"decision":"accept"}
+{"stargate":32,"build":"7","key":"<public key hex>","check":{"term":"<hash>","atp":4,"expect":"<hash>","exit":"normal_form","environment":["<term hash>"]},"decision":"accept","policy":null}
 ```
 
 This example is explanatory, not canonical field ordering. The encoding is
@@ -248,45 +248,68 @@ failure behavior. A caller requiring grant-schedule-independent local outcomes
 must not assume this interface provides them. No changes to the signed check format follow from this
 process-local API.
 
-## Boolean authoring frontend
+## Policy provenance and authoring (build 7 candidate)
 
-This is an authoring convenience, not a second runtime or signed record format.
-Grammar: zero or more `fact NAME: bool = true|false` declarations followed by
-exactly one `check EXPR`. Whitespace separates tokens; # starts a line comment.
-Identifiers match ASCII letters/underscore followed by letters/digits/underscore,
-with optional dot-separated identifier components. Reserved words cannot name
-facts. Unused/duplicate/unknown facts are errors. No statement terminators.
-Expression precedence is ! (highest), &&, ||; binary operators associate left;
-parentheses group expressions. Only explicit boolean values are accepted.
+Every body has the REQUIRED field policy: either null for a raw computation
+claim or exactly {rule: hash, facts: hash}. Both references are lowercase SHA-256
+and covered by RecordID/signature. Rule is exact UTF-8 source bytes (including
+whitespace/comments); facts is canonical integer-domain JSON containing only
+named boolean values. All declared names must occur exactly once, with no extra,
+unknown or unused facts. Reordering/spacing a facts input file does not change
+its canonical hash; changing raw rule text does change its hash.
 
-Facts become Church booleans, TRUE=K and FALSE=K I. Negation lowers to p FALSE
-TRUE, conjunction to p q FALSE, disjunction to p TRUE q. Each APPLY is stored
-by its canonical kernel hash; no source interpreter runs in verification.
-Compiler evaluation must finish in normal_form within its local cap and agree
-with the direct boolean interpreter. The emitted canonical check ALWAYS
-expects K/normal_form, even when the source evaluates false. Its budget equals
-measured spend; its environment is the sorted generated object set. Before
-emission that serialized check is re-run through the record check path, then
-creation executes it again before signing. Compiler disagreement raises
-CompilerBug (CLI exit 1 / compiler_error). Source errors raise PolicyError,
-a ValueError (CLI exit 2 / invalid); resource faults remain unverified.
+Rule grammar: zero or more `fact NAME: bool` declarations followed by one
+`check EXPR`. Names are ASCII identifier components optionally separated by dots.
+Keywords cannot name facts. Expressions support true, false, declared names,
+!, &&, || and parentheses, in that precedence order; binary operators associate
+left. # starts a line comment. No inline values are allowed with external facts.
+The low-level compile_source API also accepts closed inline-fact source when no
+facts parameter is supplied; provenance records always use the external-facts
+path. This is not a separate executable runtime or signed format.
 
-Source text is a separate stored blob, referenced in authoring output only.
-It is not a signed record field and no authenticated source-to-term linkage is
-claimed. The signed term binds the substituted input values computationally,
-not their real-world truth or their original names. This frontend does not use
-fingerprints for settlement and introduces no migration or compatibility layer.
+Compilation lowers Church boolean operations to the kernel; the direct boolean
+interpreter checks the closed result. Compiler output ALWAYS expects K and
+normal_form, budgets measured spend, and declares the sorted generated object
+set. Exact serialized checks are replayed before emission. A false predicate
+therefore produces reject, not accept of a FALSE expectation.
 
-## Portable check container (build 6 candidate)
+Creation authenticates source/facts against their addresses and checks their
+compilation before signing. Verification first validates envelope shape,
+signature and caller-supplied trust, then fetches source/facts, checks their
+hashes and encoding, recompiles, and requires equality of ALL check fields.
+Comparison includes term, ATP, expect, exit and environment. It then executes
+the signed check against the supplied addressed objects and compares decision.
+Generated compiler objects must NOT silently fill absent bundle/store objects.
+
+The signed check ATP is the compilation measurement ceiling during verification,
+also subject to verifier admission/resource limits. A malformed rule/facts or
+compiled-check mismatch is invalid. Missing material is StoreError/unverified,
+naming the hash; resource inability or detected internal compiler disagreement
+is noncanonical/unverified. Failure does not yield a decision.
+
+Report policy is null for raw claims, otherwise {rule, facts, source, inputs}
+with authenticated decoded content. Bundle verification follows exactly the same
+path and needs no local store. Source/facts are separate from the computational
+environment: they are mandatory provenance dependencies even when no term fetch
+occurs. The computational fingerprint stays unchanged and does not identify the
+rule text; RecordID does. No settlement consumption of fingerprints is added.
+
+The author and recipient share a compiler implementation, so reproducibility is
+not a formal compiler-correctness proof. It neither verifies the external truth
+of facts nor establishes a policy's legitimacy. Current 32K remains unreleased;
+old bodies without policy are rejected, not migrated or silently interpreted.
+
+## Portable check container
 
 A bundle is canonical JSON with exactly stargate_bundle (integer 32), envelope
 (the existing signed record envelope), and objects (hash → lowercase hex bytes).
 It adds no new record identity or signature domain. Other temperatures, unknown
 fields, noncanonical JSON, malformed object keys/hex and object/hash mismatches
-are invalid. Every included object must belong to the signed environment.
+are invalid. Every included object must belong to the signed computational environment or
+be named by a signed policy.rule/policy.facts reference.
 
 Export verifies the record with caller-supplied trust and captures the ordered
-execution's fetched objects into a hash map. Only fetched bytes are included;
+execution's fetched objects into a hash map. Rule/facts bytes and demanded computational bytes are included;
 the signed environment itself is not shortened. Unused environment members may
 be omitted, including ones absent on the exporter. Canonical JSON makes this
 export deterministic for a fixed envelope and successful execution.
@@ -306,5 +329,5 @@ RSS bound. Export's cap is checked during capture and on final encoding; reading
 objects from the exporter's local store retains that store's existing allocation
 behavior. Export publishes through an exclusive hard link to a completed temp
 file and never overwrites; unsupported filesystem operations are operation_error.
-No source-object provenance, application truth, quorum or global availability
-claim is introduced by this container.
+The container transports authenticated policy material where referenced; it
+does not introduce application truth, quorum or global availability claims.
