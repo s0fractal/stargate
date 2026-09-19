@@ -1,9 +1,7 @@
 """Two synchronous components, explicit old-state wiring, inherited joint contract."""
 import itertools
-import os
 from pathlib import Path
 import re
-import shutil
 
 from . import lab, machine, compiler, boolean
 from .canonical import canon, decode, exact, record_hash, InvalidRecord
@@ -193,17 +191,4 @@ def read_spec(raw):
 def describe(raw):
     doc=inspect(raw)
     return dict(status='unchecked_composition',composition_id=lab.identity(raw),
-                runtime_digest=lab.runtime_digest(doc['sources']),replay_digest=lab.identity(lab.REPLAY.encode()))
-
-
-def unpack(raw, output):
-    doc=inspect(raw);output=Path(output)
-    result=lab.unpack_world(machine._view(decode(_product(doc))),output)
-    try:
-        fd=os.open(output/'composition.json',os.O_WRONLY|os.O_CREAT|os.O_EXCL,0o600)
-        with os.fdopen(fd,'wb') as stream: stream.write(raw)
-        (output/'README.txt').write_text(GUIDE+'\npython -I -S replay.py composition.json --composition '
-            '--expect-composition INDEPENDENT_ID --expect-runtime INDEPENDENT_DIGEST\n')
-    except BaseException:
-        shutil.rmtree(output);raise
-    return dict(result,**describe(raw))
+                runtime_digest=lab.runtime_digest(doc['sources']))

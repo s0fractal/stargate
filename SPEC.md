@@ -1599,19 +1599,15 @@ quota, and checked state/edge/path counts. There is no runtime admission or succ
 
 ### Production and transport
 
-`machine-certify MACHINE --expect-machine ID --output CERT [--max-edges N]` first
-runs the existing compiler/SKI machine checker. Only its established result supplies
-the projected model, reached states and goal paths to the independent certificate
-checker. The certificate is checked before writing. Unsafe, unreachable, incomplete
-or erroneous producer results retain machine-check's statuses/codes and write no
-certificate. Destination files are never overwritten. Library create(model,states,
-paths) likewise checks before returning bytes; other producers can construct the
-same inert format without using this implementation.
+`machine-evidence` is the canonical producer-to-proof bridge; its positive AND
+negative outputs, and its separate producer/checker quotas, are specified under
+Proof-producing machine analysis below. Library create(model,states,paths) checks
+before returning a positive certificate. Producers are not part of the proof checker.
 
 `certificate-inspect CERT` reports structural identity, not validity.
 `certificate-check CERT --expect-model ID --expect-checker ID [--max-steps N]`
 checks the data. `certificate-checker` reports local checker and launcher digests.
-`certificate-unpack CERT --output NEW_DIRECTORY` exports certificate.json,
+`evidence-unpack CERT --output NEW_DIRECTORY` exports certificate.json,
 checker.json, replay.py, a guide and license as private files. Unpacking does not
 verify the proof or execute producer code; it requires the current checker and
 never reuses an existing destination.
@@ -1680,7 +1676,7 @@ contract preservation, not behavioral refinement, optimization or runtime adopti
 
 CLI certificate-change-pack takes two files and --output; certificate-change-check
 takes a packet, --expect-model, --expect-checker, optional --max-steps and --output.
-certificate-change-unpack exports change.json and the same five-file checker plus
+evidence-unpack exports change.json and the same five-file checker plus
 authenticated launcher. Offline add --change to replay.py; --output is legal only
 in change mode. CLI/offline write a successor only on verified_change and refuse
 existing destinations. Authenticate the launcher and checker independently. No
@@ -1799,7 +1795,7 @@ unknown tags fail2. evidence.verify dispatches to the small checker, retaining i
 report unchanged. evidence.unpack exports the existing authenticated standalone
 checker and guide without producer code; it is inert. CLI machine-evidence writes
 only returned verified bytes, without overwrite; evidence-check/unpack provide
-common dispatch. Existing machine-certify remains unchanged. Certificate checker
+common dispatch. Existing machine-evidence remains unchanged. Certificate checker
 and launcher source bytes/pins are unchanged by this adapter and CLI addition.
 
 ## Certified repairs (build 37)
@@ -1838,7 +1834,7 @@ premise of a successful repair, never itself an admission.
 CLI certificate-repair-pack takes refutation and candidate files, exclusively writes
 unchecked data and exits0. certificate-repair-check requires --expect-model and
 --expect-checker, supports --max-steps and optionally writes --output exclusively
-only on success. certificate-repair-unpack exports repair.json, the existing five
+only on success. evidence-unpack exports repair.json, the existing five
 checker sources, guide, licence and updated launcher; unpacking executes no code.
 The launcher adds mutually exclusive --repair; --expect-model anchors the defective
 parent. It reproduces reports and optional successor bytes exactly as the CLI.
@@ -1851,3 +1847,39 @@ not accept repair entries. Neither proof establishes minimality, search complete
 behavioral equivalence, runtime correctness, authorship or chronological order.
 The five-file checker source closure changes and so do its checker/launcher IDs;
 existing proof bytes are not rewritten or silently assigned the new checker.
+
+
+## Build38 consolidation: canonical proof path and shared transport
+
+For machines, durable verification uses certificate/refutation data and the pinned
+small checker. Existing runtime-bound machine/composition commands remain producer
+and exploration interfaces; their reports do not substitute for these proofs.
+No format is added. Six redundant CLI commands are removed: machine-certify and
+five type-specific proof unpack commands. Use machine-evidence and evidence-unpack.
+The older build headings describe semantics, not promises to retain retired names.
+
+evidence-unpack accepts any of the five existing certificate-family formats. It
+validates shape and local checker identity without validating mathematical claims.
+Pack/inspect/export are not admissions. Output directories must be new; failures
+remove only the new owned directory. Files are 0600; directories 0700.
+
+src/transport.py owns materialization and guides. src/replay.py is the ONLY current
+offline launcher; its identical bytes are exported with proof, lab and experiment
+packets. Neither belongs to the semantic source closures. The certificate closure
+still has five files, with the original mathematical check functions unchanged.
+Transport changes alone no longer alter its ID. This boundary extraction changes
+the current source IDs once; historical bytes are never rewritten or repinned.
+
+The launcher requires -I -S, one anchor family, and the domain-specific anchors.
+It validates the expected fixed source set, hashes captured UTF-8 source strings,
+and executes those same strings through an in-memory loader. No received path is
+inserted into sys.path, no second source read or cached pyc is used, and a missing
+module is never obtained from adjacent files. Only the chosen closure is loaded.
+Parser modes are mutually exclusive. Received compiler runtimes execute only with
+--execute-runtimes and a controller anchor. This is explicit execution, not a sandbox.
+One launcher consolidates transport; it does not unify or enlarge the proof domains.
+
+ANCHORS.md binds source/launcher IDs to identified snapshots. Tags identify bytes,
+not correctness, adoption, a frozen temperature, or an independent trust channel.
+The recipient still chooses which snapshot and checker to trust independently of
+an incoming packet. Untagged candidate rows must not be presented as released tags.

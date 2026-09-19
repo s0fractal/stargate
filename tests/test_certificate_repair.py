@@ -165,7 +165,7 @@ class Repair(unittest.TestCase):
             self.assertEqual(packed.returncode,0,packed.stderr)
             self.assertEqual(json.loads(packed.stdout)['status'],'unchecked_repair')
             self.assertEqual((root/'packet').read_bytes(),packet)
-            exported=cli('certificate-repair-unpack',root/'packet','--output',root/'offline')
+            exported=cli('evidence-unpack',root/'packet','--output',root/'offline')
             self.assertEqual(exported.returncode,0,exported.stderr)
             pins=['--expect-model',c.identity(decode(ref)['model']),'--expect-checker',c.checker_id()]
             replay=[sys.executable,'-I','-S',str(root/'offline/replay.py'),str(root/'packet'),'--repair']

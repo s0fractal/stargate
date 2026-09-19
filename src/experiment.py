@@ -349,62 +349,7 @@ def exit_code(report):
             'incomplete': 3, 'controller_unavailable': 3}[report['status']]
 
 
-REPLAY = BOOTSTRAP + '\n' + 'NAMES = ' + repr(CONTROLLER) + r'''
-import argparse
-import hashlib
-p = argparse.ArgumentParser(allow_abbrev=False)
-p.add_argument('packet', type=Path)
-p.add_argument('--expect-controller', required=True)
-p.add_argument('--execute-runtimes', action='store_true', required=True)
-a = p.parse_args()
-texts = json.loads((Path(__file__).resolve().parent / 'controller.json').read_bytes())
-if type(texts) is not dict or set(texts) != set(NAMES) or any(type(s) is not str for s in texts.values()):
-    raise SystemExit('invalid controller source map')
-digest = hashlib.sha256(json.dumps(texts, ensure_ascii=False, sort_keys=True,
-                                  separators=(',', ':')).encode('utf-8')).hexdigest()
-if digest != a.expect_controller:
-    print(json.dumps(dict(status='controller_unavailable', controller=digest)))
-    raise SystemExit(3)
-load(texts, NAMES)
-from stargate import experiment
-try:
-    report = experiment.run(experiment.read(a.packet), expect_controller=a.expect_controller, execute=True)
-except (ValueError, TypeError, RecursionError) as exc:
-    print(json.dumps(dict(status='invalid', error=str(exc))))
-    raise SystemExit(2)
-except OSError as exc:
-    print(json.dumps(dict(status='operation_error', error=str(exc))))
-    raise SystemExit(1)
-print(json.dumps(report, sort_keys=True))
-raise SystemExit(experiment.exit_code(report))
-'''
-
-
 def read(path):
     with Path(path).open('rb') as stream: raw = stream.read(MAX_BYTES + 1)
     if len(raw) > MAX_BYTES: raise InvalidRecord('experiment input exceeds size limit')
     return raw
-
-
-def unpack(raw, destination):
-    report = describe(raw)
-    if report['controller'] != controller_id():
-        raise InvalidRecord('cannot export a different controller')
-    out = Path(destination)
-    out.mkdir(mode=0o700)  # Never reuse an existing path, including a symlink.
-    # Fixed filenames only. A received directory remains untrusted; verify the
-    # launcher separately and supply an independently obtained controller ID.
-    try:
-        for name, content in {'experiment.json': raw, 'controller.json': canon(sources(CONTROLLER)),
-                              'replay.py': REPLAY.encode('utf-8'), 'LICENSE': LICENSE.encode('utf-8'),
-                              'README.md': GUIDE.encode('utf-8')}.items():
-            fd = os.open(out / name, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
-            with os.fdopen(fd, 'wb') as stream: stream.write(content)
-    except BaseException:
-        # Only fixed paths created in this owned directory; never recursive rm.
-        for name in ('experiment.json', 'controller.json', 'replay.py', 'LICENSE', 'README.md'):
-            (out / name).unlink(missing_ok=True)
-        out.rmdir()
-        raise
-    report['replay_digest'] = hashlib.sha256(REPLAY.encode('utf-8')).hexdigest()
-    return report

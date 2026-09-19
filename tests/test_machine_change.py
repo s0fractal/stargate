@@ -1,3 +1,4 @@
+from stargate import transport
 import json
 from pathlib import Path
 import subprocess
@@ -129,7 +130,7 @@ class MachineChange(unittest.TestCase):
     def test_cli_and_offline_same_reports_outputs_and_refusals(self):
         raw = parent()
         with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp); offline = root/'offline'; desc = machine.unpack(raw, offline)
+            root = Path(tmp); offline = root/'offline'; desc = transport.unpack_machine(raw, offline)
             source = root/'machine.json'; source.write_bytes(raw)
             prop = root/'proposal.json'
             for p, quota, anchor, code, status in [
@@ -155,7 +156,7 @@ class MachineChange(unittest.TestCase):
     def test_cli_offline_parent_runtime_missing_and_occupied_destination(self):
         raw = parent()
         with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp); offline = root/'offline'; desc = machine.unpack(raw, offline)
+            root = Path(tmp); offline = root/'offline'; desc = transport.unpack_machine(raw, offline)
             source = root/'machine.json'; prop = root/'proposal.json'; output = root/'out'
             broken = canon(dict(decode(raw), next=proposal(raw, True)['next']))
             foreign = decode(raw); foreign['sources']['machine.py'] += '\n# foreign runtime'

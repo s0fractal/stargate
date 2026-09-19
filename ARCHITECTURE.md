@@ -140,3 +140,6 @@ explicit component wiring into a private machine and independently checks the
 translation against original rules. The offline runtime includes composition.py
 after machine.py; machine and lab have no runtime import back to composition.
 x0 remains empty.
+
+Offline transport and replay are x6, outside all semantic source closures.
+The five-file certificate checker does not import either. x0 stays empty.

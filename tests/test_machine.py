@@ -1,3 +1,4 @@
+from stargate import transport
 import io
 import json
 from pathlib import Path
@@ -228,7 +229,7 @@ class Machine(unittest.TestCase):
     def test_cli_offline_agree_on_safe_trace_quota_anchor_and_foreign_runtime(self):
         raw=simple();bad=simple(next_expr='q && !e')
         with tempfile.TemporaryDirectory() as tmp:
-            root=Path(tmp);offline=root/'offline';desc=machine.unpack(raw,offline)
+            root=Path(tmp);offline=root/'offline';desc=transport.unpack_machine(raw,offline)
             self.assertEqual(desc['status'],'unchecked_machine')
             self.assertEqual((offline/'machine.json').stat().st_mode & 0o777,0o600)
             path=root/'input.json'
@@ -251,7 +252,7 @@ class Machine(unittest.TestCase):
                     self.assertEqual((result.returncode,report['status']),(code,status))
                     results.append(report)
                 self.assertEqual(results[0],results[1])
-            with self.assertRaises(FileExistsError):machine.unpack(raw,offline)
+            with self.assertRaises(FileExistsError):transport.unpack_machine(raw,offline)
             self.assertTrue((offline/'machine.json').exists())
 
     def test_cli_create_and_readonly_inspect(self):

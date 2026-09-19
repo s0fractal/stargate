@@ -1,3 +1,4 @@
+from stargate import transport
 import io
 import json
 from contextlib import redirect_stdout, redirect_stderr
@@ -182,7 +183,7 @@ class PropertyWorlds(unittest.TestCase):
         with self.assertRaisesRegex(InvalidRecord,'recipient anchor'):
             lineage.verify(canon(altered),lab.identity(root))
         with tempfile.TemporaryDirectory() as tmp:
-            path=Path(tmp);lineage.unpack(history,path/'offline')
+            path=Path(tmp);transport.unpack_lineage(history,path/'offline')
             args=[sys.executable,'-I','-S',str(path/'offline/replay.py'),str(path/'offline/lineage.json'),str(path/'tip.json'),
                   '--lineage','--expect-root',lab.identity(root),'--expect-runtime',lab.runtime_digest(decode(root)['sources'])]
             run=subprocess.run(args,cwd='/',capture_output=True,text=True)

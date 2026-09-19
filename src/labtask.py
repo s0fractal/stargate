@@ -1,7 +1,5 @@
 """Portable lab work requests. Imported progress is a claim, always recomputed."""
-import os
 from pathlib import Path
-import shutil
 
 from . import lab
 from .canonical import canon, decode, exact, record_hash, InvalidRecord
@@ -53,8 +51,7 @@ def describe(raw):
     return dict(status='unverified_progress', task_id=identity(canon(doc['world']), doc['proposal']),
                 packet_id=lab.identity(raw), claimed_rows=len(doc['prefix']),
                 total_rows=2**len(doc['world']['inputs']),
-                runtime_digest=lab.runtime_digest(doc['world']['sources']),
-                replay_digest=lab.identity(lab.REPLAY.encode('utf-8')))
+                runtime_digest=lab.runtime_digest(doc['world']['sources']))
 
 
 def _result(doc, state, replayed, advanced):
@@ -108,25 +105,3 @@ def read(path):
     if len(raw) > MAX_TASK:
         raise InvalidRecord('lab task exceeds size limit')
     return raw
-
-
-def unpack(raw, output):
-    doc = inspect(raw)
-    output = Path(output)
-    description = describe(raw)
-    result = lab.unpack_world(canon(doc['world']), output)
-    try:
-        fd = os.open(output/'task.json', os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
-        with os.fdopen(fd, 'wb') as stream:
-            stream.write(raw)
-        with (output/'README.txt').open('a', encoding='utf-8') as stream:
-            stream.write('\nThis directory carries task.json with CLAIMED progress.\n'
-                         'Advertised task_id (confirm independently): ' + description['task_id'] +
-                         '\nUse task mode, not the proposal example above:\n'
-                         'python -I -S replay.py task.json next.json --task --rows 3 '
-                         '--expect-task INDEPENDENT_TASK_ID --expect-runtime INDEPENDENT_DIGEST\n'
-                         'Exit 3 with output_kind task is pending work, not a successor.\n')
-    except BaseException:
-        shutil.rmtree(output)
-        raise
-    return dict(result, **description)

@@ -1,3 +1,4 @@
+from stargate import transport
 import copy
 import json
 from pathlib import Path
@@ -215,7 +216,7 @@ class ExperimentTests(unittest.TestCase):
         for case, runtime, status in variants:
             with self.subTest(status=status), tempfile.TemporaryDirectory() as tmp:
                 out = Path(tmp) / 'offline'
-                e.unpack(self.packet(candidate=runtime, corpus={'corpus': 1, 'cases': [case]}), out)
+                transport.unpack_experiment(self.packet(candidate=runtime, corpus={'corpus': 1, 'cases': [case]}), out)
                 args = [str(out / 'experiment.json'), '--expect-controller', e.controller_id(), '--execute-runtimes']
                 cli = subprocess.run([sys.executable, '-I', '-m', 'stargate', 'experiment-check', *args], capture_output=True, text=True, cwd='/')
                 replay = subprocess.run([sys.executable, '-I', '-S', str(out / 'replay.py'), *args], capture_output=True, text=True, cwd='/')
@@ -267,11 +268,11 @@ class ExperimentTests(unittest.TestCase):
             doc['sources']['__init__.py'] += '\nopen(' + repr(str(marker)) + ', "w").write("bad")\n'
             raw = self.packet(candidate=canon(doc))
             self.assertEqual(e.describe(raw)['status'], 'intact')
-            e.unpack(raw, Path(tmp) / 'out')
+            transport.unpack_experiment(raw, Path(tmp) / 'out')
             self.assertEqual((Path(tmp) / 'out' / 'LICENSE').read_text(), (Path(__file__).resolve().parents[1] / 'LICENSE').read_text())
             self.assertEqual((Path(tmp) / 'out' / 'README.md').read_text(), e.GUIDE)
             self.assertFalse(marker.exists())
-            with self.assertRaises(FileExistsError): e.unpack(raw, Path(tmp) / 'out')
+            with self.assertRaises(FileExistsError): transport.unpack_experiment(raw, Path(tmp) / 'out')
             self.assertTrue((Path(tmp) / 'out' / 'experiment.json').is_file())
 
     def test_foreign_source_map_and_bad_corpus_rejected_without_execution(self):
@@ -334,7 +335,7 @@ class ExperimentTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp); out = root / 'offline'
             negative = {'name': 'unknown', 'inputs': ['a'], 'rule': 'fact a: bool\ncheck ghost', 'max_atp': 1000, 'expect': 'reject'}
-            raw = self.packet(corpus={'corpus': 1, 'cases': self.corpus['cases'] + [negative]}); e.unpack(raw, out)
+            raw = self.packet(corpus={'corpus': 1, 'cases': self.corpus['cases'] + [negative]}); transport.unpack_experiment(raw, out)
             marker = root / 'shadowed'
             for name in ('tempfile.py', 'sitecustomize.py', 'subprocess.py'):
                 (out / name).write_text('open(' + repr(str(marker)) + ', "w").write("bad")\nraise RuntimeError("shadowed")')

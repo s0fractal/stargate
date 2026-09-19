@@ -1,3 +1,4 @@
+from stargate import transport
 import json
 from pathlib import Path
 import subprocess
@@ -129,7 +130,7 @@ class MachineProperties(unittest.TestCase):
     def test_cli_and_offline_byte_identical_without_output(self):
         with tempfile.TemporaryDirectory() as tmp:
             root=Path(tmp);raw=packet((1,3,2,3));anchor=lab.identity(raw)
-            source=root/'machine';source.write_bytes(raw);offline=root/'offline';desc=machine.unpack(raw,offline)
+            source=root/'machine';source.write_bytes(raw);offline=root/'offline';desc=transport.unpack_machine(raw,offline)
             claim=root/'claim';claim.write_text(json.dumps(dict(parent=anchor,property=dict(kind='equal',left='a',right='b'))))
             for mode,path,code,status in [('discover',source,0,'complete'),('claim',claim,4,'counterexample')]:
                 outputs=[]
@@ -192,7 +193,7 @@ class MachineProperties(unittest.TestCase):
     def test_cli_offline_refusal_classifications(self):
         with tempfile.TemporaryDirectory() as tmp:
             root=Path(tmp);raw=packet((1,3,2,3));anchor=lab.identity(raw)
-            source=root/'machine';offline=root/'offline';desc=machine.unpack(raw,offline)
+            source=root/'machine';offline=root/'offline';desc=transport.unpack_machine(raw,offline)
             foreign=decode(raw);foreign['sources']['machine.py']+='\n# foreign'
             for data,expected,quota,code,status in [(raw,anchor,0,3,'incomplete'),
                     (raw,'0'*64,256,2,'invalid'),(canon(foreign),lab.identity(canon(foreign)),256,3,'runtime_unavailable')]:

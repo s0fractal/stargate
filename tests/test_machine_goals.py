@@ -1,3 +1,4 @@
+from stargate import transport
 import json
 from pathlib import Path
 import subprocess
@@ -151,7 +152,7 @@ class MachineGoals(unittest.TestCase):
 
     def test_cli_and_offline_agree_on_goal_refusal_and_witnesses(self):
         with tempfile.TemporaryDirectory() as tmp:
-            root=Path(tmp);raw=world();offline=root/'offline';desc=machine.unpack(raw,offline)
+            root=Path(tmp);raw=world();offline=root/'offline';desc=transport.unpack_machine(raw,offline)
             path=root/'world'
             for packet,code,status in [(raw,0,'established'),(world('q'),4,'goal_unreachable')]:
                 path.write_bytes(packet);outputs=[]
