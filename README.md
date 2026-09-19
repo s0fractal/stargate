@@ -3,7 +3,7 @@
 A portable experiment can carry its rules, evidence and an independently checkable
 continuation. A participant needs no founder key to propose or check a model change.
 
-**Build 40 · 32K draft.** Contracts may change incompatibly. A tag records a source
+**Build 41 · 32K draft.** Contracts may change incompatibly. A tag records a source
 snapshot; it does not freeze the temperature or certify the checker as correct.
 
 ## Start with a real model: Peterson mutual exclusion
@@ -70,6 +70,43 @@ An unfinished candidate is skipped, not refuted; exhaustion after any unfinished
 candidate is also 3. The finite one-edit neighborhood is neither complete synthesis
 nor a minimal-repair guarantee. Search does not write Git; applying remains a separate
 explicitly scoped operation, suitable for chaining in a script with `set -e`.
+
+### Let the counterexample guide a coupled repair
+
+After the Peterson walkthrough, its generated `broken-world.json` can be searched:
+
+```sh
+MACHINE=$(python -c 'import hashlib; print(hashlib.sha256(open("peterson-demo/broken-world.json","rb").read()).hexdigest())')
+sg repair-search peterson-demo/broken-world.json --expect-machine "$MACHINE" \
+  --strategy trace --max-candidates 32 --output peterson-demo/discovered-repair.json
+sg certificate-repair-check peterson-demo/discovered-repair.json \
+  --expect-model "$MODEL" --expect-checker "$CHECKER" --output peterson-demo/discovered-certificate.json
+```
+
+`one-edit` remains the default baseline. `trace` walks the counterexample backward,
+prioritizes upstream state outside the invariant, and proposes at most eight
+compatible compound-subtree exchanges per rule before the original neighborhood.
+Every rule and every old candidate remains in the stream; a quota may stop before
+reaching them. The ranking is a heuristic, not proof of where the bug lives.
+
+Candidates replay saved event sequences with their own recomputed states. Every
+screening rejection is also checked as a negative proof. Passing an old trace still
+requires full analysis and the final repair gate. Up to 16 distinct event traces
+from proved failures are retained within the run, with no new experience format.
+
+On this Peterson example, at the same 256-candidate limit:
+
+| Search | Attempts | Full producer calls, including parent | Trace replays | Result |
+| --- | ---: | ---: | ---: | --- |
+| Original one-edit | 178 | 152 | 0 | Exhausted |
+| Exchanges, ordinary rule order, no screening | 19 | 20 | 0 | Found |
+| Exchanges + screening, ordinary rule order | 19 | 6 | 43 | Found |
+| Backward priority + exchanges + screening | 1 | 2 | 1 | Found |
+
+The expanded grammar makes this repair possible; ranking and screening reduce work.
+These counts describe this example, not a general speed guarantee. The found
+transition system matches the correct Peterson program-counter model on all 64
+state/event combinations. Its proof and Git application need no search implementation.
 
 ## Let the proof authorize a model commit
 

@@ -7,6 +7,7 @@ safety invariant and both goals are identical, so only `next` changes.
 Run inside an environment where `stargate` is installed, in an empty directory:
     python examples/peterson_repair.py peterson-demo
 In that new directory writes broken.json (refutation), peterson.json (certificate), broken-id (ModelID).
+Also writes broken-world.json and peterson-world.json for repeatable search.
 Then: sg certificate-repair-pack broken.json peterson.json --output repair.json
 """
 from pathlib import Path
@@ -52,6 +53,7 @@ def main():
                                        ('peterson', True, 'verified_certificate')]:
         raw = machine.create(model(yield_turn))
         report, proof = evidence.produce(raw, lab.identity(raw))
+        (output / (name + '-world.json')).write_bytes(raw)
         assert report['status'] == expected, report
         (output / (name + '.json')).write_bytes(proof)
         (output / (name + '-id')).write_text(report['model_id'])

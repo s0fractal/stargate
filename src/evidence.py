@@ -68,17 +68,19 @@ def produce(raw, expected_machine, *, max_edges=256, max_steps=certificate.MAX_S
 
 
 def repair_search(raw, expected_machine, *, max_candidates=32, max_edges=256,
-                  max_steps=certificate.MAX_STEPS):
-    """Bounded one-rule search producing an existing, independently checked repair.
+                  max_steps=certificate.MAX_STEPS, strategy="one-edit"):
+    """Bounded repair search producing an existing, independently checked repair.
 
     Exhaustion means only this syntactic neighborhood, never impossibility of repair.
     Candidate incompleteness does not stop later candidates or become refutation.
     """
     from . import search
+    if strategy not in ('one-edit','trace'): raise InvalidRecord('unknown repair search strategy')
     if type(max_candidates) is not int or not 1 <= max_candidates <= 256:
         raise InvalidRecord('candidate quota must be 1..256')
     parent_check, refutation = produce(raw, expected_machine, max_edges=max_edges, max_steps=max_steps)
     report = dict(status='search_incomplete', parent=parent_check, attempted=0,
+                  strategy=strategy, trace_checks=0, screened=0,
                   producer_calls=1, repair_checks=0, incomplete_candidates=0, attempts=[])
     if parent_check['status'] != 'verified_refutation':
         return dict(report, status=('not_needed' if parent_check['status'] == 'verified_certificate'
@@ -87,7 +89,17 @@ def repair_search(raw, expected_machine, *, max_candidates=32, max_edges=256,
     parent_model = certificate.model_from_machine(doc)
     checker = certificate.checker_id()
     seen = {canon(doc['next'])}
-    stream = iter(search.machine_candidates(doc))
+    traces = []
+    def remember(proof):
+        claim = decode(proof)['claim']
+        if claim['kind'] != 'unsafe' or len(traces) >= 16: return
+        trace = claim['trace']
+        def events(t): return (t['initial'], [step['event'] for step in t['steps']])
+        if not any(events(t) == events(trace) for t in traces): traces.append(trace)
+    remember(refutation)
+    order = search.trace_order(doc, traces[0] if traces else None) if strategy == 'trace' else list(doc['state'])
+    report.update(rule_order=order)
+    stream = iter(search.repair_candidates(doc,order) if strategy == 'trace' else search.machine_candidates(doc))
     for _ in range(max_candidates):
         try:
             rules = next(stream)
@@ -109,6 +121,28 @@ def repair_search(raw, expected_machine, *, max_candidates=32, max_edges=256,
             attempt['reason'] = str(exc)
             continue
         attempt['model_id'] = certificate.identity(candidate_model)
+        blocked = False
+        if strategy == 'trace':
+            for trace in traces:
+                report['trace_checks'] += 1
+                replay = machine.replay_trace(candidate, trace)
+                if replay['status'] == 'counterexample':
+                    try:
+                        witness = certificate.create_refutation(candidate_model,dict(kind='unsafe',trace=replay['trace']))
+                    except (ValueError,TypeError,KeyError,certificate.CheckerError) as exc:
+                        return dict(report,status='checker_error',reason=str(exc)), None
+                    attempt.update(status='screened', witness=decode(witness)['claim']['trace'])
+                    report['screened'] += 1
+                    blocked = True
+                    break
+                if replay['status'] == 'incomplete':
+                    attempt['status'] = 'incomplete'
+                    report['incomplete_candidates'] += 1
+                    blocked = True
+                    break
+                if replay['status'] != 'trace_passed':
+                    return dict(report,status='checker_error',reason='trace replay failed'), None
+        if blocked: continue
         report['producer_calls'] += 1
         checked, proof = produce(candidate, hashlib.sha256(candidate).hexdigest(),
                                  max_edges=max_edges, max_steps=max_steps)
@@ -117,6 +151,7 @@ def repair_search(raw, expected_machine, *, max_candidates=32, max_edges=256,
             report['incomplete_candidates'] += 1
             continue
         if checked['status'] == 'verified_refutation':
+            if strategy == 'trace': remember(proof)
             continue
         if checked['status'] != 'verified_certificate':
             return dict(report, status=checked['status']), None

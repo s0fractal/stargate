@@ -364,3 +364,10 @@ It reuses the finite mutation neighborhood and emits the existing certified repa
 packet; the unchanged small checker and Git executor need not trust the search.
 The interlock example connects defect, discovered guard change, proof and application.
 This is limited repair synthesis, not completeness or a proof about physical hardware.
+
+
+Peterson exposed the finite one-edit grammar's failure. A bounded compound exchange
+now expresses its repair; backward trace priorities and rechecked event witnesses
+reduce search work. The old neighborhood remains available, so a heuristic cannot
+silently define which rules are legal to repair. The unchanged checker remains the
+selector; this measured producer improvement does not enlarge its trust base.
