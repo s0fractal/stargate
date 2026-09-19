@@ -11,7 +11,7 @@ In the default equivalence mode, a changed answer produces a concrete
 counterexample. A cheaper equivalent rule
 can become the next world; an unfinished check establishes nothing.
 
-**Build 29 · 32K draft.** The contract can change incompatibly. This is an
+**Build 30 · 32K draft.** The contract can change incompatibly. This is an
 experimental implementation, not a stable release or a general program prover.
 Python only; commands `sg` and `stargate`. MIT licensed.
 
@@ -1275,3 +1275,50 @@ agreement about the same incorrectly assembled machine. A quota stop remains
 This first composition has one clock, direct old-state wires and a small full
 graph. It does not establish inevitable delivery, fairness, asynchronous protocol
 correctness or safe composition merely from local certificates.
+
+
+## Compare compiler implementations
+
+An experimental controller can now compare **two source snapshots** on a portable
+Boolean corpus. It independently checks both truth tables: two implementations
+agreeing on the same wrong answers do not earn `agreement`. This is finite
+experimental evidence, **not runtime adoption or permission to judge later changes**.
+The first profile covers Boolean compilation only, not signed admission or machines.
+
+From the repository root, with `sg` installed:
+
+```sh
+mkdir comparison
+sg runtime-pack --output comparison/parent.json
+# For a changed implementation, use --source-dir /path/to/its/src instead.
+sg runtime-pack --output comparison/candidate.json
+sg experiment-create comparison/parent.json comparison/candidate.json \
+  examples/runtime-corpus.json --output comparison/experiment.json
+sg experiment-controller > comparison/controller.json
+CONTROLLER=$(python -c 'import json; print(json.load(open("comparison/controller.json"))["controller"])')
+sg experiment-inspect comparison/experiment.json
+sg experiment-check comparison/experiment.json --expect-controller "$CONTROLLER" --execute-runtimes
+sg experiment-unpack comparison/experiment.json --output comparison/offline
+python -I -S comparison/offline/replay.py comparison/offline/experiment.json \
+  --expect-controller "$CONTROLLER" --execute-runtimes
+```
+
+This self-comparison is a setup control. With another snapshot, the same corpus
+can expose changed values, costs or terms. Exit 0 means all corpus rows agree with
+each other and the controller's Boolean oracle; 4 means a witnessed difference or
+oracle disagreement; 3 means unfinished execution or an unavailable controller.
+A compiler crash is not a semantic counterexample. Reports include both code IDs,
+corpus/controller IDs, execution conditions and concrete observations. Adding a
+case creates a new experiment; no universal equivalence is claimed.
+
+**Execution runs included Python with your privileges.** `-I -S` is not a sandbox.
+Only run code you are willing to execute, or supply a disposable isolation boundary
+outside Stargate. Inspecting and unpacking are inert. To replay a received directory,
+first compare replay.py with an independently obtained `replay_digest` from
+`experiment-controller`, and obtain the controller ID independently too. Neither
+an ID copied from the received packet nor a source map hashing itself is trust.
+Plain Python replay needs no Stargate installation or plugins.
+
+Build metadata now lives at `stargate.build.__version__`, outside the computation
+source closures. This changes the current lab pin once; future build-number-only
+edits do not change it. A source closure digest is not a wheel digest.

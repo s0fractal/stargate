@@ -1,0 +1,1 @@
+{"cases":[{"inputs":["a","b"],"max_atp":1000,"name":"or","rule":"fact a: bool\nfact b: bool\ncheck a || b"},{"inputs":["a","b"],"max_atp":1000,"name":"and","rule":"fact a: bool\nfact b: bool\ncheck a && b"},{"inputs":["a","b","c"],"max_atp":1000,"name":"precedence","rule":"fact a: bool\nfact b: bool\nfact c: bool\ncheck !a || b && c"}],"corpus":1}

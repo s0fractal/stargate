@@ -8,13 +8,14 @@ import sys
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from cryptography.hazmat.primitives import serialization
 
-from . import CONTRACT_STATUS, KELVIN, __version__, kernel
+from . import CONTRACT_STATUS, KELVIN, kernel
+from .build import __version__
 from .records import canon, decode, capture_environment, create_record, public_key, record_id, verify_record
 from .store import Store, StoreError, hex_hash
 from .bundle import export_bundle, verify_bundle, read_bundle, write_bundle, require_bundle
 from .policy import author_policy, CompilerBug, DEFAULT_MAX_ATP
 from .case import pack_case, inspect_case, read_case, unpack_case
-from . import lab, search, invariants, lineage, labtask, machine, composition
+from . import lab, search, invariants, lineage, labtask, machine, composition, experiment
 from .artifact import subject_hash, admit_bundle, admit_all, measure_subject
 
 
@@ -94,6 +95,22 @@ def parser():
     q = cmd("case-unpack", "materialize evidence in a new directory; never execute it")
     q.add_argument("path", type=Path)
     q.add_argument("--output", required=True, type=Path)
+    q = cmd("runtime-pack", "snapshot the compiler source closure; never execute it")
+    q.add_argument("--source-dir", type=Path)
+    q.add_argument("--output", required=True, type=Path)
+    cmd("experiment-controller", "show the local experiment controller and replay identities")
+    q = cmd("experiment-create", "bind two source capsules and a runtime-independent corpus")
+    q.add_argument("parent", type=Path); q.add_argument("candidate", type=Path)
+    q.add_argument("corpus", type=Path); q.add_argument("--timeout", type=int, default=30)
+    q.add_argument("--output", required=True, type=Path)
+    for command in ("experiment-inspect", "experiment-check", "experiment-unpack"):
+        q = cmd(command, "inspect, explicitly execute, or export a runtime experiment")
+        q.add_argument("path", type=Path)
+        if command == "experiment-check":
+            q.add_argument("--expect-controller", required=True, type=hex_hash)
+            q.add_argument("--execute-runtimes", required=True, action="store_true",
+                           help="execute included Python with your privileges; NOT a sandbox")
+        if command == "experiment-unpack": q.add_argument("--output", required=True, type=Path)
     q = cmd("lab-create", "create a portable finite boolean experiment (no keys)")
     q.add_argument("rule", type=Path)
     q.add_argument("--input", action="append", default=[], dest="inputs")
@@ -211,6 +228,24 @@ def read_admission_plan(path):
 
 
 def execute(args):
+    if args.command == 'runtime-pack':
+        raw = experiment.pack_runtime(args.source_dir)
+        write_bundle(args.output, raw)
+        return {'status': 'packed', 'profile': experiment.PROFILE,
+                'runtime': experiment.digest(experiment.runtime(raw))}
+    if args.command == 'experiment-controller':
+        return {'controller': experiment.controller_id(), 'profile': experiment.PROFILE,
+                'replay_digest': lab.identity(experiment.REPLAY.encode('utf-8'))}
+    if args.command == 'experiment-create':
+        raw = experiment.create(experiment.read(args.parent), experiment.read(args.candidate),
+            experiment.decode(experiment.read(args.corpus)), timeout=args.timeout)
+        write_bundle(args.output, raw)
+        return experiment.describe(raw)
+    if args.command.startswith('experiment-'):
+        raw = experiment.read(args.path)
+        if args.command == 'experiment-inspect': return experiment.describe(raw)
+        if args.command == 'experiment-unpack': return experiment.unpack(raw, args.output)
+        return experiment.run(raw, expect_controller=args.expect_controller, execute=args.execute_runtimes)
     if args.command.startswith('composition-'):
         try:
             raw=composition.read(args.path)
@@ -490,6 +525,7 @@ def main(argv=None):
         print(json.dumps({"status": "invalid", "error": str(exc)}), file=sys.stderr)
         return 2
     print(json.dumps(result, ensure_ascii=False, sort_keys=True))
+    if args.command == 'experiment-check': return experiment.exit_code(result)
     if args.command in ('lineage-check', 'lineage-append'):
         if result['status'] == 'verified_lineage': return 0
         if result['status'] == 'incomplete': return 3
