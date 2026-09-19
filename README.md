@@ -3,7 +3,7 @@
 A portable experiment can carry its rules, evidence and an independently checkable
 continuation. A participant needs no founder key to propose or check a model change.
 
-**Build 39 · 32K draft.** Contracts may change incompatibly. A tag records a source
+**Build 40 · 32K draft.** Contracts may change incompatibly. A tag records a source
 snapshot; it does not freeze the temperature or certify the checker as correct.
 
 ## Start with a real model: Peterson mutual exclusion
@@ -41,6 +41,35 @@ The commands above use the locally installed checker for a self-contained demo.
 For received artifacts obtain the checker and launcher IDs independently, using
 [ANCHORS.md](ANCHORS.md) and a selected source snapshot. A packet cannot authenticate
 its own judge merely by containing that judge's digest.
+
+## Find a repair instead of supplying one
+
+The two-sample interlock in `examples/interlock.json` remembers the previous
+`request` as `armed`. Its broken `open = request || armed` can leave the output
+open after the request is withdrawn. Safety requires `open` to imply `armed`;
+the goal requires an open state to remain reachable, ruling out a frozen-off fix.
+This is a synchronous Boolean model, not a validated hardware controller.
+
+```sh
+sg machine-create examples/interlock.json --output interlock-world.json
+MACHINE=$(python -c 'import hashlib; print(hashlib.sha256(open("interlock-world.json","rb").read()).hexdigest())')
+sg repair-search interlock-world.json --expect-machine "$MACHINE" --output interlock-repair.json
+```
+
+The existing one-rule mutation generator finds `open = request && armed` on its
+third attempt. Search proves the original defect, produces a candidate certificate,
+and rechecks the complete repair with the small checker before writing the existing
+repair packet. That packet works with `certificate-repair-check`, offline `--repair`
+and `model-apply` below. No search code is needed to check or apply it.
+
+`found` exits 0 and writes a packet; `not_needed` (already healthy) and
+`neighborhood_exhausted` exit 4; unfinished work exits 3; checker failure exits 1;
+invalid input exits 2. Refusals write no packet. Candidate quota exhaustion is
+unfinished even if every attempted candidate was refuted: untried candidates remain.
+An unfinished candidate is skipped, not refuted; exhaustion after any unfinished
+candidate is also 3. The finite one-edit neighborhood is neither complete synthesis
+nor a minimal-repair guarantee. Search does not write Git; applying remains a separate
+explicitly scoped operation, suitable for chaining in a script with `set -e`.
 
 ## Let the proof authorize a model commit
 

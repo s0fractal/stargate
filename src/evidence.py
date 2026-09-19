@@ -65,3 +65,81 @@ def produce(raw, expected_machine, *, max_edges=256, max_steps=certificate.MAX_S
     if checked['status'] in ('incomplete', 'checker_unavailable', 'checker_error'):
         return dict(report, status=checked['status']), None
     return dict(report, status='checker_error', reason='unexpected evidence checker status'), None
+
+
+def repair_search(raw, expected_machine, *, max_candidates=32, max_edges=256,
+                  max_steps=certificate.MAX_STEPS):
+    """Bounded one-rule search producing an existing, independently checked repair.
+
+    Exhaustion means only this syntactic neighborhood, never impossibility of repair.
+    Candidate incompleteness does not stop later candidates or become refutation.
+    """
+    from . import search
+    if type(max_candidates) is not int or not 1 <= max_candidates <= 256:
+        raise InvalidRecord('candidate quota must be 1..256')
+    parent_check, refutation = produce(raw, expected_machine, max_edges=max_edges, max_steps=max_steps)
+    report = dict(status='search_incomplete', parent=parent_check, attempted=0,
+                  producer_calls=1, repair_checks=0, incomplete_candidates=0, attempts=[])
+    if parent_check['status'] != 'verified_refutation':
+        return dict(report, status=('not_needed' if parent_check['status'] == 'verified_certificate'
+                                    else parent_check['status'])), None
+    doc = machine.inspect(raw)
+    parent_model = certificate.model_from_machine(doc)
+    checker = certificate.checker_id()
+    seen = {canon(doc['next'])}
+    stream = iter(search.machine_candidates(doc))
+    for _ in range(max_candidates):
+        try:
+            rules = next(stream)
+        except StopIteration:
+            return dict(report, status=('search_incomplete' if report['incomplete_candidates']
+                                        else 'neighborhood_exhausted'), reason='neighborhood_exhausted'), None
+        report['attempted'] += 1
+        attempt = dict(status='invalid_candidate')
+        report['attempts'].append(attempt)
+        try:
+            key = canon(rules)
+            if key in seen:
+                attempt['status'] = 'duplicate'
+                continue
+            seen.add(key)
+            candidate = canon(dict(doc, next=decode(key)))
+            candidate_model = certificate.model_from_machine(machine.inspect(candidate))
+        except (ValueError, TypeError) as exc:
+            attempt['reason'] = str(exc)
+            continue
+        attempt['model_id'] = certificate.identity(candidate_model)
+        report['producer_calls'] += 1
+        checked, proof = produce(candidate, hashlib.sha256(candidate).hexdigest(),
+                                 max_edges=max_edges, max_steps=max_steps)
+        attempt.update(status=checked['status'], check=checked)
+        if checked['status'] == 'incomplete':
+            report['incomplete_candidates'] += 1
+            continue
+        if checked['status'] == 'verified_refutation':
+            continue
+        if checked['status'] != 'verified_certificate':
+            return dict(report, status=checked['status']), None
+        report['repair_checks'] += 1
+        try:
+            if decode(proof)['model'] != candidate_model:
+                raise InvalidRecord('producer certificate names a different candidate')
+            packet = certificate.pack_repair(refutation, proof)
+            verdict, successor = certificate.verify_repair(packet, certificate.identity(parent_model),
+                                                           checker, max_steps=max_steps)
+        except (ValueError, TypeError, KeyError) as exc:
+            return dict(report, status='checker_error', reason=str(exc)), None
+        attempt['repair'] = verdict
+        if verdict['status'] == 'verified_repair' and successor is not None:
+            return dict(report, status='found', repair=verdict), packet
+        if verdict['status'] == 'incomplete':
+            report['incomplete_candidates'] += 1
+            continue
+        return dict(report, status='checker_error', reason='repair check did not establish repair'), None
+    return dict(report, reason='candidate_limit'), None
+
+
+def repair_exit_code(report):
+    if report['status'] == 'found': return 0
+    if report['status'] in ('not_needed', 'neighborhood_exhausted'): return 4
+    return 3 if report['status'] in ('search_incomplete', 'incomplete', 'checker_unavailable') else 1

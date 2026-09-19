@@ -105,6 +105,13 @@ def parser():
             q.add_argument('--max-steps', type=int, default=certificate.MAX_STEPS)
         else:
             q.add_argument('--output', required=True, type=Path)
+    q = cmd('repair-search', 'search a bounded neighborhood for a certified model repair')
+    q.add_argument('path', type=Path)
+    q.add_argument('--expect-machine', required=True, type=hex_hash)
+    q.add_argument('--max-candidates', type=int, default=32)
+    q.add_argument('--max-edges', type=int, default=256)
+    q.add_argument('--max-steps', type=int, default=certificate.MAX_STEPS)
+    q.add_argument('--output', required=True, type=Path)
     q = cmd('refutation-create', 'check a supplied model and refutation claim before writing proof data')
     q.add_argument('path', type=Path)
     q.add_argument('claim', type=Path)
@@ -287,6 +294,12 @@ def read_admission_plan(path):
 
 
 def execute(args):
+    if args.command == 'repair-search':
+        raw = lab.read_world(args.path)
+        report, packet = evidence.repair_search(raw, args.expect_machine,
+            max_candidates=args.max_candidates, max_edges=args.max_edges, max_steps=args.max_steps)
+        if packet is not None: write_bundle(args.output, packet)
+        return report
     if args.command == 'model-apply':
         return apply.apply(certificate.read(args.packet), args.repository, args.ref,
                            args.model_path, args.expect_commit, args.expect_checker,
@@ -653,6 +666,7 @@ def main(argv=None):
         print(json.dumps({"status": "invalid", "error": str(exc)}), file=sys.stderr)
         return 2
     print(json.dumps(result, ensure_ascii=False, sort_keys=True))
+    if args.command == 'repair-search': return evidence.repair_exit_code(result)
     if args.command == 'model-apply': return apply.exit_code(result)
     if args.command in ('machine-evidence', 'evidence-check'): return certificate.exit_code(result)
     if args.command in ('refutation-create', 'refutation-check'): return certificate.exit_code(result)

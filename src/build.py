@@ -1,2 +1,2 @@
 """Distribution metadata, outside computation source closures."""
-__version__ = "39"
+__version__ = "40"
