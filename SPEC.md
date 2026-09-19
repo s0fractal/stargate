@@ -1883,3 +1883,39 @@ ANCHORS.md binds source/launcher IDs to identified snapshots. Tags identify byte
 not correctness, adoption, a frozen temperature, or an independent trust channel.
 The recipient still chooses which snapshot and checker to trust independently of
 an incoming packet. Untagged candidate rows must not be presented as released tags.
+
+
+## Build 39: proof-authorized model application
+
+model-apply is a local effectful executor outside every semantic/replay closure.
+It accepts the existing certified_change or certified_repair format; no new proof
+format, trust key or reviewer approval is introduced. The caller supplies repository,
+full refs/heads/ name, root-level ASCII model filename, full expected Git commit ID,
+expected checker ID and optional per-proof max_steps. These are operator authority,
+not candidate-controlled fields. A bare repository with a direct target branch is
+required. The selected tree entry must be a regular 100644 blob containing a canonical
+model within the certificate byte bound. All other root entries are preserved,
+including modes, object IDs and subtrees. Nested model paths are not supported.
+
+The actual branch must equal expected_commit. Its committed model ID anchors the
+existing verify_change/verify_repair check; a packet cannot substitute another parent.
+Only a returned verified successor certificate permits object creation. Its model
+bytes become the replacement blob. Identical model bytes produce unchanged, with
+no commit or ref update. The new commit has exactly one parent, expected_commit,
+and records packet SHA-256 and checker ID. It is a generated successor commit,
+not a merge of a candidate Git tree. There is no candidate code execution.
+
+The publication point is git update-ref with the exact old object ID and no dereference.
+A concurrent branch advance/deletion prevents publication. A successful applied report
+names the commit published at that atomic instant; it does not claim the ref cannot
+subsequently move. Conflict can leave unreachable new objects, but never a partial
+published tree. No worktree/index is used. Hooks are disabled, replacement objects
+ignored, inherited GIT_* variables removed and global/system Git config excluded.
+Repository-local configuration, object store, host executables and filesystem access
+remain trusted. Malicious concurrent writers to those facilities are outside scope.
+
+Codes: applied=0; operation failure=1; invalid input or proof=2;
+incomplete/checker_unavailable=3; base_changed/unchanged=4. Checker failures retain
+checker_error=1. A refusal never changes the target ref. The evidence packet must be
+retained separately to reproduce the mathematical decision. No remote push, GitHub
+approval, live deployment, self-upgrade of the checker or arbitrary code proof is implied.

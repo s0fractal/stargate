@@ -3,7 +3,7 @@
 A portable experiment can carry its rules, evidence and an independently checkable
 continuation. A participant needs no founder key to propose or check a model change.
 
-**Build 38 · 32K draft.** Contracts may change incompatibly. A tag records a source
+**Build 39 · 32K draft.** Contracts may change incompatibly. A tag records a source
 snapshot; it does not freeze the temperature or certify the checker as correct.
 
 ## Start with a real model: Peterson mutual exclusion
@@ -41,6 +41,47 @@ The commands above use the locally installed checker for a self-contained demo.
 For received artifacts obtain the checker and launcher IDs independently, using
 [ANCHORS.md](ANCHORS.md) and a selected source snapshot. A packet cannot authenticate
 its own judge merely by containing that judge's digest.
+
+## Let the proof authorize a model commit
+
+`model-apply` consumes an existing certified change or repair. The operator chooses
+an exact base commit, branch, root-level model filename and independently trusted
+checker. The packet cannot choose those permissions. No reviewer verdict is read.
+
+After the Peterson walkthrough above, initialize a **separate local repository**:
+
+```sh
+mkdir peterson-demo/seed
+python -c 'from pathlib import Path; from stargate.canonical import canon,decode; p=Path("peterson-demo"); (p/"seed/model.json").write_bytes(canon(decode((p/"broken.json").read_bytes())["model"]))'
+git -C peterson-demo/seed init -b main
+git -C peterson-demo/seed add model.json
+git -C peterson-demo/seed -c user.name=Demo -c user.email=demo@localhost commit -m 'Initial model'
+git clone --bare peterson-demo/seed peterson-demo/models.git
+BASE=$(git --git-dir=peterson-demo/models.git rev-parse refs/heads/main)
+sg model-apply peterson-demo/repair.json --repository peterson-demo/models.git \
+  --ref refs/heads/main --model-path model.json --expect-commit "$BASE" \
+  --expect-checker "$CHECKER"
+git --git-dir=peterson-demo/models.git show refs/heads/main:model.json > peterson-demo/applied-model.json
+python -c 'from pathlib import Path; from stargate.canonical import canon,decode; p=Path("peterson-demo"); assert (p/"applied-model.json").read_bytes()==canon(decode((p/"peterson.json").read_bytes())["model"])'
+```
+
+Exit 0 / `applied` means the branch was atomically advanced to a commit whose only
+file change is the verified model, with the exact expected parent. A stale base
+(including a race during checking) gives `base_changed` / 4; a verified no-op gives
+`unchanged` / 4. Neither advances the branch. Incomplete checking or an unavailable
+checker gives 3; invalid input/proof gives 2; repository operation failure gives 1.
+
+The executor supports bare repositories only. It uses Git objects and compare-and-swap,
+without checkout, merge drivers or hooks. It ignores inherited `GIT_*` settings and
+replace objects. A failed final update can leave unreachable objects for Git GC.
+The local repository/config, filesystem permissions, Git and Python are trusted;
+this is not a sandbox for a hostile repository. A later authorized writer can move
+the branch again. Keep the original proof packet: the commit records its SHA-256,
+not its contents. The report is not a signed authorization token.
+
+This applies a model change, not arbitrary Python PRs or a GitHub merge. The
+certificate proves the model contract; it does not prove its translation into
+production code. The executor is outside the unchanged five-file proof checker.
 
 ## The canonical machine path
 
