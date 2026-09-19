@@ -106,6 +106,7 @@ def parser():
         else:
             q.add_argument('--output', required=True, type=Path)
     q = cmd('repair-search', 'search a bounded neighborhood for a certified model repair')
+    q.add_argument('--strategy', choices=('one-edit','trace'), default='one-edit')
     q.add_argument('path', type=Path)
     q.add_argument('--expect-machine', required=True, type=hex_hash)
     q.add_argument('--max-candidates', type=int, default=32)
@@ -297,7 +298,7 @@ def execute(args):
     if args.command == 'repair-search':
         raw = lab.read_world(args.path)
         report, packet = evidence.repair_search(raw, args.expect_machine,
-            max_candidates=args.max_candidates, max_edges=args.max_edges, max_steps=args.max_steps)
+            max_candidates=args.max_candidates, max_edges=args.max_edges, max_steps=args.max_steps, strategy=args.strategy)
         if packet is not None: write_bundle(args.output, packet)
         return report
     if args.command == 'model-apply':

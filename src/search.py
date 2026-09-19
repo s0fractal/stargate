@@ -246,3 +246,95 @@ def search_machine(raw, expected_parent, *, max_candidates=32, max_edges=256, ex
                 memory['counterexamples'].append(example)
     report['reason'] = 'candidate_limit'
     return report, None
+
+
+def _support(node, facts):
+    """Value and sufficient dynamic input support; a ranking heuristic only."""
+    tag = node[0]
+    if tag == 'fact': return facts[node[1]], {node[1]}
+    if tag == 'const': return node[1], set()
+    if tag == 'not':
+        value, names = _support(node[1], facts)
+        return not value, names
+    left, a = _support(node[1], facts)
+    right, b = _support(node[2], facts)
+    value = (left and right) if tag == 'and' else (left or right)
+    # Include every determining operand, not merely the first short-circuit branch.
+    deciding = False if tag == 'and' else True
+    if left == deciding or right == deciding:
+        return value, (a if left == deciding else set()) | (b if right == deciding else set())
+    return value, a | b
+
+
+def trace_order(doc, trace):
+    """Backward slice across the whole trace, with all other rules retained.
+
+    Upstream state absent from the invariant is ranked first, then slice frequency,
+    then state name. This is neither fault attribution nor a necessary repair set.
+    """
+    if trace is None: return list(doc['state'])
+    names = sorted(doc['state'] + doc['events'])
+    def parse(source, inputs):
+        return compiler.parse(source, dict.fromkeys(inputs, False), allow_unused=True)[0]
+    invariant = parse(doc['invariant'], doc['state'])
+    rules = {n:parse(source, names) for n, source in doc['next'].items()}
+    direct = {n for n in boolean.program(doc['invariant'],doc['state'],allow_unused=True) if n in doc['state']}
+    states = [trace['initial']] + [step['state'] for step in trace['steps']]
+    _, needed = _support(invariant, states[-1])
+    counts = dict.fromkeys(doc['state'], 0)
+    for index in range(len(trace['steps']) - 1, -1, -1):
+        facts = dict(states[index], **trace['steps'][index]['event'])
+        previous = set()
+        for name in sorted(needed & set(doc['state'])):
+            counts[name] += 1
+            _, dependencies = _support(rules[name], facts)
+            previous.update(dependencies)
+        needed = previous
+    return sorted(doc['state'], key=lambda n:(not (counts[n] and n not in direct), -counts[n], n))
+
+
+def _binary_nodes(node, path=()):
+    if node[0] in ('and','or'): yield path, node
+    for index in range(1,len(node)):
+        if isinstance(node[index],tuple): yield from _binary_nodes(node[index],path+(index,))
+
+
+def _shape(node):
+    if node[0] == 'not': return _shape(node[1])
+    if node[0] in ('fact','const'): return ('leaf',)
+    return node[0], _shape(node[1]), _shape(node[2])
+
+
+def _leaves(node):
+    if node[0] in ('fact','const'): return 1
+    return sum(_leaves(x) for x in node[1:] if isinstance(x,tuple))
+
+
+def _exchange(node, a, b, left, right, path=()):
+    if path == a: return right
+    if path == b: return left
+    return tuple(_exchange(x,a,b,left,right,path+(i,)) if isinstance(x,tuple) else x
+                 for i,x in enumerate(node))
+
+
+def repair_candidates(doc, order):
+    """At most eight compatible compound exchanges per rule, then old neighborhood.
+
+    Non-overlapping subtrees have the same binary shape ignoring NOT/name/constant.
+    Larger pairs first, then preorder paths. No rule is excluded by the slice.
+    """
+    if sorted(order) != list(doc['state']): raise InvalidRecord('rule order must be a permutation')
+    names = sorted(doc['state'] + doc['events'])
+    declarations = ''.join('fact '+n+': bool\n' for n in names)
+    for name in order:
+        tree, _ = compiler.parse(doc['next'][name],dict.fromkeys(names,False),allow_unused=True)
+        nodes = list(_binary_nodes(tree)); pairs = []
+        for index,(a,left) in enumerate(nodes):
+            for b,right in nodes[index+1:]:
+                if a == b[:len(a)] or b == a[:len(b)] or left == right: continue
+                if _shape(left) == _shape(right): pairs.append((a,b,left,right))
+        pairs.sort(key=lambda pair:(-_leaves(pair[2]),pair[0],pair[1]))
+        for a,b,left,right in pairs[:8]:
+            source = declarations+'check '+_render(_exchange(tree,a,b,left,right))
+            yield dict(doc['next'], **{name:source})
+    yield from machine_candidates(doc)
