@@ -95,6 +95,20 @@ def parser():
     q = cmd("case-unpack", "materialize evidence in a new directory; never execute it")
     q.add_argument("path", type=Path)
     q.add_argument("--output", required=True, type=Path)
+    q = cmd('certificate-change-pack', 'package two certificates without executing producer code')
+    q.add_argument('path', type=Path)
+    q.add_argument('candidate', type=Path)
+    q.add_argument('--output', required=True, type=Path)
+    for name in ('certificate-change-check', 'certificate-change-unpack'):
+        q = cmd(name, 'check a next-only model change using two inductive certificates')
+        q.add_argument('path', type=Path)
+        if name == 'certificate-change-check':
+            q.add_argument('--expect-model', required=True, type=hex_hash)
+            q.add_argument('--expect-checker', required=True, type=hex_hash)
+            q.add_argument('--max-steps', type=int, default=certificate.MAX_STEPS)
+            q.add_argument('--output', type=Path)
+        else:
+            q.add_argument('--output', required=True, type=Path)
     cmd('certificate-checker', 'identify the independent finite-certificate checker')
     for name in ('certificate-inspect', 'certificate-check', 'certificate-unpack'):
         q = cmd(name, 'check a finite inductive certificate without executing producer code')
@@ -242,6 +256,18 @@ def execute(args):
     if args.command.startswith('certificate-'):
         try: raw = certificate.read(args.path)
         except OSError as exc: raise StoreError('cannot read certificate: ' + str(exc)) from exc
+        if args.command == 'certificate-change-pack':
+            try: candidate = certificate.read(args.candidate)
+            except OSError as exc: raise StoreError('cannot read candidate certificate: ' + str(exc)) from exc
+            packet = certificate.pack_change(raw, candidate)
+            write_bundle(args.output, packet)
+            return dict(status='unchecked_change', change_id=certificate.identity(certificate.inspect_change(packet)))
+        if args.command == 'certificate-change-unpack':
+            return certificate.unpack(raw, args.output, license_text=lab.LICENSE, change=True)
+        if args.command == 'certificate-change-check':
+            report, successor = certificate.verify_change(raw, args.expect_model, args.expect_checker, max_steps=args.max_steps)
+            if successor is not None and args.output: write_bundle(args.output, successor)
+            return report
         if args.command == 'certificate-inspect': return certificate.describe(raw)
         if args.command == 'certificate-unpack': return certificate.unpack(raw, args.output, license_text=lab.LICENSE)
         return certificate.verify(raw, args.expect_model, args.expect_checker, max_steps=args.max_steps)
@@ -553,7 +579,7 @@ def main(argv=None):
         print(json.dumps({"status": "invalid", "error": str(exc)}), file=sys.stderr)
         return 2
     print(json.dumps(result, ensure_ascii=False, sort_keys=True))
-    if args.command == 'certificate-check': return certificate.exit_code(result)
+    if args.command in ('certificate-check', 'certificate-change-check'): return certificate.exit_code(result)
     if args.command == 'machine-certify':
         if result['status'] == 'verified_certificate': return 0
         if result['status'] in ('incomplete', 'checker_unavailable'): return 3

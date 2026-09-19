@@ -178,6 +178,52 @@ def create(model, states, paths):
     return raw
 
 
+def inspect_change(raw):
+    if not isinstance(raw, bytes) or len(raw) > MAX_BYTES:
+        raise InvalidRecord('certified change must be bytes within 1 MiB')
+    doc = decode(raw)
+    exact(doc, ('certified_change', 'parent', 'candidate'))
+    if type(doc['certified_change']) is not int or doc['certified_change'] != 1:
+        raise InvalidRecord('unsupported certified change')
+    for role in ('parent', 'candidate'):
+        inspect(canon(doc[role]))
+    return doc
+
+
+def pack_change(parent, candidate):
+    """Package untrusted evidence; no verification or admission implied."""
+    raw = canon(dict(certified_change=1, parent=inspect(parent), candidate=inspect(candidate)))
+    inspect_change(raw)
+    return raw
+
+
+def verify_change(raw, expected_parent, expected_checker, *, max_steps=MAX_STEPS):
+    """Check both certificates and preserve every model field except next.
+
+    The quota is per certificate, so the total bound is twice max_steps.
+    Only a successful result carries successor bytes (a reusable certificate).
+    """
+    doc = inspect_change(raw)
+    record_hash(expected_parent); record_hash(expected_checker)
+    parent, candidate = doc['parent']['model'], doc['candidate']['model']
+    if identity(parent) != expected_parent:
+        raise InvalidRecord('parent model does not match recipient anchor')
+    # Structural identity is meaningful without executing either grammar.
+    for field in ('language', 'state', 'events', 'initial', 'invariant', 'goals'):
+        if parent[field] != candidate[field]:
+            raise InvalidRecord('certified change alters protected field: ' + field)
+    report = dict(status='unchecked_change', change_id=identity(doc),
+                  parent_model=expected_parent, checker=expected_checker, checks=[])
+    for role in ('parent', 'candidate'):
+        cert = canon(doc[role])
+        checked = verify(cert, identity(doc[role]['model']), expected_checker, max_steps=max_steps)
+        report['checks'].append(dict(role=role, report=checked))
+        if checked['status'] != 'verified_certificate':
+            return dict(report, status=checked['status'], failed=role), None
+    return dict(report, status='verified_change', successor_model=identity(candidate),
+                successor_certificate=identity(doc['candidate'])), canon(doc['candidate'])
+
+
 def read(path):
     with Path(path).open('rb') as stream: raw = stream.read(MAX_BYTES + 1)
     if len(raw) > MAX_BYTES: raise InvalidRecord('certificate exceeds size limit')
@@ -185,7 +231,7 @@ def read(path):
 
 
 def exit_code(report):
-    return {'verified_certificate': 0, 'incomplete': 3, 'checker_unavailable': 3, 'checker_error': 1}[report['status']]
+    return {'verified_change': 0, 'verified_certificate': 0, 'incomplete': 3, 'checker_unavailable': 3, 'checker_error': 1}[report['status']]
 
 
 REPLAY = r'''"""Authenticate this launcher independently. No producer code is loaded."""
@@ -202,7 +248,10 @@ p.add_argument('certificate', type=Path)
 p.add_argument('--expect-model', required=True)
 p.add_argument('--expect-checker', required=True)
 p.add_argument('--max-steps', type=int, default=4288)
+p.add_argument('--change', action='store_true')
+p.add_argument('--output', type=Path)
 a = p.parse_args()
+if a.output and not a.change: p.error('--output requires --change')
 names = ('__init__.py', 'store.py', 'canonical.py', 'boolean.py', 'certificate.py')
 root = Path(__file__).resolve().parent
 try:
@@ -242,22 +291,37 @@ for name in names:
     if name != '__init__.py': setattr(sys.modules['stargate'], name[:-3], module)
 from stargate import certificate
 try:
-    report = certificate.verify(certificate.read(a.certificate), a.expect_model, a.expect_checker, max_steps=a.max_steps)
+    if a.change:
+        report, successor = certificate.verify_change(certificate.read(a.certificate), a.expect_model, a.expect_checker, max_steps=a.max_steps)
+    else:
+        report = certificate.verify(certificate.read(a.certificate), a.expect_model, a.expect_checker, max_steps=a.max_steps)
 except (ValueError, TypeError, RecursionError) as exc:
     print(json.dumps(dict(status='invalid', error=str(exc))))
     raise SystemExit(2)
 except OSError as exc:
     print(json.dumps(dict(status='unverified', error=str(exc))))
     raise SystemExit(3)
+if a.change and a.output and successor is not None:
+    try:
+        with a.output.open('xb') as stream: stream.write(successor)
+    except OSError as exc:
+        print(json.dumps(dict(status='operation_error', error=str(exc))))
+        raise SystemExit(1)
 print(json.dumps(report, sort_keys=True))
 raise SystemExit(certificate.exit_code(report))
 '''
 
 
-def unpack(raw, destination, *, license_text):
-    report = describe(raw)
-    if report['checker'] != checker_id(): raise InvalidRecord('cannot export another checker')
-    files = {'certificate.json': raw, 'checker.json': canon(sources()),
+def unpack(raw, destination, *, license_text, change=False):
+    if change:
+        doc = inspect_change(raw)
+        if any(doc[role]['checker'] != checker_id() for role in ('parent', 'candidate')):
+            raise InvalidRecord('cannot export another checker')
+        report = dict(status='unchecked_change', change_id=identity(doc), checker=checker_id())
+    else:
+        report = describe(raw)
+        if report['checker'] != checker_id(): raise InvalidRecord('cannot export another checker')
+    files = {('change.json' if change else 'certificate.json'): raw, 'checker.json': canon(sources()),
              'replay.py': REPLAY.encode(), 'LICENSE': license_text.encode(),
              'README.txt': GUIDE.encode()}
     out = Path(destination); out.mkdir(mode=0o700)
@@ -282,6 +346,11 @@ To contribute, propose a corrected state set or goal paths as data, not a verdic
 The recipient chooses the model ID independently; replacing the invariant changes it.
 Authenticate replay.py and the checker ID independently before running:
 python -I -S replay.py certificate.json --expect-model MODEL --expect-checker CHECKER
+For a certified change packet, add --change and use change.json. --expect-model
+anchors the parent. Both certificates are rechecked; only next may change. Optional
+--output writes the verified candidate certificate without overwrite. The step
+quota applies separately to each certificate. A no-op change is permitted. No
+claim of behavioral equivalence, improvement, or SKI runtime admission is made.
 Exit 0 verifies these finite obligations; 3 means incomplete/unavailable; 2 means
 invalid data/certificate, not proof that the model itself is unsafe; 1 checker error.
 Python, stdlib, the host and the selected checker remain trusted. Included checker

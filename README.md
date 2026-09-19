@@ -11,7 +11,7 @@ In the default equivalence mode, a changed answer produces a concrete
 counterexample. A cheaper equivalent rule
 can become the next world; an unfinished check establishes nothing.
 
-**Build 32 · 32K draft.** The contract can change incompatibly. This is an
+**Build 33 · 32K draft.** The contract can change incompatibly. This is an
 experimental implementation, not a stable release or a general program prover.
 Python only; commands `sg` and `stargate`. MIT licensed.
 
@@ -1378,3 +1378,32 @@ A returned value violates it (exit 4); budget exhaustion does not satisfy it
 (exit 3). Refusal of a valid positive case is an `oracle_disagreement` (exit 4),
 even when both subjects refuse. Agreement includes these obligations, not a
 proof of grammar correctness or truthful subject reporting.
+
+## Certified model changes
+
+Two independently checkable certificates can carry a change without running a
+producer, compiler or BFS. Only `next` may differ: state/events, initial states,
+invariant and goals stay exactly the same. The recipient anchors the parent
+**ModelID**, not a MachineID or a runtime. Both proofs are checked again.
+
+```sh
+sg certificate-change-pack parent-certificate.json candidate-certificate.json --output change.json
+sg certificate-change-check change.json --expect-model "$PARENT_MODEL" \
+  --expect-checker "$CHECKER" --output successor-certificate.json
+sg certificate-change-unpack change.json --output offline-change
+python -I -S offline-change/replay.py offline-change/change.json --change \
+  --expect-model "$PARENT_MODEL" --expect-checker "$CHECKER"
+```
+
+Packing/unpacking is inert and makes no correctness claim. Exit 0 from checking
+means both finite models satisfy the preserved safety/reachability contract; only
+then can `--output` write the candidate certificate, which is reusable for another
+change. Existing output paths are refused. Incomplete or unavailable checking is
+3, bad evidence/anchor/contract replacement is 2, checker/operation failure is 1.
+Invalid evidence does not establish an unsafe model. `--max-steps` is per proof,
+so at most twice that many transition/path obligations are checked.
+
+This is model-level admission: behavior may change and no-op changes are allowed.
+It proves neither equivalence nor improvement, SKI behavior, costs, or safe Python
+execution. The independently authenticated five-file checker, Python and its host
+remain trusted. Certificate sources and launcher now have new digests.
