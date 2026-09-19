@@ -15,7 +15,7 @@ from .store import Store, StoreError, hex_hash
 from .bundle import export_bundle, verify_bundle, read_bundle, write_bundle, require_bundle
 from .policy import author_policy, CompilerBug, DEFAULT_MAX_ATP
 from .case import pack_case, inspect_case, read_case, unpack_case
-from . import lab, search, invariants, lineage, labtask, machine, composition, experiment, certificate
+from . import lab, search, invariants, lineage, labtask, machine, composition, experiment, certificate, evidence
 from .artifact import subject_hash, admit_bundle, admit_all, measure_subject
 
 
@@ -95,6 +95,15 @@ def parser():
     q = cmd("case-unpack", "materialize evidence in a new directory; never execute it")
     q.add_argument("path", type=Path)
     q.add_argument("--output", required=True, type=Path)
+    for name in ('evidence-check', 'evidence-unpack'):
+        q = cmd(name, 'check or export either existing proof format')
+        q.add_argument('path', type=Path)
+        if name == 'evidence-check':
+            q.add_argument('--expect-model', required=True, type=hex_hash)
+            q.add_argument('--expect-checker', required=True, type=hex_hash)
+            q.add_argument('--max-steps', type=int, default=certificate.MAX_STEPS)
+        else:
+            q.add_argument('--output', required=True, type=Path)
     q = cmd('refutation-create', 'check a supplied model and refutation claim before writing proof data')
     q.add_argument('path', type=Path)
     q.add_argument('claim', type=Path)
@@ -192,10 +201,11 @@ def parser():
         if name in ('composition-check','composition-change'):
             q.add_argument('--expect-composition',required=True)
             q.add_argument('--max-edges',type=int,default=256)
-    for name in ('machine-create', 'machine-inspect', 'machine-check', 'machine-unpack', 'machine-change', 'machine-search', 'machine-discover', 'machine-claim', 'machine-certify'):
+    for name in ('machine-create', 'machine-inspect', 'machine-check', 'machine-unpack', 'machine-change', 'machine-search', 'machine-discover', 'machine-claim', 'machine-certify', 'machine-evidence'):
         q = cmd(name, 'check a finite synchronous machine on all reachable states')
         q.add_argument('path', type=Path)
-        if name in ('machine-create', 'machine-unpack', 'machine-certify'): q.add_argument('--output', type=Path, required=True)
+        if name in ('machine-create', 'machine-unpack', 'machine-certify', 'machine-evidence'): q.add_argument('--output', type=Path, required=True)
+        if name == 'machine-evidence': q.add_argument('--max-steps', type=int, default=certificate.MAX_STEPS)
         if name == 'machine-claim': q.add_argument('claim', type=Path)
         if name == 'machine-change':
             q.add_argument('proposal', type=Path)
@@ -204,7 +214,7 @@ def parser():
             q.add_argument('--max-candidates', type=int, default=32)
             q.add_argument('--experience', type=Path)
             q.add_argument('--output', type=Path)
-        if name in ('machine-check', 'machine-change', 'machine-search', 'machine-discover', 'machine-claim', 'machine-certify'):
+        if name in ('machine-check', 'machine-change', 'machine-search', 'machine-discover', 'machine-claim', 'machine-certify', 'machine-evidence'):
             q.add_argument('--expect-machine', required=True)
             q.add_argument('--max-edges', type=int, default=256)
     for name in ('lab-task-start', 'lab-task-resume', 'lab-task-inspect', 'lab-task-unpack'):
@@ -272,6 +282,11 @@ def read_admission_plan(path):
 
 
 def execute(args):
+    if args.command.startswith('evidence-'):
+        try: raw = certificate.read(args.path)
+        except OSError as exc: raise StoreError('cannot read evidence: ' + str(exc)) from exc
+        if args.command == 'evidence-unpack': return evidence.unpack(raw, args.output, license_text=lab.LICENSE)
+        return evidence.verify(raw, args.expect_model, args.expect_checker, max_steps=args.max_steps)
     if args.command.startswith('refutation-'):
         try:
             raw = certificate.read(args.path)
@@ -377,6 +392,10 @@ def execute(args):
             created = machine.create(json.loads(raw, object_pairs_hook=unique))
             write_bundle(args.output, created)
             return machine.describe(created)
+        if args.command == 'machine-evidence':
+            report, output = evidence.produce(raw, args.expect_machine, max_edges=args.max_edges, max_steps=args.max_steps)
+            if output is not None: write_bundle(args.output, output)
+            return report
         if args.command == 'machine-certify':
             report = machine.verify(raw, args.expect_machine, max_edges=args.max_edges)
             if report['status'] != 'established': return report
@@ -629,6 +648,7 @@ def main(argv=None):
         print(json.dumps({"status": "invalid", "error": str(exc)}), file=sys.stderr)
         return 2
     print(json.dumps(result, ensure_ascii=False, sort_keys=True))
+    if args.command in ('machine-evidence', 'evidence-check'): return certificate.exit_code(result)
     if args.command in ('refutation-create', 'refutation-check'): return certificate.exit_code(result)
     if args.command in ('certificate-check', 'certificate-change-check', 'certificate-history-check', 'certificate-history-append'): return certificate.exit_code(result)
     if args.command == 'machine-certify':

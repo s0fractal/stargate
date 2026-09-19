@@ -1764,3 +1764,40 @@ refutation-inspect/unpack are inert; refutation-check requires recipient anchors
 Offline --refutation is mutually exclusive with --change/--history and forbids
 --output. CLI and offline share the same five-file checker and statuses. Launcher
 and checker pins change intentionally; historical bytes are untouched.
+
+## Proof-producing machine analysis (build 36)
+
+The x5 evidence adapter is outside the five-file certificate checker and all lab
+and experiment runtime closures. produce anchors the input MachineID, projects
+the model from the inspected INPUT bytes, then invokes existing machine.verify.
+It does not accept a replacement model or anchor from the producer report.
+
+Producer established maps reachable states and goal_witnesses to a certificate;
+counterexample maps trace to an unsafe refutation; goal_unreachable maps the FIRST
+unreached goal plus reachable states to an exclusion refutation. Existing producer
+priority (safety before goal absence) is preserved; not all objections are enumerated.
+The generated packet always contains the projected input model and local checker ID.
+Before any bytes are returned, the independent checker must return exactly the
+corresponding verified_certificate or verified_refutation status.
+
+Producer incomplete/checker_error emits no packet. Malformed or unknown producer
+results, missing witness fields and evidence rejected by the checker become
+checker_error/1, phase producer or evidence, NOT invalid user data and NOT a model
+refutation. Validated input/anchor errors remain2. Checker incomplete/unavailable
+or error emits no packet. The report includes producer observations separately
+from the independent check; top status is the independent outcome when available.
+The nested producer statistics and IDs are not independently certified facts.
+
+max_edges is existing0..256 producer quota; max_steps is0..4288 independent-check
+quota. Reports identify phase for incomplete outcomes. Success may be positive0
+or negative4; both produce bytes. Those bytes are precisely an existing certificate
+or refutation, not a new wrapper. No signature, change admission or successor is
+created. Claims exclude MachineID runtime/ATP after explicit Boolean projection.
+
+evidence.kind validates bounded canonical bytes and exact format; ambiguous or
+unknown tags fail2. evidence.verify dispatches to the small checker, retaining its
+report unchanged. evidence.unpack exports the existing authenticated standalone
+checker and guide without producer code; it is inert. CLI machine-evidence writes
+only returned verified bytes, without overwrite; evidence-check/unpack provide
+common dispatch. Existing machine-certify remains unchanged. Certificate checker
+and launcher source bytes/pins are unchanged by this adapter and CLI addition.
