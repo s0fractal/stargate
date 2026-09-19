@@ -1724,3 +1724,43 @@ history, branch consensus, freshness, completeness, or runtime lineage/adoption.
 Any prefix of a valid history is itself a valid shorter history. Exact historical
 bytes require a separately selected history ID. Checker/launcher pins change with
 this build; historical packets are neither rewritten nor automatically migrated.
+
+## Portable finite refutations (build 35)
+
+Canonical `{refutation:1,checker,model,claim}`, at most1MiB, uses the same model
+language and independent recipient ModelID/checker anchors as certificates.
+Claim shapes are exactly `{kind:"unsafe",trace:{initial,steps}}` or
+`{kind:"unreachable_goal",goal,states}`. Paths have at most63 edges; state sets are
+nonempty, unique and within the full six-bit domain. Inputs/events are exact Boolean
+assignments. Inspection validates structure only; unavailable checker is3 before
+program interpretation. Unknown fields/kinds, anchors and malformed proofs are2.
+
+Unsafe proof: initial must belong to the model's initials; every transition is
+recomputed synchronously from the previous state and supplied event, matching the
+claimed next state exactly. The FINAL state must violate the invariant. Earlier
+violations do not excuse a safe final state. No shortestness claim. Zero steps can
+prove an unsafe initial. Each edge spends one step; invariant evaluation is uncharged.
+
+Unreachable-goal proof: goal must be explicitly required by the model, outside the
+claimed set S; every initial must be in S. Recompute every S-state/event transition
+and require its result in S. Exact distinct edge coverage is checked independently
+of the charged count. Closure and initial inclusion imply all reachable states lie
+in S, so the selected required goal is unreachable. S may include unreachable or
+unsafe states; no safety predicate is imposed on it. Each closure edge spends one
+step. Finite BFS incompleteness by itself is NEVER an exclusion proof.
+
+verify_refutation returns verified_refutation/4 only after these obligations hold,
+with model/proof/checker identities, claim kind, checked_steps, max_steps and either
+computed unsafe endpoint or excluded goal. Quota exhaustion returns incomplete/3,
+coverage inconsistency checker_error/1. Bound is max_steps0..4288 as for existing
+certificates. Bad evidence is not a proof of model safety or unsafety. No admission,
+successor or branch selection is produced. These are finite Boolean-model claims,
+not SKI/ATP/runtime/physical-world claims.
+
+create_refutation computes the checker pin and verifies before returning bytes; a
+nonfinal checker result raises CheckerError. CLI refutation-create accepts canonical
+model and claim files and writes exclusively only on verified_refutation, returning4.
+refutation-inspect/unpack are inert; refutation-check requires recipient anchors.
+Offline --refutation is mutually exclusive with --change/--history and forbids
+--output. CLI and offline share the same five-file checker and statuses. Launcher
+and checker pins change intentionally; historical bytes are untouched.

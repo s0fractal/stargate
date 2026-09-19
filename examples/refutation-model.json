@@ -1,0 +1,1 @@
+{"events":[],"goals":[{"x":true,"y":true}],"initial":[{"x":false,"y":false}],"invariant":"fact x: bool\nfact y: bool\ncheck !x","language":"boolean-machine-1","next":{"x":"fact x: bool\nfact y: bool\ncheck true","y":"fact x: bool\nfact y: bool\ncheck false"},"state":["x","y"]}

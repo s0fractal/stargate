@@ -76,6 +76,17 @@ def _model(doc, *, programs):
                 {n: boolean.program(s, names, allow_unused=True) for n, s in doc['next'].items()})
 
 
+def _trace(trace, model):
+    exact(trace, ('initial', 'steps'))
+    _assignment(trace['initial'], model['state'])
+    if type(trace['steps']) is not list or len(trace['steps']) > 63:
+        raise InvalidRecord('path must have at most 63 steps')
+    for step in trace['steps']:
+        exact(step, ('event', 'state'))
+        _assignment(step['event'], model['events'])
+        _assignment(step['state'], model['state'])
+
+
 def inspect(raw):
     if not isinstance(raw, bytes) or len(raw) > MAX_BYTES:
         raise InvalidRecord('certificate must be bytes within 1 MiB')
@@ -92,14 +103,7 @@ def inspect(raw):
         exact(entry, ('goal', 'trace'))
         _assignment(entry['goal'], model['state'])
         if entry['goal'] != goal: raise InvalidRecord('goal path order mismatch')
-        trace = entry['trace']; exact(trace, ('initial', 'steps'))
-        _assignment(trace['initial'], model['state'])
-        if type(trace['steps']) is not list or len(trace['steps']) > 63:
-            raise InvalidRecord('goal path must have at most 63 steps')
-        for step in trace['steps']:
-            exact(step, ('event', 'state'))
-            _assignment(step['event'], model['events'])
-            _assignment(step['state'], model['state'])
+        _trace(entry['trace'], model)
     return doc
 
 
@@ -284,6 +288,97 @@ def append_history(raw, candidate, expected_root, expected_checker, *, max_steps
     return report, proposed if tip is not None else None
 
 
+def inspect_refutation(raw):
+    if not isinstance(raw, bytes) or len(raw) > MAX_BYTES:
+        raise InvalidRecord('refutation must be bytes within 1 MiB')
+    doc = decode(raw)
+    exact(doc, ('refutation', 'checker', 'model', 'claim'))
+    if type(doc['refutation']) is not int or doc['refutation'] != 1:
+        raise InvalidRecord('unsupported refutation')
+    record_hash(doc['checker']); _model(doc['model'], programs=False)
+    claim, model = doc['claim'], doc['model']
+    if type(claim) is not dict: raise InvalidRecord('claim must be an object')
+    if claim.get('kind') == 'unsafe':
+        exact(claim, ('kind', 'trace')); _trace(claim['trace'], model)
+    elif claim.get('kind') == 'unreachable_goal':
+        exact(claim, ('kind', 'goal', 'states'))
+        _assignment(claim['goal'], model['state'])
+        _assignments(claim['states'], model['state'], nonempty=True)
+    else:
+        raise InvalidRecord('unsupported refutation claim')
+    return doc
+
+
+def describe_refutation(raw):
+    doc = inspect_refutation(raw)
+    return dict(status='unchecked_refutation', refutation_id=identity(doc),
+                model_id=identity(doc['model']), checker=doc['checker'], claim=doc['claim']['kind'])
+
+
+def verify_refutation(raw, expected_model, expected_checker, *, max_steps=MAX_STEPS):
+    doc = inspect_refutation(raw)
+    record_hash(expected_model); record_hash(expected_checker)
+    if identity(doc['model']) != expected_model:
+        raise InvalidRecord('model does not match recipient anchor')
+    if type(max_steps) is not int or not 0 <= max_steps <= MAX_STEPS:
+        raise InvalidRecord('step quota must be 0..4288')
+    report = dict(describe_refutation(raw), checked_steps=0, max_steps=max_steps)
+    if doc['checker'] != expected_checker or checker_id() != expected_checker:
+        return dict(report, status='checker_unavailable')
+    model, claim = doc['model'], doc['claim']
+    invariant, codes = _model(model, programs=True)
+    names = model['state']
+    if claim['kind'] == 'unsafe':
+        trace = claim['trace']
+        if trace['initial'] not in model['initial']:
+            raise InvalidRecord('unsafe path does not start in an initial state')
+        current = trace['initial']
+        for step in trace['steps']:
+            if report['checked_steps'] >= max_steps:
+                return dict(report, status='incomplete', reason='step_quota')
+            facts = dict(current, **step['event'])
+            target = {n: boolean.evaluate(codes[n], facts) for n in names}
+            if target != step['state']:
+                raise InvalidRecord('unsafe path transition does not reproduce')
+            current = target
+            report['checked_steps'] += 1
+        if boolean.evaluate(invariant, current):
+            raise InvalidRecord('path endpoint does not violate invariant')
+        return dict(report, status='verified_refutation', endpoint=current)
+    # A closed set containing all initials and excluding the goal proves absence.
+    # Its states need not satisfy the safety invariant.
+    if claim['goal'] not in model['goals']:
+        raise InvalidRecord('target is not a required goal')
+    keys = {_assignment(state, names) for state in claim['states']}
+    if any(_assignment(state, names) not in keys for state in model['initial']):
+        raise InvalidRecord('refutation omits an initial state')
+    if _assignment(claim['goal'], names) in keys:
+        raise InvalidRecord('refutation set contains the goal')
+    events = list(itertools.product((False, True), repeat=len(model['events'])))
+    covered = set()
+    for state in claim['states']:
+        for bits in events:
+            if report['checked_steps'] >= max_steps:
+                return dict(report, status='incomplete', reason='step_quota')
+            facts = dict(state, **dict(zip(model['events'], bits)))
+            target = {n: boolean.evaluate(codes[n], facts) for n in names}
+            if _assignment(target, names) not in keys:
+                raise InvalidRecord('refutation set is not closed under transitions')
+            report['checked_steps'] += 1
+            covered.add((_assignment(state, names), bits))
+    if len(covered) != len(keys) * (2 ** len(model['events'])) or report['checked_steps'] != len(covered):
+        return dict(report, status='checker_error', reason='closure coverage mismatch')
+    return dict(report, status='verified_refutation', goal=claim['goal'])
+
+
+def create_refutation(model, claim):
+    raw = canon(dict(refutation=1, checker=checker_id(), model=model, claim=claim))
+    result = verify_refutation(raw, identity(model), checker_id())
+    if result['status'] != 'verified_refutation':
+        raise CheckerError('refutation did not complete independent checking: ' + result['status'])
+    return raw
+
+
 def read(path):
     with Path(path).open('rb') as stream: raw = stream.read(MAX_BYTES + 1)
     if len(raw) > MAX_BYTES: raise InvalidRecord('certificate exceeds size limit')
@@ -291,7 +386,7 @@ def read(path):
 
 
 def exit_code(report):
-    return {'verified_history': 0, 'verified_change': 0, 'verified_certificate': 0, 'incomplete': 3, 'checker_unavailable': 3, 'checker_error': 1}[report['status']]
+    return {'verified_refutation': 4, 'verified_history': 0, 'verified_change': 0, 'verified_certificate': 0, 'incomplete': 3, 'checker_unavailable': 3, 'checker_error': 1}[report['status']]
 
 
 REPLAY = r'''"""Authenticate this launcher independently. No producer code is loaded."""
@@ -311,6 +406,7 @@ p.add_argument('--max-steps', type=int, default=4288)
 mode = p.add_mutually_exclusive_group()
 mode.add_argument('--change', action='store_true')
 mode.add_argument('--history', action='store_true')
+mode.add_argument('--refutation', action='store_true')
 p.add_argument('--output', type=Path)
 a = p.parse_args()
 if a.output and not (a.change or a.history): p.error('--output requires --change or --history')
@@ -353,7 +449,9 @@ for name in names:
     if name != '__init__.py': setattr(sys.modules['stargate'], name[:-3], module)
 from stargate import certificate
 try:
-    if a.history:
+    if a.refutation:
+        report = certificate.verify_refutation(certificate.read(a.certificate), a.expect_model, a.expect_checker, max_steps=a.max_steps)
+    elif a.history:
         report, successor = certificate.verify_history(certificate.read(a.certificate), a.expect_model, a.expect_checker, max_steps=a.max_steps)
     elif a.change:
         report, successor = certificate.verify_change(certificate.read(a.certificate), a.expect_model, a.expect_checker, max_steps=a.max_steps)
@@ -376,9 +474,12 @@ raise SystemExit(certificate.exit_code(report))
 '''
 
 
-def unpack(raw, destination, *, license_text, change=False, history=False):
-    if change and history: raise InvalidRecord('choose one packet mode')
-    if history:
+def unpack(raw, destination, *, license_text, change=False, history=False, refutation=False):
+    if sum((change, history, refutation)) > 1: raise InvalidRecord('choose one packet mode')
+    if refutation:
+        report = describe_refutation(raw)
+        if report['checker'] != checker_id(): raise InvalidRecord('cannot export another checker')
+    elif history:
         doc = inspect_history(raw)
         certs = [doc['root']] + [step['certificate'] for step in doc['steps']]
         if any(cert['checker'] != checker_id() for cert in certs):
@@ -392,7 +493,7 @@ def unpack(raw, destination, *, license_text, change=False, history=False):
     else:
         report = describe(raw)
         if report['checker'] != checker_id(): raise InvalidRecord('cannot export another checker')
-    files = {('history.json' if history else 'change.json' if change else 'certificate.json'): raw, 'checker.json': canon(sources()),
+    files = {('refutation.json' if refutation else 'history.json' if history else 'change.json' if change else 'certificate.json'): raw, 'checker.json': canon(sources()),
              'replay.py': REPLAY.encode(), 'LICENSE': license_text.encode(),
              'README.txt': GUIDE.encode()}
     out = Path(destination); out.mkdir(mode=0o700)
@@ -427,6 +528,10 @@ every step are checked once; a failed tail gives no tip. --output writes the tip
 certificate only on success. At most 32 changes, with quota per certificate.
 This proves a contract-preserving path, not who made it, when, completeness of
 history or selection of the latest/best branch. No-op steps remain legal.
+For refutation.json use --refutation: exit 4 proves a reachable unsafe endpoint
+or an unreachable required goal. A closed exclusion set need not be safe. Invalid
+evidence (2) proves neither safety nor unsafety; incomplete remains 3. No output
+option is accepted for refutations, and no admission or successor is produced.
 Exit 0 verifies these finite obligations; 3 means incomplete/unavailable; 2 means
 invalid data/certificate, not proof that the model itself is unsafe; 1 checker error.
 Python, stdlib, the host and the selected checker remain trusted. Included checker

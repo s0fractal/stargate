@@ -95,6 +95,18 @@ def parser():
     q = cmd("case-unpack", "materialize evidence in a new directory; never execute it")
     q.add_argument("path", type=Path)
     q.add_argument("--output", required=True, type=Path)
+    q = cmd('refutation-create', 'check a supplied model and refutation claim before writing proof data')
+    q.add_argument('path', type=Path)
+    q.add_argument('claim', type=Path)
+    q.add_argument('--output', required=True, type=Path)
+    for name in ('refutation-inspect', 'refutation-check', 'refutation-unpack'):
+        q = cmd(name, 'check a finite refutation without executing producer code')
+        q.add_argument('path', type=Path)
+        if name == 'refutation-check':
+            q.add_argument('--expect-model', required=True, type=hex_hash)
+            q.add_argument('--expect-checker', required=True, type=hex_hash)
+            q.add_argument('--max-steps', type=int, default=certificate.MAX_STEPS)
+        if name == 'refutation-unpack': q.add_argument('--output', required=True, type=Path)
     for name in ('certificate-history-start', 'certificate-history-append', 'certificate-history-check', 'certificate-history-unpack'):
         q = cmd(name, 'carry a root-anchored path of independently checked certificates')
         q.add_argument('path', type=Path)
@@ -260,6 +272,20 @@ def read_admission_plan(path):
 
 
 def execute(args):
+    if args.command.startswith('refutation-'):
+        try:
+            raw = certificate.read(args.path)
+            if args.command == 'refutation-create': claim = certificate.read(args.claim)
+        except OSError as exc: raise StoreError('cannot read refutation input: ' + str(exc)) from exc
+        if args.command == 'refutation-create':
+            model = certificate.decode(raw)
+            output = certificate.create_refutation(model, certificate.decode(claim))
+            report = certificate.verify_refutation(output, certificate.identity(model), certificate.checker_id())
+            if report['status'] == 'verified_refutation': write_bundle(args.output, output)
+            return report
+        if args.command == 'refutation-inspect': return certificate.describe_refutation(raw)
+        if args.command == 'refutation-unpack': return certificate.unpack(raw, args.output, license_text=lab.LICENSE, refutation=True)
+        return certificate.verify_refutation(raw, args.expect_model, args.expect_checker, max_steps=args.max_steps)
     if args.command == 'certificate-checker':
         return dict(checker=certificate.checker_id(), replay_digest=lab.identity(certificate.REPLAY.encode()))
     if args.command.startswith('certificate-'):
@@ -603,6 +629,7 @@ def main(argv=None):
         print(json.dumps({"status": "invalid", "error": str(exc)}), file=sys.stderr)
         return 2
     print(json.dumps(result, ensure_ascii=False, sort_keys=True))
+    if args.command in ('refutation-create', 'refutation-check'): return certificate.exit_code(result)
     if args.command in ('certificate-check', 'certificate-change-check', 'certificate-history-check', 'certificate-history-append'): return certificate.exit_code(result)
     if args.command == 'machine-certify':
         if result['status'] == 'verified_certificate': return 0

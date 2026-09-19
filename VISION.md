@@ -331,3 +331,8 @@ A portable certificate history now carries a complete supplied path from a selec
 root to a new model, checked without the producers. Each proof appears once and is
 rechecked; a broken tail yields no tip. Forks and shorter valid paths remain legal:
 validity is distinct from chronology, completeness or choosing a winning branch.
+
+Participants can also carry independently checkable refutations: a path to a bad
+state or an inductive exclusion set proving a required goal unreachable. Invalid
+evidence remains distinct from a proved defect. This supplies portable objections
+to a fixed model without granting authority to their author or executing their code.
