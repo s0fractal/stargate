@@ -1,0 +1,27 @@
+{
+  "state": [
+    "armed",
+    "open"
+  ],
+  "events": [
+    "request"
+  ],
+  "initial": [
+    {
+      "armed": false,
+      "open": false
+    }
+  ],
+  "next": {
+    "armed": "fact armed: bool\nfact open: bool\nfact request: bool\ncheck request",
+    "open": "fact armed: bool\nfact open: bool\nfact request: bool\ncheck request || armed"
+  },
+  "invariant": "fact armed: bool\nfact open: bool\ncheck !open || armed",
+  "goals": [
+    {
+      "armed": true,
+      "open": true
+    }
+  ],
+  "max_atp": 1000
+}

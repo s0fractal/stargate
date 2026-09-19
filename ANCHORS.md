@@ -6,8 +6,9 @@ checkpoints, not frozen temperatures, signed approvals or package releases.
 
 `build-37` points to reviewed merge `4ff8ba6502e02e95f1d49c1d36dd14e3e4375be3`.
 `build-38` points to reviewed merge `5b1f2ef6c15f45705bb8da062b2aaf4930e130e2`.
-Build 39 adds a local executor outside the closures below; all four anchors remain
-identical to build-38. It is an untagged PR candidate, not a published checkpoint.
+Builds 39–40 add a local executor and repair producer outside these closures; all
+four anchors remain identical to build-38. Build 40 is an untagged PR candidate,
+not a published checkpoint.
 
 | Snapshot | Closure | Source SHA-256 | Launcher SHA-256 |
 | --- | --- | --- | --- |

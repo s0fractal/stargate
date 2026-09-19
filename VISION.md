@@ -357,3 +357,10 @@ producer. Peterson mutual exclusion is the first retained external problem drivi
 this consolidation. A future domain extension needs a concrete model that cannot
 be expressed, not merely another possible certification wrapper. Transport is
 separated from the checker so presentation work need not rename the judge.
+
+
+A bounded producer can now search for a repair after establishing a model defect.
+It reuses the finite mutation neighborhood and emits the existing certified repair
+packet; the unchanged small checker and Git executor need not trust the search.
+The interlock example connects defect, discovered guard change, proof and application.
+This is limited repair synthesis, not completeness or a proof about physical hardware.

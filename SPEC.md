@@ -1919,3 +1919,34 @@ incomplete/checker_unavailable=3; base_changed/unchanged=4. Checker failures ret
 checker_error=1. A refusal never changes the target ref. The evidence packet must be
 retained separately to reproduce the mathematical decision. No remote push, GitHub
 approval, live deployment, self-upgrade of the checker or arbitrary code proof is implied.
+
+
+## Build 40: bounded proof-producing repair search
+
+repair-search accepts a runtime-bound machine and its recipient-chosen machine ID.
+The existing evidence producer must establish a parent refutation before generation;
+a healthy parent gives not_needed, partial parent checking gives incomplete, and
+checker failures stop. There is no new packet schema. The search reuses the current
+finite one-rule syntactic generator (state order, then preorder mutations).
+
+max_candidates is an integer 1..256, counting every yielded candidate including
+duplicates/invalid proposals. Only next is substituted into the captured parent.
+Each valid distinct proposal goes through evidence.produce with the caller's
+max_edges and per-proof max_steps. A candidate refutation rejects that candidate;
+incompleteness is counted and skipped; checker failure stops. An alleged positive
+certificate must name exactly the attempted model. Its combination with the parent
+refutation is rechecked by certificate.verify_repair against the INPUT parent model
+ID and local checker. Only verified_repair with returned successor permits found
+and publication of that repair packet. Invalid producer proof data is checker_error,
+not a candidate verdict. The output contains the original refutation and candidate
+certificate, and is checked/applied by the existing interfaces without the search.
+
+Reports count attempted yields, producer_calls (including the parent), repair_checks
+and incomplete_candidates. These count calls, not kernel instructions or CPU time.
+There is no global execution-time claim. Each attempt retains its result. Exhausted
+neighborhood without incomplete candidates gives neighborhood_exhausted/4; with any
+incomplete candidate it gives search_incomplete/3. Hitting the candidate quota gives
+search_incomplete/3 without claiming the stream is exhausted. Parent not_needed is4;
+found is0, checker_error1, malformed input2, unavailable/unfinished3. No refusal
+writes a repair packet or changes Git. No imported experience or new search grammar
+is added, and no proof/checker/launcher bytes are changed by this producer extension.
