@@ -331,10 +331,11 @@ def run(raw, *, expect_controller, execute=False):
         report['rows'].append(row)
         for role in ('parent', 'candidate'):
             if row[role]['status'] == 'incomplete': incomplete.append({'index': task['index'], 'role': role})
+            elif row[role]['status'] == 'rejected' and truth is not None:
+                disagreements.append({'index': task['index'], 'role': role})
             elif row[role]['status'] == 'complete' and (truth is None or row[role]['value'] != truth):
                 disagreements.append({'index': task['index'], 'role': role})
-        if ((truth is not None and any(row[role]['status'] == 'rejected' for role in ('parent', 'candidate'))) or
-                (left['observation']['status'] == right['observation']['status'] == 'complete' and left != right)):
+        if left['observation']['status'] == right['observation']['status'] == 'complete' and left != right:
             differences.append(task['index'])
     # A witnessed disagreement is meaningful even if other rows did not finish.
     report.update(status='oracle_disagreement' if disagreements else 'difference' if differences else

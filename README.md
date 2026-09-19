@@ -1305,7 +1305,9 @@ python -I -S comparison/offline/replay.py comparison/offline/experiment.json \
 
 This self-comparison is a setup control. With another snapshot, the same corpus
 can expose changed values, costs or terms. Exit 0 means all corpus rows agree with
-each other and the controller's Boolean oracle. **Cost and term are self-reported:
+each other and the corpus obligations (Boolean oracle or explicit rejection).
+A negative-only corpus is satisfied even by a compiler that rejects everything;
+it establishes nothing about acceptance. Include positive cases to exercise acceptance. **Cost and term are self-reported:
 two subjects can fabricate correct Boolean answers and ATP 0 and still receive
 exit 0. This does not prove that they compiled or executed anything.** Exit 4 means a witnessed difference or
 oracle disagreement; 3 means unfinished execution or an unavailable controller.
@@ -1373,6 +1375,6 @@ Experiment corpora can also test the acceptance boundary: add `"expect":"reject"
 to a case with text such as `fact a: bool\ncheck a && ghost`. The controller
 does not parse that text; rejection is the corpus author's explicit obligation.
 A returned value violates it (exit 4); budget exhaustion does not satisfy it
-(exit 3). Refusal of a valid positive case is an observed difference (exit 4),
+(exit 3). Refusal of a valid positive case is an `oracle_disagreement` (exit 4),
 even when both subjects refuse. Agreement includes these obligations, not a
 proof of grammar correctness or truthful subject reporting.

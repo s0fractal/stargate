@@ -182,21 +182,26 @@ class ExperimentTests(unittest.TestCase):
         self.assertEqual((pending['status'], e.exit_code(pending)), ('incomplete', 3))
         self.assertEqual(pending['oracle_disagreements'], [])
 
-    def test_valid_input_rejection_is_difference_even_if_both_reject(self):
+    def test_valid_input_rejection_is_oracle_disagreement_even_if_both_reject(self):
         reject = self.mutate("take('('); result = disjunction(depth + 1); take(')')",
                              "raise PolicyError('parentheses unsupported')")
         case = {'name': 'parentheses', 'inputs': ['a', 'b'],
                 'rule': 'fact a: bool\nfact b: bool\ncheck (a || b) && a', 'max_atp': 1000}
         for parent, candidate in ((self.runtime, reject), (reject, self.runtime), (reject, reject)):
             report = self.run_packet(self.packet(parent, candidate, {'corpus': 1, 'cases': [case]}))
-            self.assertEqual((report['status'], e.exit_code(report)), ('difference', 4))
-            self.assertEqual(report['differences'], list(range(4)))
+            self.assertEqual((report['status'], e.exit_code(report)), ('oracle_disagreement', 4))
+            self.assertEqual(report['differences'], [])
+            roles = [role for role, runtime in (('parent', parent), ('candidate', candidate)) if runtime == reject]
+            self.assertEqual(report['oracle_disagreements'], [
+                {'index': i, 'role': role} for i in range(4) for role in roles])
             self.assertEqual(report['incomplete_rows'], [])
         mixed = self.mixed_corpus(True)
         mixed['cases'][1] = case
         report = self.run_packet(self.packet(candidate=reject, corpus=mixed))
-        self.assertEqual(report['status'], 'difference')
-        self.assertEqual(report['differences'], [2, 3, 4, 5])
+        self.assertEqual(report['status'], 'oracle_disagreement')
+        self.assertEqual(report['differences'], [])
+        self.assertEqual(report['oracle_disagreements'], [
+            {'index': i, 'role': 'candidate'} for i in [2, 3, 4, 5]])
         self.assertEqual(len(report['incomplete_rows']), 4)
 
     def test_rejection_violations_match_cli_and_offline(self):
@@ -206,7 +211,7 @@ class ExperimentTests(unittest.TestCase):
                     'rule': 'fact a: bool\ncheck (a)', 'max_atp': 1000}
         variants = [
             (negative, self.mutate("raise PolicyError('unknown fact: ' + name)", "return ('const', True)"), 'oracle_disagreement'),
-            (positive, self.mutate("take('('); result = disjunction(depth + 1); take(')')", "raise PolicyError('no parentheses')"), 'difference')]
+            (positive, self.mutate("take('('); result = disjunction(depth + 1); take(')')", "raise PolicyError('no parentheses')"), 'oracle_disagreement')]
         for case, runtime, status in variants:
             with self.subTest(status=status), tempfile.TemporaryDirectory() as tmp:
                 out = Path(tmp) / 'offline'
@@ -217,6 +222,21 @@ class ExperimentTests(unittest.TestCase):
                 self.assertEqual((cli.returncode, replay.returncode), (4, 4), (cli.stderr, replay.stderr))
                 self.assertEqual(json.loads(cli.stdout), json.loads(replay.stdout))
                 self.assertEqual(json.loads(cli.stdout)['status'], status)
+
+    def test_reject_everything_only_satisfies_negative_obligations(self):
+        reject = self.mutate('    expr, facts = parse(source, facts, allow_unused=allow_unused)',
+                             '    raise PolicyError("reject all")')
+        negative = {'name': 'unknown', 'inputs': ['a'], 'rule': 'check ghost',
+                    'max_atp': 1000, 'expect': 'reject'}
+        corpus = {'corpus': 1, 'cases': [negative]}
+        report = self.run_packet(self.packet(reject, reject, corpus))
+        self.assertEqual((report['status'], e.exit_code(report)), ('agreement', 0))
+        corpus['cases'].append(self.corpus['cases'][0])
+        report = self.run_packet(self.packet(reject, reject, corpus))
+        self.assertEqual((report['status'], e.exit_code(report)), ('oracle_disagreement', 4))
+        self.assertEqual(report['differences'], [])
+        self.assertEqual(report['oracle_disagreements'], [
+            {'index': i, 'role': role} for i in range(2, 6) for role in ('parent', 'candidate')])
 
     def test_execution_requires_independent_pin_and_explicit_flag(self):
         raw = self.packet()
