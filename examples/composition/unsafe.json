@@ -1,0 +1,7 @@
+{
+  "parent": "COPY_COMPOSITION_ID",
+  "component": "producer",
+  "next": {
+    "sent": "fact ack: bool\nfact sent: bool\ncheck !ack"
+  }
+}

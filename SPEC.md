@@ -1305,3 +1305,98 @@ Machine inspection checks well-formed textual runtime identity before the curren
 packet shape. A different textual runtime is unavailable/3 even if it predates
 the goals field; missing goals under this runtime is invalid/2. This is failure
 classification, not a legacy execution path.
+
+
+## Synchronous composition of two components (Build 29)
+
+A composition is canonical JSON, <=4 MiB, with exactly stargate_composition=32,
+components, wires, events, initial, invariant, goals, max_atp, sources, guide,
+license. Textual runtime identity precedes current schema checks (foreign=3,
+malformed=2); guide and license must match this runtime. CompositionID is SHA256
+of the entire canonical packet. Inspection performs syntax checks, not verification.
+
+components maps exactly two names to {state,inputs,next}. Component names, local
+state/input names and external event names are simple ASCII WPL identifiers of
+1..32 characters, without dots. Component name env is reserved. Local lists are
+sorted and unique, state is nonempty, state and inputs are disjoint, and their
+combined length is <=8. There are <=6 state bits TOTAL. next defines exactly every
+local state bit, with WPL declaring all local state and input names. Unused names
+are allowed. These are transition components with interfaces, not nested machine
+packets: there are NO implied local invariants, initial sets, goals or budgets.
+A participant must state any required obligation in the joint contract.
+
+Global state names are COMPONENT.BIT. events is a sorted list of <=2 external
+names; global event names are env.NAME. wires maps exactly every COMPONENT.PORT
+to one global state bit or external event name. No unconnected ports, expression
+wires, port-to-port references, constants, hidden inputs or combinational outputs.
+Fan-out, self-feedback and mutual feedback are allowed. All next values read the
+SAME old state and current shared event valuation; component order has no execution
+meaning. Canonical map key ordering removes insertion order from packet identity.
+
+initial and goals use complete global state assignments, with existing machine
+bounds and existential goal semantics. invariant declares all global state names.
+max_atp is the existing per-expression ceiling, not a per-component budget.
+Every external event valuation is possible at each reached state. Initial states
+may express correlations between components; no Cartesian product is implicit.
+
+### Translation boundary and checking
+
+The verifier builds a private flat machine: WPL expression tokens are renamed as
+whole identifiers using wiring and local-state names; declarations are replaced
+by the full global domain. Operators/grouping are preserved, comments discarded.
+Both original local and generated global WPL must fit existing source/token/depth
+limits; a locally valid expression near those limits can be rejected on expansion.
+This product is an internal view, not an admitted composition successor.
+
+Before exploring a graph, the translation bridge enumerates ALL global state/event
+valuations (<=256), checking coverage and order. For every next bit it compares
+interpretation of the lowered compiler AST with the independent Boolean parser's
+original component rule, whose inputs are resolved directly from wires and the
+old global state. The oracle wiring path does not call the lowering's mapping
+helper. A mismatch is checker_error/1; no graph verdict or child follows. This
+pass is finite Boolean work without ATP charges; quotas bound neither its CPU
+nor memory. Structural inspection does not run the bridge.
+
+The existing machine verifier then checks SKI execution against its Boolean
+oracle and explores the joint graph with BFS. It retains shortest violating and
+goal traces, full closure checks, quota/budget refusal, and existential goals.
+verify returns composition_id, runtime_digest, status and check (the actual private
+product's machine report); bridge failures instead contain reason, no check.
+The inner machine_id identifies the derived view, not the composition packet.
+Established=0, counterexample/goal_unreachable=4, incomplete/runtime_unavailable=3,
+invalid=2, checker_error/operation_error=1. A component's standalone safety verdict
+is never used as a substitute for joint verification.
+
+### One-component proposal and portable replay
+
+Proposal shape is exactly {parent,component,next}, <=64 KiB. parent must match the
+recipient's independently chosen CompositionID. component names one existing
+component, and next replaces ALL its rules. No interface, wiring, second-component,
+initial, invariant, goal, budget or runtime changes are permitted. Parent and
+candidate must each establish the joint contract, with independent max_edges
+quotas; a parent's safety or goal failure gives parent_rejected/4. Incomplete and
+checker_error retain their classes. Only two established graphs yield
+safety_preserved, admitted=true and canonical composition child bytes. Identical
+rules may retain the same ID. No history/predecessor field is added.
+
+CLI: composition-create SPEC --output PACKET (optional goals defaults to [] in
+this author spec only); composition-inspect PACKET; composition-check PACKET
+--expect-composition ID [--max-edges N]; composition-change PACKET PROPOSAL
+--expect-composition ID [--max-edges N] [--output CHILD]; composition-unpack PACKET
+--output DIRECTORY. Human-authored specs/proposals allow whitespace but not
+duplicate keys. Create/inspect/unpack success is structural only. Output paths
+must not exist. Failed changes never write a child. Missing input material is3.
+
+Offline replay uses --composition or --composition-change, an independent
+--expect-composition and --expect-runtime, under python -I -S. Checking takes a
+packet path and forbids output. Change takes a proposal path, optional child path,
+and the adjacent composition.json as parent. The unpacked world.json is solely
+an internal runtime/WPL envelope, not a composition. Only hashed source snapshots
+are executed, including composition.py after machine.py. Existing interpreter,
+stdlib and independently authenticated launcher trust assumptions remain.
+
+No asynchronous execution, local assume/guarantee calculus, imported certificates,
+liveness, abstract-state refinement, composition search/history, or distributed
+agent protocol is introduced. Finite full-product checking remains deliberately
+small. Safe local parts can violate a joint contract; a joint acceptance proves
+only the stated joint contract, not an unstated component contract.

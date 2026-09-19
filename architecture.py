@@ -12,7 +12,7 @@ LAYERS = {
     'checks': 2, 'compiler': 2, 'boolean': 2, 'properties': 2,
     'records': 3, 'facts': 3, 'case': 3, 'lab': 3,
     'policy': 4, 'bundle': 4, 'search': 4, 'invariants': 4, 'lineage': 4, 'labtask': 4, 'machine': 4,
-    'artifact': 5,
+    'artifact': 5, 'composition': 5,
     'cli': 6, '__main__': 6,
 }
 

@@ -133,3 +133,10 @@ checks a finite reachable graph using the existing two expression evaluators.
 No kernel or language extension; x0 remains empty. Its runtime-envelope view is
 validation-only, never a machine transition or emitted successor. The standalone
 verified-source closure loads machine after lab, with no upward runtime import.
+
+
+Build 29: composition sits at x5 above machine (x4), with CLI at x6. It translates
+explicit component wiring into a private machine and independently checks the
+translation against original rules. The offline runtime includes composition.py
+after machine.py; machine and lab have no runtime import back to composition.
+x0 remains empty.
