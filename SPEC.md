@@ -1400,3 +1400,126 @@ liveness, abstract-state refinement, composition search/history, or distributed
 agent protocol is introduced. Finite full-product checking remains deliberately
 small. Safe local parts can violate a joint contract; a joint acceptance proves
 only the stated joint contract, not an unstated component contract.
+
+## Runtime experiments (build 30, draft)
+
+This profile measures two compiler implementations. It never admits a runtime,
+changes a world's runtime pin, creates a successor, or delegates future judging.
+The old implementation is a subject, not an oracle. Agreement is scoped to the
+finite corpus and projection below, not universal equivalence or implementation
+correctness. A difference can be a fix, optimization, or defect; this profile
+does not decide which. Existing 32K bug-fix and draft-temperature rules remain.
+
+### Identities and inert inputs
+
+Distribution metadata lives in build.py (`stargate.build.__version__`). It is not
+imported by __init__.py and is outside both the lab and experiment source closures.
+KELVIN and CONTRACT_STATUS remain in hashed __init__.py. This one-time separation
+changes the lab pin; subsequent build-number-only changes do not. There is no
+legacy package-root __version__ alias.
+
+The experiment profile is `boolean-compiler-observations-1`. A runtime capsule is
+canonical JSON `{runtime:1,profile,sources}`. Its source closure is exactly
+__init__.py, kernel.py, store.py, canonical.py, checks.py, compiler.py, boolean.py.
+A runtime ID hashes this canonical filename-to-text map, NOT a wheel, the entire
+repository, or all Stargate behavior. In particular records, admission, lab,
+machines and composition are outside this experiment. Different source sets need
+another profile; this is not the lab's historical-runtime classification path.
+Sources are inert text until explicitly executed, even if they are invalid Python.
+
+A corpus has exactly `{corpus:1,cases}`. There are 1..32 uniquely named cases, each
+exactly `{name,inputs,rule,max_atp}`: ASCII case identifier (1..64 characters), sorted
+unique WPL inputs (0..8), source within the existing grammar limits, budget 0..10000.
+Unused inputs are allowed. It contains no runtime ID, expected answers, verdicts,
+or author keys. Both controller parsers validate the source grammar; the separate
+Boolean parser/evaluator supplies the controller's truth table. Corpus identity
+is SHA-256 of its canonical bytes and stays the same across runtime comparisons.
+
+An experiment is canonical JSON, at most 4 MiB, exactly
+`{experiment:1,profile,controller,parent,candidate,corpus,timeout}`. Parent and
+candidate are source maps, not capsule wrappers. Timeout is an integer 1..300
+seconds per subject process. Controller identity hashes the same source closure
+plus experiment.py: it therefore binds the independent oracle, input validation,
+projection, runner, report logic, offline launcher and fixed limits. Build metadata,
+CLI, interpreter and standard library are outside that digest. The recipient must
+obtain this identity independently, not trust the value supplied by a packet.
+
+### Explicit execution and observed results
+
+`experiment-check --execute-runtimes --expect-controller ID` requires both the
+packet's requested controller and installed controller to match ID, before starting
+subjects. Inspection and unpacking never execute either subject. Structural inspection does not interpret programs. Creation and checking use the
+selected controller grammar, with controller matching before interpretation during
+checking; malformed structure and unknown profiles are invalid/2.
+A well-formed experiment for another controller gives controller_unavailable/3
+when checking. No automatic fetching, installation or authority migration occurs.
+
+Each subject runs in a separate fresh working directory under the current Python
+with `-I -S -B`. A loader executes the captured source strings, not disk imports
+or pyc, in dependency order. No received directory enters sys.path. The controller
+generates all ordered rows and asks compile_source for each. Subject observations
+are `{status:complete,value,atp_spent,term}` or a typed incomplete reason. Projection
+compares all three completed fields (including cost and term, not just truth).
+A report must contain every row, in order, with exact fields and bounded types.
+Malformed/truncated/reordered reports are incomplete, never agreement. Complete
+values from EACH subject are also compared to the independently pinned oracle.
+
+The report binds experiment, corpus, both source maps, controller, profile, timeout,
+Python version/implementation, executable digest, OS/architecture, flags and output
+limit. It retains concrete rows with inputs, oracle values, both observations,
+difference indexes, incomplete rows and per-role oracle disagreements. These are
+observations of an execution, not signatures or proof certificates. In particular,
+ATP and term are reported by the subject; the controller independently checks only
+Boolean truth, report structure and coverage. A malicious subject can lie about
+its cost, fabricate observations, or attack the host. Agreement cannot authorize
+that subject as a judge. Runtime receipts do not inherit signed-artifact trust.
+
+Outcomes (in descending priority): oracle_disagreement/4 for a completed value
+that disagrees with the controller; difference/4 for unequal completed projections;
+incomplete/3 when some rows or a process could not complete; agreement/0 only when
+all rows complete and agree with each other and the oracle. A witnessed difference
+can coexist with incomplete rows: the report keeps both, and claims no full-run
+completion. Internal subject CompilerBug, compilation refusal or exhaustion,
+process crash, deadline, output overflow and malformed reports are incomplete;
+none counts as a semantic mutant killed. A process-level failure returns its role
+and reason without pretending to have a complete row table. Invalid input is2;
+local operation failure is1. There is no admitted flag or successor.
+
+This execution profile requires POSIX. It polls a 2 MiB stdout limit and a wall
+clock deadline, and terminates the same process group, including after normal
+leader exit. These are best-effort experiment limits, not CPU/ATP/memory/disk
+containment. Stderr is discarded. Output may transiently exceed the limit. Code
+can create detached processes, read credentials, use the network or modify other
+files with the operator's privileges. Run unknown implementations only in a
+separately provided disposable isolation boundary. Even such isolation does not
+turn a black-box self-report into proof. Python, its standard library, the host, an unchanged installed controller
+(no concurrent source edits or in-process monkeypatches), and the independently
+chosen controller remain trusted; stdlib bytes are not
+fully fingerprinted by this report.
+
+### Transfer and replay
+
+`runtime-pack [--source-dir DIR] --output FILE` captures the seven fixed files
+without importing them. `experiment-create PARENT CANDIDATE CORPUS --output FILE`
+forms a packet; corpus input is canonical JSON. `experiment-controller` prints the
+local controller and launcher digests. `experiment-inspect PACKET` reports identities
+and row count without execution. `experiment-unpack PACKET --output NEW_DIRECTORY`
+exports experiment.json, controller.json, replay.py, a guide and MIT license
+with private file modes;
+it only exports the current controller and never overwrites a destination.
+
+The recipient verifies replay.py against an independently obtained replay_digest,
+then uses plain Python (no Stargate installation):
+`python -I -S replay.py experiment.json --expect-controller ID --execute-runtimes`.
+The launcher checks the controller source-map digest before executing its exact
+captured texts. Adjacent Python modules and bytecode are never loaded. Both this
+launcher and its expected controller ID need independent authentication; a packet
+that supplies its own expectations has established no trust. Output matches the
+installed controller on the same execution environment, excluding outcomes that
+depend on timing or other uncontrolled host behavior.
+
+Another participant can extend the corpus and rerun the same pair: the new corpus
+and experiment have different IDs, and previously unexercised differences may
+become visible. Old evidence is not rewritten. No runtime ancestry, adoption,
+index of approved children, general sandbox, or automatic test-severity score is
+introduced in this stage.

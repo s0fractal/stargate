@@ -20,4 +20,4 @@ packages = ["stargate"]
 package-dir = {stargate = "src"}
 
 [tool.setuptools.dynamic]
-version = {attr = "stargate.__version__"}
+version = {attr = "stargate.build.__version__"}
