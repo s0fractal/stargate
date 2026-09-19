@@ -336,3 +336,8 @@ Participants can also carry independently checkable refutations: a path to a bad
 state or an inductive exclusion set proving a required goal unreachable. Invalid
 evidence remains distinct from a proved defect. This supplies portable objections
 to a fixed model without granting authority to their author or executing their code.
+
+Bounded machine analysis now emits independently checked evidence directly: a
+positive certificate or negative refutation, or no artifact when unfinished. The
+producer remains outside the small checker; replacing search does not require
+trusting its verdict or changing the accepted proof language.

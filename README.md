@@ -11,7 +11,7 @@ In the default equivalence mode, a changed answer produces a concrete
 counterexample. A cheaper equivalent rule
 can become the next world; an unfinished check establishes nothing.
 
-**Build 35 · 32K draft.** The contract can change incompatibly. This is an
+**Build 36 · 32K draft.** The contract can change incompatibly. This is an
 experimental implementation, not a stable release or a general program prover.
 Python only; commands `sg` and `stargate`. MIT licensed.
 
@@ -1475,3 +1475,36 @@ initial state even with zero transition quota. Paths need not be shortest.
 This proves a property of the named finite model, not of Python, SKI execution,
 performance or an unmodelled real system. Proofs survive as data; no signer is
 required, but the independently selected checker and Python host remain trusted.
+
+## Let analysis produce the proof
+
+`machine-evidence` runs the existing bounded machine analysis, then independently
+checks the evidence it constructs. A safe machine with all goals reached yields a
+certificate (exit0); an unsafe path or unreachable required goal yields a refutation
+(exit4). Producer incompleteness, or insufficient independent-checking quota, gives3
+and writes nothing. Invalid producer evidence is a checker/producer failure (1),
+not an accusation against the model.
+
+```sh
+mkdir evidence-demo
+sg machine-create examples/certificate-machine.json --output evidence-demo/machine.json
+MACHINE=$(sg machine-inspect evidence-demo/machine.json | python -c 'import json,sys; print(json.load(sys.stdin)["machine_id"])')
+sg machine-evidence evidence-demo/machine.json --expect-machine "$MACHINE" \
+  --output evidence-demo/proof.json > evidence-demo/report.json || test "$?" -eq 4
+MODEL=$(python -c 'import json; print(json.load(open("evidence-demo/report.json"))["model_id"])')
+CHECKER=$(sg certificate-checker | python -c 'import json,sys; print(json.load(sys.stdin)["checker"])')
+sg evidence-check evidence-demo/proof.json --expect-model "$MODEL" \
+  --expect-checker "$CHECKER" || test "$?" -eq 4
+sg evidence-unpack evidence-demo/proof.json --output evidence-demo/offline
+```
+
+`evidence-check` and `evidence-unpack` dispatch the two existing proof formats; there
+is no new evidence envelope. The exported guide selects certificate replay or
+`--refutation`. Received proofs still require an independently chosen ModelID and
+checker/launcher pins. The producer uses MachineID; its explicit projection yields
+a different ModelID. Producer statistics are observations, not proof of costs.
+
+`--max-edges` bounds search; `--max-steps` bounds independent proof checking. Neither
+is a CPU limit. Safety is checked before goals, so a machine with both defects may
+return an unsafe path rather than every possible objection. The producer adapter
+lives outside the small checker: its sources and digest remain unchanged in build36.
