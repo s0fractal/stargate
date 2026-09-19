@@ -1756,7 +1756,7 @@ not SKI/ATP/runtime/physical-world claims.
 create_refutation computes the checker pin and verifies before returning bytes; a
 nonfinal checker result raises CheckerError. CLI refutation-create accepts canonical
 model and claim files and writes exclusively only on verified_refutation, returning4.
-refutation-inspect/unpack are inert; refutation-check requires recipient anchors.
+refutation-inspect and evidence-unpack are inert; refutation-check requires recipient anchors.
 Offline --refutation is mutually exclusive with --change/--history and forbids
 --output. CLI and offline share the same five-file checker and statuses. Launcher
 and checker pins change intentionally; historical bytes are untouched.
