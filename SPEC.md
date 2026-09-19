@@ -1477,7 +1477,8 @@ its cost, fabricate observations, or attack the host. Agreement cannot authorize
 that subject as a judge. Runtime receipts do not inherit signed-artifact trust.
 
 Outcomes (in descending priority): oracle_disagreement/4 for a completed value
-that disagrees with the controller; difference/4 for unequal completed projections or a rejection of a positive case;
+that disagrees with the controller or for rejection of a positive case;
+difference/4 for unequal completed projections;
 incomplete/3 when some rows or a process could not complete; agreement/0 only when
 all rows satisfy their expectations and completed projections agree. A witnessed difference
 can coexist with incomplete rows: the report keeps both, and claims no full-run
@@ -1639,8 +1640,11 @@ For a negative case, a completed value violates the obligation and gives
 `oracle_disagreement` with the responsible role, even if both subjects accept.
 The row's oracle is null and its expect is reject: this is a corpus assertion,
 not a computed Boolean truth. Both rejecting satisfies that row. In a positive
-case any rejection gives difference, including both rejecting, because the
+case any rejection gives oracle_disagreement, including both rejecting, because the
 controller has validated the input. Incomplete observations remain incomplete;
 a witnessed violation still takes precedence. Rejection reports, like costs,
 can be fabricated by a hostile subject; this does not certify judge correctness.
 The controller pin changes; historical packets and their evidence are untouched.
+
+A negative-only corpus can give agreement for a reject-all subject: it makes no
+acceptance claim. Positive cases must be included to exercise acceptance.
