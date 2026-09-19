@@ -144,6 +144,34 @@ class RepairSearch(unittest.TestCase):
             self.assertEqual((report['status'],packet,e.repair_exit_code(report)),('checker_error',None,1))
             self.assertEqual(calls,2)
 
+    def test_final_repair_verdict_and_successor_both_control_publication(self):
+        raw=one()
+        rules={'x':'fact x: bool\ncheck x'}
+        # Positive control: the producer and real final check accept this candidate.
+        with patch.object(search,'machine_candidates',return_value=iter([rules])):
+            accepted,packet=run(raw)
+        self.assertEqual(accepted['status'],'found')
+        self.assertIsNotNone(packet)
+        successor=canon(decode(packet)['candidate'])
+        for status,output,expected,code in (
+            ('incomplete',None,'search_incomplete',3),
+            ('checker_error',None,'checker_error',1),
+            ('verified_repair',None,'checker_error',1),
+            ('incomplete',successor,'search_incomplete',3),
+            ('checker_error',successor,'checker_error',1),
+        ):
+            with self.subTest(status=status,has_successor=output is not None), \
+                 patch.object(search,'machine_candidates',return_value=iter([rules])), \
+                 patch.object(c,'verify_repair',return_value=({'status':status},output)) as gate:
+                report,packet=run(raw)
+                self.assertEqual(gate.call_count,1)
+                self.assertEqual(report['repair_checks'],1)
+                self.assertEqual(report['attempts'][0]['status'],'verified_certificate')
+                self.assertIsNone(packet)
+                self.assertEqual(report['status'],expected)
+                self.assertEqual(e.repair_exit_code(report),code)
+                self.assertEqual(report['incomplete_candidates'],int(status=='incomplete'))
+
     def test_cli_search_existing_replay_and_git_application(self):
         with tempfile.TemporaryDirectory() as tmp:
             root=Path(tmp);raw=machine.create(json.loads((ROOT/'examples/interlock.json').read_text()))
