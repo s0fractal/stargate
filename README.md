@@ -11,7 +11,7 @@ In the default equivalence mode, a changed answer produces a concrete
 counterexample. A cheaper equivalent rule
 can become the next world; an unfinished check establishes nothing.
 
-**Build 33 · 32K draft.** The contract can change incompatibly. This is an
+**Build 34 · 32K draft.** The contract can change incompatibly. This is an
 experimental implementation, not a stable release or a general program prover.
 Python only; commands `sg` and `stargate`. MIT licensed.
 
@@ -1407,3 +1407,32 @@ This is model-level admission: behavior may change and no-op changes are allowed
 It proves neither equivalence nor improvement, SKI behavior, costs, or safe Python
 execution. The independently authenticated five-file checker, Python and its host
 remain trusted. Certificate sources and launcher now have new digests.
+
+## Portable certificate history
+
+A history carries one root certificate and up to 32 linked successors. The same
+five-file checker verifies every proof once and preserves the root contract.
+
+```sh
+sg certificate-history-start parent-certificate.json --output history0.json
+sg certificate-history-append history0.json candidate-certificate.json \
+  --expect-model "$ROOT_MODEL" --expect-checker "$CHECKER" --output history1.json
+sg certificate-history-check history1.json --expect-model "$ROOT_MODEL" \
+  --expect-checker "$CHECKER" --output tip-certificate.json
+sg certificate-history-unpack history1.json --output offline-history
+python -I -S offline-history/replay.py offline-history/history.json --history \
+  --expect-model "$ROOT_MODEL" --expect-checker "$CHECKER"
+```
+
+`start` and `unpack` are inert. `append` rechecks the complete proposed path before
+writing the extended history; `check --output` writes only its final certificate.
+Both require the independently selected **root ModelID** and checker ID. Even a
+zero-step history checks the root proof. Any failed tail gives no tip or extended
+history. Existing output paths are refused. Exit codes remain 0/3/2/1 for verified,
+unfinished/unavailable, invalid, and checker/operation failure respectively.
+
+The quota applies separately to each proof: at most `(steps + 1) * max_steps` paid
+edge/path obligations. It is not a CPU bound. No-op steps are legal. Truncating a
+valid path gives a shorter valid path; this format proves neither completeness nor
+freshness, authorship or chronological truth. An alternative proof of the same
+root model is allowed. Pin the full history ID separately if its exact bytes matter.

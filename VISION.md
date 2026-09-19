@@ -326,3 +326,8 @@ the parent is anchored, protected contract fields remain fixed, and a small chec
 rechecks both inductive proofs before returning the candidate certificate. This
 allows a different transition system while keeping safety and existential goals.
 It does not establish refinement, efficiency or runtime correctness.
+
+A portable certificate history now carries a complete supplied path from a selected
+root to a new model, checked without the producers. Each proof appears once and is
+rechecked; a broken tail yields no tip. Forks and shorter valid paths remain legal:
+validity is distinct from chronology, completeness or choosing a winning branch.
