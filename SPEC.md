@@ -1685,3 +1685,42 @@ authenticated launcher. Offline add --change to replay.py; --output is legal onl
 in change mode. CLI/offline write a successor only on verified_change and refuse
 existing destinations. Authenticate the launcher and checker independently. No
 producer code is present or executed, and no BFS/compiler/SKI dependency is added.
+
+## Certificate histories (build 34)
+
+Canonical format `{certificate_history:1,root:CERT,steps:[{parent:ModelID,certificate:CERT}]}`
+has at most32 steps and at most1MiB total. No claimed verdict/tip fields are allowed.
+Every certificate is structurally inspected, including the tail, before checking.
+The recipient independently supplies root ModelID and checkerID. The root must
+match that ModelID and is verified even when steps is empty. Each subsequent parent
+link must match the immediately previous model; its protected fields must equal
+that model's, using the same predicate as certified changes. Each proof is verified
+exactly once, root first, using the same selected checker and per-proof max_steps.
+
+Result verified_history/0 binds history_id, root_model, checker, ordered indexed
+certificate reports (root index0), transition count, tip_model and tip_certificate.
+Returned bytes are exactly the canonical final certificate; with no steps they
+are the root certificate. No producer code, compiler or BFS is called.
+
+At the first incomplete/unavailable/checker_error result, status remains that
+status with failed certificate index, accumulated checks, and no tip bytes or
+identity. Invalid proof, link, anchor or protected-field replacement raises
+InvalidRecord/2; this does not imply the model is unsafe. All positive conclusions
+require the complete supplied path. The maximum paid work is (N+1)*max_steps, with
+existing uncharged parsing and invariant checks. Quota range stays0..4288 per proof.
+
+start_history packages a structurally valid root without checking it. append_history
+adds the candidate linked to the previous tip and checks the entire proposed path,
+returning extended packet bytes only if verified_history. It never emits a shortened
+path on failure. CLI start/append/check/unpack map directly to these operations;
+check's optional output is the final certificate, append's output the extended
+history. Offline --history is mutually exclusive with --change; --expect-model
+means root and optional output means final certificate. Existing paths are refused.
+
+No-op, revisiting a model and alternate proofs are permitted; parent links commit
+to models, not previous proof bytes. Reordering with stale links is invalid, but a
+newly linked contract-preserving path can be valid. This is not authenticated event
+history, branch consensus, freshness, completeness, or runtime lineage/adoption.
+Any prefix of a valid history is itself a valid shorter history. Exact historical
+bytes require a separately selected history ID. Checker/launcher pins change with
+this build; historical packets are neither rewritten nor automatically migrated.

@@ -197,6 +197,13 @@ def pack_change(parent, candidate):
     return raw
 
 
+def _preserves_contract(parent, candidate):
+    # Structural identity is meaningful without executing either grammar.
+    for field in ('language', 'state', 'events', 'initial', 'invariant', 'goals'):
+        if parent[field] != candidate[field]:
+            raise InvalidRecord('certified change alters protected field: ' + field)
+
+
 def verify_change(raw, expected_parent, expected_checker, *, max_steps=MAX_STEPS):
     """Check both certificates and preserve every model field except next.
 
@@ -208,10 +215,7 @@ def verify_change(raw, expected_parent, expected_checker, *, max_steps=MAX_STEPS
     parent, candidate = doc['parent']['model'], doc['candidate']['model']
     if identity(parent) != expected_parent:
         raise InvalidRecord('parent model does not match recipient anchor')
-    # Structural identity is meaningful without executing either grammar.
-    for field in ('language', 'state', 'events', 'initial', 'invariant', 'goals'):
-        if parent[field] != candidate[field]:
-            raise InvalidRecord('certified change alters protected field: ' + field)
+    _preserves_contract(parent, candidate)
     report = dict(status='unchecked_change', change_id=identity(doc),
                   parent_model=expected_parent, checker=expected_checker, checks=[])
     for role in ('parent', 'candidate'):
@@ -224,6 +228,62 @@ def verify_change(raw, expected_parent, expected_checker, *, max_steps=MAX_STEPS
                 successor_certificate=identity(doc['candidate'])), canon(doc['candidate'])
 
 
+def inspect_history(raw):
+    if not isinstance(raw, bytes) or len(raw) > MAX_BYTES:
+        raise InvalidRecord('certificate history must be bytes within 1 MiB')
+    doc = decode(raw)
+    exact(doc, ('certificate_history', 'root', 'steps'))
+    if type(doc['certificate_history']) is not int or doc['certificate_history'] != 1:
+        raise InvalidRecord('unsupported certificate history')
+    inspect(canon(doc['root']))
+    if type(doc['steps']) is not list or len(doc['steps']) > 32:
+        raise InvalidRecord('history needs at most 32 steps')
+    for step in doc['steps']:
+        exact(step, ('parent', 'certificate'))
+        record_hash(step['parent'])
+        inspect(canon(step['certificate']))
+    return doc
+
+
+def start_history(root):
+    raw = canon(dict(certificate_history=1, root=inspect(root), steps=[]))
+    inspect_history(raw)
+    return raw
+
+
+def verify_history(raw, expected_root, expected_checker, *, max_steps=MAX_STEPS):
+    doc = inspect_history(raw)
+    record_hash(expected_root); record_hash(expected_checker)
+    current = doc['root']
+    if identity(current['model']) != expected_root:
+        raise InvalidRecord('history root does not match recipient anchor')
+    report = dict(status='unchecked_history', history_id=identity(doc),
+                  root_model=expected_root, checker=expected_checker, checks=[])
+    # Check the root even for an empty history. Each proof is checked once.
+    certificates = [current] + [step['certificate'] for step in doc['steps']]
+    for index, cert in enumerate(certificates):
+        if index:
+            if doc['steps'][index - 1]['parent'] != identity(current['model']):
+                raise InvalidRecord('history parent link does not match previous model')
+            _preserves_contract(current['model'], cert['model'])
+        checked = verify(canon(cert), identity(cert['model']), expected_checker, max_steps=max_steps)
+        report['checks'].append(dict(index=index, report=checked))
+        if checked['status'] != 'verified_certificate':
+            return dict(report, status=checked['status'], failed=index), None
+        current = cert
+    return dict(report, status='verified_history', transitions=len(doc['steps']),
+                tip_model=identity(current['model']), tip_certificate=identity(current)), canon(current)
+
+
+def append_history(raw, candidate, expected_root, expected_checker, *, max_steps=MAX_STEPS):
+    doc = inspect_history(raw)
+    previous = doc['steps'][-1]['certificate'] if doc['steps'] else doc['root']
+    doc['steps'].append(dict(parent=identity(previous['model']), certificate=inspect(candidate)))
+    proposed = canon(doc)
+    report, tip = verify_history(proposed, expected_root, expected_checker, max_steps=max_steps)
+    return report, proposed if tip is not None else None
+
+
 def read(path):
     with Path(path).open('rb') as stream: raw = stream.read(MAX_BYTES + 1)
     if len(raw) > MAX_BYTES: raise InvalidRecord('certificate exceeds size limit')
@@ -231,7 +291,7 @@ def read(path):
 
 
 def exit_code(report):
-    return {'verified_change': 0, 'verified_certificate': 0, 'incomplete': 3, 'checker_unavailable': 3, 'checker_error': 1}[report['status']]
+    return {'verified_history': 0, 'verified_change': 0, 'verified_certificate': 0, 'incomplete': 3, 'checker_unavailable': 3, 'checker_error': 1}[report['status']]
 
 
 REPLAY = r'''"""Authenticate this launcher independently. No producer code is loaded."""
@@ -248,10 +308,12 @@ p.add_argument('certificate', type=Path)
 p.add_argument('--expect-model', required=True)
 p.add_argument('--expect-checker', required=True)
 p.add_argument('--max-steps', type=int, default=4288)
-p.add_argument('--change', action='store_true')
+mode = p.add_mutually_exclusive_group()
+mode.add_argument('--change', action='store_true')
+mode.add_argument('--history', action='store_true')
 p.add_argument('--output', type=Path)
 a = p.parse_args()
-if a.output and not a.change: p.error('--output requires --change')
+if a.output and not (a.change or a.history): p.error('--output requires --change or --history')
 names = ('__init__.py', 'store.py', 'canonical.py', 'boolean.py', 'certificate.py')
 root = Path(__file__).resolve().parent
 try:
@@ -291,7 +353,9 @@ for name in names:
     if name != '__init__.py': setattr(sys.modules['stargate'], name[:-3], module)
 from stargate import certificate
 try:
-    if a.change:
+    if a.history:
+        report, successor = certificate.verify_history(certificate.read(a.certificate), a.expect_model, a.expect_checker, max_steps=a.max_steps)
+    elif a.change:
         report, successor = certificate.verify_change(certificate.read(a.certificate), a.expect_model, a.expect_checker, max_steps=a.max_steps)
     else:
         report = certificate.verify(certificate.read(a.certificate), a.expect_model, a.expect_checker, max_steps=a.max_steps)
@@ -301,7 +365,7 @@ except (ValueError, TypeError, RecursionError) as exc:
 except OSError as exc:
     print(json.dumps(dict(status='unverified', error=str(exc))))
     raise SystemExit(3)
-if a.change and a.output and successor is not None:
+if (a.change or a.history) and a.output and successor is not None:
     try:
         with a.output.open('xb') as stream: stream.write(successor)
     except OSError as exc:
@@ -312,8 +376,15 @@ raise SystemExit(certificate.exit_code(report))
 '''
 
 
-def unpack(raw, destination, *, license_text, change=False):
-    if change:
+def unpack(raw, destination, *, license_text, change=False, history=False):
+    if change and history: raise InvalidRecord('choose one packet mode')
+    if history:
+        doc = inspect_history(raw)
+        certs = [doc['root']] + [step['certificate'] for step in doc['steps']]
+        if any(cert['checker'] != checker_id() for cert in certs):
+            raise InvalidRecord('cannot export another checker')
+        report = dict(status='unchecked_history', history_id=identity(doc), checker=checker_id())
+    elif change:
         doc = inspect_change(raw)
         if any(doc[role]['checker'] != checker_id() for role in ('parent', 'candidate')):
             raise InvalidRecord('cannot export another checker')
@@ -321,7 +392,7 @@ def unpack(raw, destination, *, license_text, change=False):
     else:
         report = describe(raw)
         if report['checker'] != checker_id(): raise InvalidRecord('cannot export another checker')
-    files = {('change.json' if change else 'certificate.json'): raw, 'checker.json': canon(sources()),
+    files = {('history.json' if history else 'change.json' if change else 'certificate.json'): raw, 'checker.json': canon(sources()),
              'replay.py': REPLAY.encode(), 'LICENSE': license_text.encode(),
              'README.txt': GUIDE.encode()}
     out = Path(destination); out.mkdir(mode=0o700)
@@ -351,6 +422,11 @@ anchors the parent. Both certificates are rechecked; only next may change. Optio
 --output writes the verified candidate certificate without overwrite. The step
 quota applies separately to each certificate. A no-op change is permitted. No
 claim of behavioral equivalence, improvement, or SKI runtime admission is made.
+For history.json use --history; --expect-model anchors the root. The root and
+every step are checked once; a failed tail gives no tip. --output writes the tip
+certificate only on success. At most 32 changes, with quota per certificate.
+This proves a contract-preserving path, not who made it, when, completeness of
+history or selection of the latest/best branch. No-op steps remain legal.
 Exit 0 verifies these finite obligations; 3 means incomplete/unavailable; 2 means
 invalid data/certificate, not proof that the model itself is unsafe; 1 checker error.
 Python, stdlib, the host and the selected checker remain trusted. Included checker
