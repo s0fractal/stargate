@@ -1950,3 +1950,42 @@ search_incomplete/3 without claiming the stream is exhausted. Parent not_needed 
 found is0, checker_error1, malformed input2, unavailable/unfinished3. No refusal
 writes a repair packet or changes Git. No imported experience or new search grammar
 is added, and no proof/checker/launcher bytes are changed by this producer extension.
+
+
+## Build 41: trace-guided bounded repair production
+
+repair-search --strategy trace extends the producer; one-edit remains the default
+and unchanged candidate grammar. No checker, actuator, offline launcher or proof
+format changes. An unsafe parent supplies the initial event trace. For a parent
+whose refutation is an unreachable goal, there is no initial trace and rule order
+starts as state-name order. Subsequent unsafe candidates can still supply traces.
+
+Priority is heuristic: parse the false endpoint invariant, walk sufficient Boolean
+input support backward through every synchronous transition, count each requested
+state update, then order (1) reached upstream state absent from the invariant,
+(2) descending slice count, (3) state name. For AND, false operands suffice; for OR,
+true operands suffice; all determining operands are included. This is not causal
+proof, blame assignment or a rule exclusion. Earlier updates can outrank the final
+transition. The source grammar and facts here affect ordering, never admission.
+
+For each rule in this order, take disjoint unequal binary-root subtrees with the
+same binary shape ignoring unary NOT and leaf identity. Order pairs by decreasing
+leaf count then preorder paths; exchange both simultaneously. At most eight pairs
+per rule are yielded (at most48 total for six bits). Then yield the entire old
+one-edit neighborhood in its original state order. All yields count toward the
+existing candidate quota, including duplicates and invalid proposals. Coverage is
+of this bounded grammar only; a quota need not reach the old suffix.
+
+Screening replays initial state and events against the candidate, never adopting
+claimed intermediate states. An unsafe replay is independently checked by the
+certificate refutation checker against that candidate model before it may screen
+anything. A false negative-proof claim is checker_error, not a screened candidate.
+A passed trace requires full evidence production and the unchanged final repair
+verdict/successor gate. Full negative evidence can contribute an unsafe trace to
+an in-run cache, deduplicated by initial state plus event sequence, bounded at16.
+Unreachable-goal proofs do not provide a safety screening trace. No imported memory
+or persistence format is introduced. Incomplete screening skips/counts that candidate
+and forces search_incomplete on exhaustion; checker error stops. All other budget
+and exit semantics from build40 remain unchanged. trace_checks counts replay calls;
+screened counts independently validated negative replay witnesses; producer_calls
+counts full analyses including the parent. These are not CPU or proof-step bounds.
