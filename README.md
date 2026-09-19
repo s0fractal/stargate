@@ -11,7 +11,7 @@ In the default equivalence mode, a changed answer produces a concrete
 counterexample. A cheaper equivalent rule
 can become the next world; an unfinished check establishes nothing.
 
-**Build 31 · 32K draft.** The contract can change incompatibly. This is an
+**Build 32 · 32K draft.** The contract can change incompatibly. This is an
 experimental implementation, not a stable release or a general program prover.
 Python only; commands `sg` and `stargate`. MIT licensed.
 
@@ -1368,3 +1368,11 @@ certificate, **not necessarily the model**; 3 means unfinished checking, missing
 material or an unavailable checker; 1 means checker/operation failure. There is no
 runtime adoption or automatic integration. Plain Python replay needs no Stargate
 installation, and only the independently authenticated checker code is executed.
+
+Experiment corpora can also test the acceptance boundary: add `"expect":"reject"`
+to a case with text such as `fact a: bool\ncheck a && ghost`. The controller
+does not parse that text; rejection is the corpus author's explicit obligation.
+A returned value violates it (exit 4); budget exhaustion does not satisfy it
+(exit 3). Refusal of a valid positive case is an observed difference (exit 4),
+even when both subjects refuse. Agreement includes these obligations, not a
+proof of grammar correctness or truthful subject reporting.

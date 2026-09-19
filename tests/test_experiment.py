@@ -159,6 +159,65 @@ class ExperimentTests(unittest.TestCase):
         self.assertIn('subject_checker_error', [r['candidate'].get('reason') for r in result['rows']])
         self.assertEqual(result['oracle_disagreements'], [])
 
+    def test_negative_case_bypasses_controller_parsers_and_exposes_overacceptance(self):
+        negative = {'name': 'unknown', 'inputs': ['a'],
+                    'rule': 'fact a: bool\ncheck a && ghost', 'max_atp': 1000, 'expect': 'reject'}
+        corpus = {'corpus': 1, 'cases': [negative]}
+        bad = self.mutate("raise PolicyError('unknown fact: ' + name)", "return ('const', True)")
+        with patch.object(e.compiler, 'parse', side_effect=AssertionError('negative parsed')), \
+                patch.object(e.boolean, 'program', side_effect=AssertionError('negative parsed')):
+            honest = self.run_packet(self.packet(corpus=corpus))
+            wrong = self.run_packet(self.packet(candidate=bad, corpus=corpus))
+            shared = self.run_packet(self.packet(bad, bad, corpus))
+        self.assertEqual((honest['status'], e.exit_code(honest)), ('agreement', 0))
+        self.assertEqual(honest['incomplete_rows'], [])
+        self.assertTrue(all(r['oracle'] is None and r['parent']['status'] == 'rejected' for r in honest['rows']))
+        self.assertEqual(wrong['oracle_disagreements'], [{'index': i, 'role': 'candidate'} for i in range(2)])
+        self.assertEqual((wrong['status'], e.exit_code(wrong)), ('oracle_disagreement', 4))
+        self.assertEqual(len(shared['oracle_disagreements']), 4)
+        self.assertEqual(shared['status'], 'oracle_disagreement')
+        exhausted = self.mutate('    expr, facts = parse(source, facts, allow_unused=allow_unused)',
+                                '    raise CompileBudgetExhausted("budget")')
+        pending = self.run_packet(self.packet(candidate=exhausted, corpus=corpus))
+        self.assertEqual((pending['status'], e.exit_code(pending)), ('incomplete', 3))
+        self.assertEqual(pending['oracle_disagreements'], [])
+
+    def test_valid_input_rejection_is_difference_even_if_both_reject(self):
+        reject = self.mutate("take('('); result = disjunction(depth + 1); take(')')",
+                             "raise PolicyError('parentheses unsupported')")
+        case = {'name': 'parentheses', 'inputs': ['a', 'b'],
+                'rule': 'fact a: bool\nfact b: bool\ncheck (a || b) && a', 'max_atp': 1000}
+        for parent, candidate in ((self.runtime, reject), (reject, self.runtime), (reject, reject)):
+            report = self.run_packet(self.packet(parent, candidate, {'corpus': 1, 'cases': [case]}))
+            self.assertEqual((report['status'], e.exit_code(report)), ('difference', 4))
+            self.assertEqual(report['differences'], list(range(4)))
+            self.assertEqual(report['incomplete_rows'], [])
+        mixed = self.mixed_corpus(True)
+        mixed['cases'][1] = case
+        report = self.run_packet(self.packet(candidate=reject, corpus=mixed))
+        self.assertEqual(report['status'], 'difference')
+        self.assertEqual(report['differences'], [2, 3, 4, 5])
+        self.assertEqual(len(report['incomplete_rows']), 4)
+
+    def test_rejection_violations_match_cli_and_offline(self):
+        negative = {'name': 'unknown', 'inputs': ['a'],
+                    'rule': 'fact a: bool\ncheck a && ghost', 'max_atp': 1000, 'expect': 'reject'}
+        positive = {'name': 'parens', 'inputs': ['a'],
+                    'rule': 'fact a: bool\ncheck (a)', 'max_atp': 1000}
+        variants = [
+            (negative, self.mutate("raise PolicyError('unknown fact: ' + name)", "return ('const', True)"), 'oracle_disagreement'),
+            (positive, self.mutate("take('('); result = disjunction(depth + 1); take(')')", "raise PolicyError('no parentheses')"), 'difference')]
+        for case, runtime, status in variants:
+            with self.subTest(status=status), tempfile.TemporaryDirectory() as tmp:
+                out = Path(tmp) / 'offline'
+                e.unpack(self.packet(candidate=runtime, corpus={'corpus': 1, 'cases': [case]}), out)
+                args = [str(out / 'experiment.json'), '--expect-controller', e.controller_id(), '--execute-runtimes']
+                cli = subprocess.run([sys.executable, '-I', '-m', 'stargate', 'experiment-check', *args], capture_output=True, text=True, cwd='/')
+                replay = subprocess.run([sys.executable, '-I', '-S', str(out / 'replay.py'), *args], capture_output=True, text=True, cwd='/')
+                self.assertEqual((cli.returncode, replay.returncode), (4, 4), (cli.stderr, replay.stderr))
+                self.assertEqual(json.loads(cli.stdout), json.loads(replay.stdout))
+                self.assertEqual(json.loads(cli.stdout)['status'], status)
+
     def test_execution_requires_independent_pin_and_explicit_flag(self):
         raw = self.packet()
         with patch.object(e, '_run', side_effect=AssertionError('must not execute')):
@@ -200,13 +259,15 @@ class ExperimentTests(unittest.TestCase):
         variants = []
         for value in (None, 3, {'x.py': 'pass'}):
             doc = decode(raw); doc['candidate'] = value; variants.append(doc)
-        for change in ('verdict', 'duplicate', 'unsorted', 'float_budget', 'empty'):
+        for change in ('verdict', 'duplicate', 'unsorted', 'float_budget', 'empty', 'expect', 'null_case'):
             doc = decode(raw)
             if change == 'verdict': doc['corpus']['cases'][0]['verdict'] = True
             if change == 'duplicate': doc['corpus']['cases'][1]['name'] = 'or'
             if change == 'unsorted': doc['corpus']['cases'][0]['inputs'] = ['b', 'a']
             if change == 'float_budget': doc['corpus']['cases'][0]['max_atp'] = True
             if change == 'empty': doc['corpus']['cases'] = []
+            if change == 'expect': doc['corpus']['cases'][0]['expect'] = 'pass'
+            if change == 'null_case': doc['corpus']['cases'][0] = None
             variants.append(doc)
         with patch.object(e, '_run', side_effect=AssertionError('must not execute')):
             for doc in variants:
@@ -252,7 +313,8 @@ class ExperimentTests(unittest.TestCase):
     def test_cli_and_plain_python_replay_match_with_hostile_neighbors(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp); out = root / 'offline'
-            raw = self.packet(); e.unpack(raw, out)
+            negative = {'name': 'unknown', 'inputs': ['a'], 'rule': 'fact a: bool\ncheck ghost', 'max_atp': 1000, 'expect': 'reject'}
+            raw = self.packet(corpus={'corpus': 1, 'cases': self.corpus['cases'] + [negative]}); e.unpack(raw, out)
             marker = root / 'shadowed'
             for name in ('tempfile.py', 'sitecustomize.py', 'subprocess.py'):
                 (out / name).write_text('open(' + repr(str(marker)) + ', "w").write("bad")\nraise RuntimeError("shadowed")')

@@ -34,7 +34,9 @@ GUIDE = """# Compiler experiment
 
 experiment.json carries two inert compiler source maps and a finite Boolean corpus.
 The controller compares every input row, independently checking both Boolean
-answers. Agreement applies ONLY to these observations. No runtime is admitted.
+answers. Cases may declare expect=reject: this is a corpus obligation, not
+a controller-proved grammar fact. Rejection is distinct from budget exhaustion.
+Agreement applies ONLY to these observations. No runtime is admitted.
 A participant can propose replacement source text, or an additional corpus case;
 return text rather than inventing digests or claiming an experiment has passed.
 Adding a case creates a new corpus and experiment; old evidence is unchanged.
@@ -93,7 +95,11 @@ def corpus(doc, *, validate_program=True):
         raise InvalidRecord('corpus needs 1..32 cases')
     seen = set()
     for case in doc['cases']:
-        exact(case, ('name', 'inputs', 'rule', 'max_atp'))
+        if type(case) is not dict:
+            raise InvalidRecord('case must be an object')
+        exact(case, ('name', 'inputs', 'rule', 'max_atp', 'expect') if 'expect' in case else ('name', 'inputs', 'rule', 'max_atp'))
+        if case.get('expect', 'value') not in ('value', 'reject'):
+            raise InvalidRecord('case expectation must be value or reject')
         name, names = case['name'], case['inputs']
         if type(name) is not str or re.fullmatch(r'[A-Za-z0-9_-]{1,64}', name) is None or name in seen:
             raise InvalidRecord('case names must be unique ASCII identifiers')
@@ -108,7 +114,7 @@ def corpus(doc, *, validate_program=True):
             raise InvalidRecord('rule must be text within 8192 bytes')
         # Grammar interpretation belongs to the selected controller, not to
         # structural inspection of a packet naming another controller.
-        if validate_program:
+        if validate_program and case.get('expect', 'value') == 'value':
             compiler.parse(case['rule'], dict.fromkeys(names, False), allow_unused=True)
             boolean.program(case['rule'], names, allow_unused=True)
     return doc
@@ -200,7 +206,7 @@ for item in request['rows']:
     except compiler.CompilerBug:
         observed = dict(status='incomplete', reason='subject_checker_error')
     except compiler.PolicyError:
-        observed = dict(status='incomplete', reason='subject_rejected_input')
+        observed = dict(status='rejected', reason='subject_rejected_input')
     rows.append(dict(index=item['index'], observation=observed))
 print(json.dumps(rows, separators=(',', ':')))
 '''
@@ -272,10 +278,14 @@ def _observations(data, rows):
                     not 0 <= obs['atp_spent'] <= task['max_atp']):
                 raise InvalidRecord('invalid subject value or cost')
             record_hash(obs['term'])
+        elif obs.get('status') == 'rejected':
+            exact(obs, ('status', 'reason'))
+            if obs['reason'] != 'subject_rejected_input':
+                raise InvalidRecord('invalid subject rejection')
         else:
             exact(obs, ('status', 'reason'))
             if obs['status'] != 'incomplete' or obs['reason'] not in (
-                    'compile_budget_or_exit', 'local_resource', 'subject_checker_error', 'subject_rejected_input'):
+                    'compile_budget_or_exit', 'local_resource', 'subject_checker_error'):
                 raise InvalidRecord('invalid subject refusal')
 
 
@@ -298,12 +308,13 @@ def run(raw, *, expect_controller, execute=False):
         'flags': ['-I', '-S', '-B'], 'output_limit': MAX_OUTPUT}
     tasks, expected = [], []
     for case in doc['corpus']['cases']:
-        oracle = boolean.program(case['rule'], case['inputs'], allow_unused=True)
+        oracle = (boolean.program(case['rule'], case['inputs'], allow_unused=True)
+                  if case.get('expect', 'value') == 'value' else None)
         for bits in itertools.product((False, True), repeat=len(case['inputs'])):
             facts = dict(zip(case['inputs'], bits))
             tasks.append({'index': len(tasks), 'case': case['name'], 'facts': facts,
                           'rule': case['rule'], 'max_atp': case['max_atp']})
-            expected.append(boolean.evaluate(oracle, facts))
+            expected.append(boolean.evaluate(oracle, facts) if oracle is not None else None)
     observed = {}
     for role in ('parent', 'candidate'):
         data, failure = _run(doc[role], tasks, doc['timeout'])
@@ -315,12 +326,15 @@ def run(raw, *, expect_controller, execute=False):
     incomplete, disagreements, differences = [], [], []
     for task, truth, left, right in zip(tasks, expected, observed['parent'], observed['candidate']):
         row = {'index': task['index'], 'case': task['case'], 'facts': task['facts'],
+               'expect': 'reject' if truth is None else 'value',
                'oracle': truth, 'parent': left['observation'], 'candidate': right['observation']}
         report['rows'].append(row)
         for role in ('parent', 'candidate'):
-            if row[role]['status'] != 'complete': incomplete.append({'index': task['index'], 'role': role})
-            elif row[role]['value'] != truth: disagreements.append({'index': task['index'], 'role': role})
-        if left['observation']['status'] == right['observation']['status'] == 'complete' and left != right:
+            if row[role]['status'] == 'incomplete': incomplete.append({'index': task['index'], 'role': role})
+            elif row[role]['status'] == 'complete' and (truth is None or row[role]['value'] != truth):
+                disagreements.append({'index': task['index'], 'role': role})
+        if ((truth is not None and any(row[role]['status'] == 'rejected' for role in ('parent', 'candidate'))) or
+                (left['observation']['status'] == right['observation']['status'] == 'complete' and left != right)):
             differences.append(task['index'])
     # A witnessed disagreement is meaningful even if other rows did not finish.
     report.update(status='oracle_disagreement' if disagreements else 'difference' if differences else
