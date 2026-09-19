@@ -14,7 +14,7 @@ from .store import Store, StoreError, hex_hash
 from .bundle import export_bundle, verify_bundle, read_bundle, write_bundle, require_bundle
 from .policy import author_policy, CompilerBug, DEFAULT_MAX_ATP
 from .case import pack_case, inspect_case, read_case, unpack_case
-from . import lab, search, invariants, lineage, labtask, machine
+from . import lab, search, invariants, lineage, labtask, machine, composition
 from .artifact import subject_hash, admit_bundle, admit_all, measure_subject
 
 
@@ -121,6 +121,16 @@ def parser():
     q = cmd("lab-check-invariant", "recompute a finite property claim without trusting its author")
     q.add_argument("path", type=Path)
     q.add_argument("claim", type=Path)
+    for name in ('composition-create','composition-inspect','composition-check','composition-unpack','composition-change'):
+        q=cmd(name,'check two components under a joint synchronous contract')
+        q.add_argument('path',type=Path)
+        if name in ('composition-create','composition-unpack'): q.add_argument('--output',type=Path,required=True)
+        if name=='composition-change':
+            q.add_argument('proposal',type=Path)
+            q.add_argument('--output',type=Path)
+        if name in ('composition-check','composition-change'):
+            q.add_argument('--expect-composition',required=True)
+            q.add_argument('--max-edges',type=int,default=256)
     for name in ('machine-create', 'machine-inspect', 'machine-check', 'machine-unpack', 'machine-change', 'machine-search', 'machine-discover', 'machine-claim'):
         q = cmd(name, 'check a finite synchronous machine on all reachable states')
         q.add_argument('path', type=Path)
@@ -201,6 +211,22 @@ def read_admission_plan(path):
 
 
 def execute(args):
+    if args.command.startswith('composition-'):
+        try:
+            raw=composition.read(args.path)
+            if args.command=='composition-change': proposal=machine.read_change(args.proposal)
+        except OSError as exc: raise StoreError('cannot read composition input: '+str(exc)) from exc
+        if args.command=='composition-create':
+            created=composition.create(composition.read_spec(raw))
+            write_bundle(args.output,created)
+            return composition.describe(created)
+        if args.command=='composition-inspect': return composition.describe(raw)
+        if args.command=='composition-unpack': return composition.unpack(raw,args.output)
+        if args.command=='composition-change':
+            report,output=composition.verify_change(raw,proposal,args.expect_composition,max_edges=args.max_edges)
+            if output is not None and args.output is not None: write_bundle(args.output,output)
+            return report
+        return composition.verify(raw,args.expect_composition,max_edges=args.max_edges)
     if args.command.startswith('machine-'):
         try:
             raw = machine.read(args.path)
@@ -468,7 +494,7 @@ def main(argv=None):
         if result['status'] == 'verified_lineage': return 0
         if result['status'] == 'incomplete': return 3
         return 1 if result['status'] == 'checker_error' else 4
-    if args.command in ('lab-discover', 'lab-check-invariant', 'machine-check', 'machine-discover', 'machine-claim'):
+    if args.command in ('lab-discover', 'lab-check-invariant', 'machine-check', 'machine-discover', 'machine-claim', 'composition-check'):
         if result['status'] in ('complete', 'established'): return 0
         if result['status'] == 'checker_error': return 1
         return 3 if result['status'] == 'incomplete' else 4
@@ -476,7 +502,7 @@ def main(argv=None):
         if result['status'] == 'found': return 0
         if result['status'] == 'checker_error': return 1
         return 4 if result['status'] in ('neighborhood_exhausted', 'parent_rejected') else 3
-    if args.command in ('lab-check', 'lab-task-start', 'lab-task-resume', 'machine-change'):
+    if args.command in ('lab-check', 'lab-task-start', 'lab-task-resume', 'machine-change', 'composition-change'):
         if result['status'] in ('incomplete', 'suspended'): return 3
         if result['status'] == 'checker_error': return 1
         return 0 if result['admitted'] else 4

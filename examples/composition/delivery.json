@@ -1,0 +1,45 @@
+{
+  "components": {
+    "producer": {
+      "state": [
+        "sent"
+      ],
+      "inputs": [
+        "ack"
+      ],
+      "next": {
+        "sent": "fact ack: bool\nfact sent: bool\ncheck sent || !ack"
+      }
+    },
+    "consumer": {
+      "state": [
+        "received"
+      ],
+      "inputs": [
+        "request"
+      ],
+      "next": {
+        "received": "fact received: bool\nfact request: bool\ncheck received || request"
+      }
+    }
+  },
+  "wires": {
+    "producer.ack": "consumer.received",
+    "consumer.request": "producer.sent"
+  },
+  "events": [],
+  "initial": [
+    {
+      "producer.sent": false,
+      "consumer.received": false
+    }
+  ],
+  "invariant": "fact consumer.received: bool\nfact producer.sent: bool\ncheck !consumer.received || producer.sent",
+  "goals": [
+    {
+      "producer.sent": true,
+      "consumer.received": true
+    }
+  ],
+  "max_atp": 1000
+}

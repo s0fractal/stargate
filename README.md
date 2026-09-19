@@ -11,7 +11,7 @@ In the default equivalence mode, a changed answer produces a concrete
 counterexample. A cheaper equivalent rule
 can become the next world; an unfinished check establishes nothing.
 
-**Build 28 · 32K draft.** The contract can change incompatibly. This is an
+**Build 29 · 32K draft.** The contract can change incompatibly. This is an
 experimental implementation, not a stable release or a general program prover.
 Python only; commands `sg` and `stargate`. MIT licensed.
 
@@ -1227,3 +1227,51 @@ This proves that a path **exists from some allowed initial state**. It does not
 force the environment to take that path, guarantee progress on every execution,
 or establish liveness. `machine-discover` observes the graph independently of
 both the invariant and goals; its observation does not admit a change.
+
+
+### Mutate one component, check the joint behavior
+
+Build 29 adds two synchronous components with explicit wires, up to six state
+bits in total. Both read the same old state; their order is irrelevant. The joint
+packet owns the initial states, invariant and reachable goals. Component bodies
+contain interfaces and transition rules; they carry no implicit local contracts.
+
+The example is a one-shot message handoff. `producer.sent` must remain true once
+`consumer.received` becomes true, and both true must be reachable. The producer
+reads the old acknowledgement, the consumer reads the old sent flag.
+
+```sh
+sg composition-create examples/composition/delivery.json --output delivery.world
+ID=$(sg composition-inspect delivery.world | python -c 'import json,sys; print(json.load(sys.stdin)["composition_id"])')
+sg composition-check delivery.world --expect-composition "$ID"
+python - "$ID" <<'PY'
+import json,sys
+p=json.load(open('examples/composition/safe.json'))
+p['parent']=sys.argv[1]
+with open('proposal.json','x') as f: json.dump(p,f)
+PY
+sg composition-change delivery.world proposal.json --expect-composition "$ID" --output child.world
+sg composition-unpack delivery.world --output delivery-replay
+```
+
+Run in a fresh output directory. `unsafe.json` and `frozen.json` are alternative
+proposal templates: replace their parent placeholder with the same ID.
+
+- **Safe:** producer always sets `sent=true`; admission succeeds.
+- **Unsafe:** producer uses `!ack`; the joint trace is `00 → 10 → 11 → 01`
+  (sent, received). The last state violates the cross-component invariant.
+  Standalone components can each satisfy their own weaker contracts while this
+  interaction fails.
+- **Frozen:** producer keeps its old sent bit; safety holds but the required goal
+  becomes unreachable. No child is admitted.
+
+A translation guard checks all input valuations against original local rules
+before the existing SKI graph checker runs. Wiring mistakes must not hide behind
+agreement about the same incorrectly assembled machine. A quota stop remains
+`incomplete`, never a proof of safety or missing goals. For offline checking use
+`python -I -S delivery-replay/replay.py delivery.world --composition
+--expect-composition ID --expect-runtime DIGEST`, with independently chosen IDs.
+
+This first composition has one clock, direct old-state wires and a small full
+graph. It does not establish inevitable delivery, fairness, asynchronous protocol
+correctness or safe composition merely from local certificates.

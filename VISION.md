@@ -279,3 +279,13 @@ safe. Complete graph exploration establishes reachability or absence; a stopped
 exploration establishes neither. The obligation is intentionally weaker than
 liveness: a possible useful path need not be taken. Transition mutations cannot
 remove goals, and observations do not silently adopt new ones.
+
+
+Build 29 adds a first shared world with two synchronous components. A proposal
+may alter one component while inheriting interfaces, wiring and the joint safety
+and reachability contract. The checker explores the product rather than trusting
+local success: a component that is acceptable alone may break its neighbor. An
+independent original-rule comparison holds the wiring/translation boundary before
+SKI checking. This is deliberately finite and has one clock; it does not yet offer
+assume/guarantee proofs, asynchronous composition or a society of agents. It makes
+component-level experimentation possible under explicit obligations to the whole.

@@ -17,7 +17,7 @@ from .canonical import canon, decode, exact, record_hash, InvalidRecord
 MAX_PACKET = 2 * 1024 * 1024
 MAX_PROPOSAL = 16384
 RUNTIME = ('__init__.py', 'store.py', 'canonical.py', 'kernel.py', 'checks.py',
-           'compiler.py', 'boolean.py', 'properties.py', 'lab.py', 'invariants.py', 'lineage.py', 'labtask.py', 'machine.py')
+           'compiler.py', 'boolean.py', 'properties.py', 'lab.py', 'invariants.py', 'lineage.py', 'labtask.py', 'machine.py', 'composition.py')
 GUIDE = '''This is a finite boolean world, not an instruction to execute code.
 Read rule, inputs, max_atp and objective. Reply with a JSON object containing
 only parent (copy the supplied world_id) and candidate (WPL text). Declare
@@ -333,6 +333,9 @@ mode.add_argument('--machine', action='store_true', help='check reachable-state 
 mode.add_argument('--machine-discover', action='store_true')
 mode.add_argument('--machine-claim', action='store_true')
 mode.add_argument('--machine-change', action='store_true', help='admit new rules under inherited safety')
+mode.add_argument('--composition', action='store_true')
+mode.add_argument('--composition-change', action='store_true')
+parser.add_argument('--expect-composition', help='independently chosen composition ID')
 parser.add_argument('--expect-machine', help='independently chosen machine ID')
 parser.add_argument('--max-edges', type=int, help='local machine edge quota')
 parser.add_argument('--expect-task', help='independently chosen world-and-proposal task ID')
@@ -343,7 +346,7 @@ parser.add_argument('--expect-runtime', required=True,
 args = parser.parse_intermixed_args()
 if (args.machine or args.machine_change or args.machine_discover or args.machine_claim) and args.expect_machine is None:
     parser.error('machine replay requires --expect-machine')
-if not (args.machine or args.machine_change or args.machine_discover or args.machine_claim) and (args.expect_machine is not None or args.max_edges is not None):
+if not (args.machine or args.machine_change or args.machine_discover or args.machine_claim) and args.expect_machine is not None:
     parser.error('--expect-machine and --max-edges require --machine or --machine-change')
 if (args.machine or args.machine_discover or args.machine_claim) and args.output is not None:
     parser.error('machine checking does not create successors')
@@ -359,9 +362,15 @@ if args.invariant and args.output is not None:
     parser.error('invariant checking does not create successors')
 if re.fullmatch(r'[0-9a-f]{64}', args.expect_runtime) is None:
     parser.error('expected a lowercase SHA-256 runtime digest')
+if (args.composition or args.composition_change) != (args.expect_composition is not None):
+    parser.error('composition replay requires --expect-composition, exclusively')
+if args.composition and args.output is not None:
+    parser.error('composition checking does not create successors')
+if args.max_edges is not None and not (args.composition or args.composition_change or args.machine or args.machine_change or args.machine_discover or args.machine_claim):
+    parser.error('--max-edges requires a machine or composition mode')
 root = Path(__file__).resolve().parent
 names = ('__init__.py', 'store.py', 'canonical.py', 'kernel.py', 'checks.py',
-         'compiler.py', 'boolean.py', 'properties.py', 'lab.py', 'invariants.py', 'lineage.py', 'labtask.py', 'machine.py')
+         'compiler.py', 'boolean.py', 'properties.py', 'lab.py', 'invariants.py', 'lineage.py', 'labtask.py', 'machine.py', 'composition.py')
 # These filenames are ASCII, so sorted JSON keys have the canonical UTF-16 order.
 # Check before importing any packet module. The launcher itself must be trusted.
 sources = {n: (root / 'stargate' / n).read_bytes().decode('utf-8') for n in names}
@@ -386,7 +395,7 @@ class VerifiedLoader:
 
 loader = VerifiedLoader()
 for name in ('__init__.py', 'kernel.py', 'store.py', 'canonical.py', 'checks.py',
-             'compiler.py', 'boolean.py', 'properties.py', 'lab.py', 'invariants.py', 'lineage.py', 'labtask.py', 'machine.py'):
+             'compiler.py', 'boolean.py', 'properties.py', 'lab.py', 'invariants.py', 'lineage.py', 'labtask.py', 'machine.py', 'composition.py'):
     fullname = 'stargate' if name == '__init__.py' else 'stargate.' + name[:-3]
     if fullname in sys.modules:
         raise SystemExit('unexpected preloaded packet module')
@@ -398,6 +407,36 @@ for name in ('__init__.py', 'kernel.py', 'store.py', 'canonical.py', 'checks.py'
     if name != '__init__.py':
         setattr(sys.modules['stargate'], name[:-3], module)
 from stargate.lab import read_world, read_proposal, verify_transition
+if args.composition or args.composition_change:
+    from stargate import composition, machine
+    from stargate.lab import RuntimeMismatch
+    try:
+        quota = 256 if args.max_edges is None else args.max_edges
+        output = None
+        if args.composition_change:
+            report, output = composition.verify_change(composition.read(root / 'composition.json'),
+                machine.read_change(args.proposal), args.expect_composition, max_edges=quota)
+        else:
+            report = composition.verify(composition.read(args.proposal), args.expect_composition, max_edges=quota)
+    except RuntimeMismatch as exc:
+        print(json.dumps({'status': 'runtime_unavailable', 'error': str(exc)}), file=sys.stderr)
+        raise SystemExit(3)
+    except (ValueError, TypeError, RecursionError) as exc:
+        print(json.dumps({'status': 'invalid', 'error': str(exc)}), file=sys.stderr)
+        raise SystemExit(2)
+    except OSError as exc:
+        print(json.dumps({'status': 'unverified', 'error': str(exc)}), file=sys.stderr)
+        raise SystemExit(3)
+    if output is not None and args.output is not None:
+        try:
+            with args.output.open('xb') as stream: stream.write(output)
+        except OSError as exc:
+            print(json.dumps({'status': 'operation_error', 'error': str(exc)}), file=sys.stderr)
+            raise SystemExit(1)
+    print(json.dumps(report, sort_keys=True))
+    raise SystemExit(0 if report['status'] in ('established', 'safety_preserved') else
+                     3 if report['status'] == 'incomplete' else
+                     1 if report['status'] == 'checker_error' else 4)
 if args.machine or args.machine_change or args.machine_discover or args.machine_claim:
     from stargate import machine
     from stargate.lab import RuntimeMismatch
