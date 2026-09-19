@@ -98,6 +98,26 @@ class Composition(unittest.TestCase):
         spec=delivery();spec['max_atp']=0;raw=co.create(spec)
         self.assertEqual(co.verify(raw,lab.identity(raw))['status'],'incomplete')
 
+    def test_candidate_quota_after_complete_parent_cannot_admit_or_claim_absence(self):
+        spec=dict(components={
+            'a':dict(state=['p','q'],inputs=[],next={n:rule(['p','q'],'true') for n in ['p','q']}),
+            'b':dict(state=['r'],inputs=[],next={'r':rule(['r'],'r')})},wires={},events=[],
+            initial=[{'a.p':False,'a.q':False,'b.r':False}],
+            invariant=rule(['a.p','a.q','b.r'],'true'),goals=[{'a.p':True,'a.q':True,'b.r':False}],max_atp=1000)
+        raw=co.create(spec);anchor=lab.identity(raw)
+        p=dict(parent=anchor,component='a',next={'p':rule(['p','q'],'p || q'),'q':rule(['p','q'],'!q')})
+        full,child=co.verify_change(raw,p,anchor,max_edges=4)
+        self.assertTrue(full['admitted']);self.assertIsNotNone(child)
+        r,child=co.verify_change(raw,p,anchor,max_edges=2)
+        self.assertEqual((r['status'],r['admitted'],child),('incomplete',False,None))
+        self.assertEqual(r['program'],'candidate')
+        self.assertEqual(r['checks']['parent']['status'],'established')
+        candidate=r['checks']['candidate']['check']
+        self.assertEqual(candidate['checked_edges'],2)
+        self.assertNotIn(spec['goals'][0],candidate['reachable'])
+        self.assertNotIn('unreached_goals',candidate)
+        self.assertNotIn('goal_witnesses',candidate)
+
     def test_broken_parent_cannot_be_repaired_and_wrong_anchor_refuses_before_work(self):
         for expr,status in [('!ack','counterexample'),('sent','goal_unreachable')]:
             spec=delivery();spec['components']['producer']['next']['sent']=rule(['ack','sent'],expr)
