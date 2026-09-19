@@ -1648,3 +1648,40 @@ The controller pin changes; historical packets and their evidence are untouched.
 
 A negative-only corpus can give agreement for a reject-all subject: it makes no
 acceptance claim. Positive cases must be included to exercise acceptance.
+
+## Certified model changes (build 33)
+
+Canonical packet `{certified_change:1,parent:CERT,candidate:CERT}` contains two
+complete certificate documents, within 1 MiB total. Inspection validates both
+structures without interpreting their programs; pack/unpack do not verify proofs.
+The recipient supplies the parent ModelID and checker ID independently. The parent
+model must hash to that anchor. Candidate language, state, events, initial, invariant
+and goals must equal the parent's corresponding fields exactly; only next may
+change. This is source identity, not inferred equivalence of protected predicates.
+No inferred defaults, merging of partial transitions, or implicit policy changes.
+
+`verify_change` checks parent then candidate with `verify`, using the recipient's
+checker ID for each. Each has its own max_steps allowance (0..4288); total paid
+edge/path work is at most twice the allowance. Parsing and invariant checks retain
+the certificate checker's existing uncharged resource limits. A parent proof must
+be valid even if the candidate is valid. Any certificate failure produces no
+successor: malformed/false evidence raises InvalidRecord/2; incomplete or foreign
+checker gives3; checker_error gives1. A returned refusal identifies failed role
+and retains reports of checks performed so far, but has no successor identity.
+Bad proof is not proof that its model is unsafe.
+
+Only after BOTH verified_certificate results does the result become verified_change
+(exit0), binding change_id, parent_model, checker, both ordered reports and computed
+successor_model/successor_certificate. Returned successor bytes are precisely the
+canonical candidate certificate. They can be reused in another packet with the
+new parent anchor. No-op changes and non-equivalent transition functions are legal
+if the invariant and each existential goal still hold. This establishes finite
+contract preservation, not behavioral refinement, optimization or runtime adoption.
+
+CLI certificate-change-pack takes two files and --output; certificate-change-check
+takes a packet, --expect-model, --expect-checker, optional --max-steps and --output.
+certificate-change-unpack exports change.json and the same five-file checker plus
+authenticated launcher. Offline add --change to replay.py; --output is legal only
+in change mode. CLI/offline write a successor only on verified_change and refuse
+existing destinations. Authenticate the launcher and checker independently. No
+producer code is present or executed, and no BFS/compiler/SKI dependency is added.

@@ -320,3 +320,9 @@ superset of reachable states is sufficient for induction, but membership alone
 never establishes a goal's reachability. The recipient anchors the model separately
 from any runtime or ATP budget. Python and this small checker remain trusted; its
 own correctness is not established by the certificate it checks.
+
+Certified model changes now connect participant-supplied proof data to a successor:
+the parent is anchored, protected contract fields remain fixed, and a small checker
+rechecks both inductive proofs before returning the candidate certificate. This
+allows a different transition system while keeping safety and existential goals.
+It does not establish refinement, efficiency or runtime correctness.
