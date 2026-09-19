@@ -2,7 +2,7 @@
 import argparse
 import json
 import os
-from . import transport
+from . import transport, apply
 from pathlib import Path
 import sys
 
@@ -137,6 +137,14 @@ def parser():
         q.add_argument('--expect-checker', required=True, type=hex_hash)
         q.add_argument('--max-steps', type=int, default=certificate.MAX_STEPS)
         q.add_argument('--output', type=Path)
+    q = cmd('model-apply', 'apply a certified change or repair to a bare Git branch')
+    q.add_argument('packet', type=Path)
+    q.add_argument('--repository', required=True, type=Path)
+    q.add_argument('--ref', required=True)
+    q.add_argument('--model-path', required=True)
+    q.add_argument('--expect-commit', required=True)
+    q.add_argument('--expect-checker', required=True)
+    q.add_argument('--max-steps', type=int, default=certificate.MAX_STEPS)
     cmd('certificate-checker', 'identify the independent finite-certificate checker')
     for name in ('certificate-inspect', 'certificate-check'):
         q = cmd(name, 'check a finite inductive certificate without executing producer code')
@@ -279,6 +287,10 @@ def read_admission_plan(path):
 
 
 def execute(args):
+    if args.command == 'model-apply':
+        return apply.apply(certificate.read(args.packet), args.repository, args.ref,
+                           args.model_path, args.expect_commit, args.expect_checker,
+                           max_steps=args.max_steps)
     if args.command.startswith('evidence-'):
         try: raw = certificate.read(args.path)
         except OSError as exc: raise StoreError('cannot read evidence: ' + str(exc)) from exc
@@ -641,6 +653,7 @@ def main(argv=None):
         print(json.dumps({"status": "invalid", "error": str(exc)}), file=sys.stderr)
         return 2
     print(json.dumps(result, ensure_ascii=False, sort_keys=True))
+    if args.command == 'model-apply': return apply.exit_code(result)
     if args.command in ('machine-evidence', 'evidence-check'): return certificate.exit_code(result)
     if args.command in ('refutation-create', 'refutation-check'): return certificate.exit_code(result)
     if args.command in ('certificate-check', 'certificate-repair-check', 'certificate-change-check', 'certificate-history-check', 'certificate-history-append'): return certificate.exit_code(result)

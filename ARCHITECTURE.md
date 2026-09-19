@@ -143,3 +143,6 @@ x0 remains empty.
 
 Offline transport and replay are x6, outside all semantic source closures.
 The five-file certificate checker does not import either. x0 stays empty.
+
+`apply` (x5) verifies certificate evidence and writes local Git objects/refs. It is
+an effectful executor, outside the five-file proof checker and offline closures.
