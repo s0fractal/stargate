@@ -1305,7 +1305,9 @@ python -I -S comparison/offline/replay.py comparison/offline/experiment.json \
 
 This self-comparison is a setup control. With another snapshot, the same corpus
 can expose changed values, costs or terms. Exit 0 means all corpus rows agree with
-each other and the controller's Boolean oracle; 4 means a witnessed difference or
+each other and the controller's Boolean oracle. **Cost and term are self-reported:
+two subjects can fabricate correct Boolean answers and ATP 0 and still receive
+exit 0. This does not prove that they compiled or executed anything.** Exit 4 means a witnessed difference or
 oracle disagreement; 3 means unfinished execution or an unavailable controller.
 A compiler crash is not a semantic counterexample. Reports include both code IDs,
 corpus/controller IDs, execution conditions and concrete observations. Adding a

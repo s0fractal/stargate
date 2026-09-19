@@ -90,6 +90,62 @@ class ExperimentTests(unittest.TestCase):
             self.assertEqual(row['parent']['value'], row['candidate']['value'])
             self.assertEqual(row['candidate']['atp_spent'], row['parent']['atp_spent'] + 1)
 
+    def mixed_corpus(self, pending_first):
+        pending = {'name': 'pending', 'inputs': ['x'],
+                   'rule': 'fact x: bool\ncheck !!x', 'max_atp': 0}
+        complete = self.corpus['cases'][0]
+        return {'corpus': 1, 'cases': [pending, complete] if pending_first else [complete, pending]}
+
+    def assert_mixed_coverage(self, report, pending_first):
+        self.assertEqual(report['total_rows'], 6)
+        self.assertEqual([r['index'] for r in report['rows']], list(range(6)))
+        pending_indexes = [0, 1] if pending_first else [4, 5]
+        self.assertEqual(report['incomplete_rows'], [
+            {'index': index, 'role': role}
+            for index in pending_indexes for role in ('parent', 'candidate')])
+        for index in pending_indexes:
+            for role in ('parent', 'candidate'):
+                self.assertEqual(report['rows'][index][role], {
+                    'status': 'incomplete', 'reason': 'compile_budget_or_exit'})
+
+    def test_oracle_disagreement_takes_precedence_over_incomplete_rows(self):
+        wrong = self.mutate("take('||'); expr = ('or', expr, conjunction(depth))",
+                            "take('||'); expr = ('and', expr, conjunction(depth))")
+        for pending_first in (False, True):
+            with self.subTest(pending_first=pending_first):
+                report = self.run_packet(self.packet(candidate=wrong,
+                    corpus=self.mixed_corpus(pending_first)))
+                self.assert_mixed_coverage(report, pending_first)
+                offset = 2 if pending_first else 0
+                self.assertEqual(report['oracle_disagreements'], [
+                    {'index': offset + 1, 'role': 'candidate'},
+                    {'index': offset + 2, 'role': 'candidate'}])
+                for index in (offset + 1, offset + 2):
+                    row = report['rows'][index]
+                    self.assertIs(row['oracle'], True)
+                    self.assertIs(row['parent']['value'], True)
+                    self.assertIs(row['candidate']['value'], False)
+                self.assertEqual(report['status'], 'oracle_disagreement')
+                self.assertEqual(e.exit_code(report), 4)
+
+    def test_projection_difference_takes_precedence_over_incomplete_rows(self):
+        changed = self.mutate('return CompiledPolicy(check, objects, value, receipt.atp_spent)',
+                              'return CompiledPolicy(check, objects, value, receipt.atp_spent + 1)')
+        for pending_first in (False, True):
+            with self.subTest(pending_first=pending_first):
+                report = self.run_packet(self.packet(candidate=changed,
+                    corpus=self.mixed_corpus(pending_first)))
+                self.assert_mixed_coverage(report, pending_first)
+                offset = 2 if pending_first else 0
+                self.assertEqual(report['oracle_disagreements'], [])
+                self.assertEqual(report['differences'], list(range(offset, offset + 4)))
+                for index in report['differences']:
+                    row = report['rows'][index]
+                    self.assertEqual(row['parent']['value'], row['candidate']['value'])
+                    self.assertEqual(row['candidate']['atp_spent'], row['parent']['atp_spent'] + 1)
+                self.assertEqual(report['status'], 'difference')
+                self.assertEqual(e.exit_code(report), 4)
+
     def test_budget_and_subject_guard_are_incomplete_not_counterexamples(self):
         corpus = copy.deepcopy(self.corpus)
         for case in corpus['cases']: case['max_atp'] = 0
