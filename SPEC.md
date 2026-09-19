@@ -1523,3 +1523,103 @@ and experiment have different IDs, and previously unexercised differences may
 become visible. Old evidence is not rewritten. No runtime ancestry, adoption,
 index of approved children, general sandbox, or automatic test-severity score is
 introduced in this stage.
+
+## Inductive machine certificates (build 31, draft)
+
+This is a proof-data boundary for finite Boolean models, not an assertion about
+producer execution. Verification imports Boolean interpretation, canonical JSON
+and hashes, but no compiler, SKI kernel, machine BFS, experiment runner or supplied
+implementation. A successful certificate establishes safety and existential goals
+in the named Boolean model. It establishes no ATP cost, Python/SKI execution,
+runtime correctness, liveness, fairness or model-to-real-system correspondence.
+
+### Model and certificate identity
+
+The model is exactly `{language:"boolean-machine-1",state,events,initial,next,
+invariant,goals}`. It preserves synchronous old-state semantics. State has 1..6
+bits, events 0..2 disjoint bits; both lists sorted, unique WPL names. Initial is a
+nonempty set of full Boolean assignments; goals is a possibly empty set, each
+bounded by 2^state bits and without duplicates. Next defines exactly every state
+bit. Each next rule declares all state/event names, invariant all state names;
+unused declarations are allowed. Rules use the independent Boolean parser's WPL
+grammar (8192 source bytes, 256 tokens). There is no compiler-depth or ATP claim.
+
+ModelID hashes canonical model bytes, including invariant, initial set and goals.
+This is deliberately NOT MachineID: projecting a current machine discards its
+runtime sources, guide, license and max_atp, and adds the explicit language name.
+Different machine packets/budgets can project to the same model. The recipient
+must choose ModelID independently; copying it from received evidence proves no
+agreement with the recipient's intended model.
+
+A certificate is canonical JSON <=1 MiB, exactly
+`{certificate:1,checker,model,states,paths}`. Checker is a source-map digest over
+__init__.py, store.py, canonical.py, boolean.py, certificate.py. Build metadata is
+outside it. States is a nonempty duplicate-free set of complete assignments, at
+most 64. Paths contains exactly one `{goal,trace}` per model goal, in goal order;
+trace is `{initial,steps}`, each step `{event,state}`. A path has at most 63 steps,
+sufficient for a simple path in this finite domain, but the checker does NOT
+require or establish shortestness. No verdict, source code, ATP or producer key
+is accepted as a certificate field.
+
+### Obligations
+
+Let S be the supplied state set, I the initial states, T(s,e) the Boolean rules,
+and P the invariant. A certificate must establish:
+
+1. I is a subset of S.
+2. P(s) for EVERY s in S.
+3. T(s,e) is in S for EVERY s in S and EVERY event valuation e.
+4. Each named goal has a concrete valid event path from a member of I.
+
+The checker recomputes transitions from the same old state for all bits and checks
+coverage independently of the event iterator. A state set may safely overapproximate
+reachability: it need not equal a producer's BFS result. In particular, a goal being
+in S does not prove it reachable. Its path must start at an actual initial state,
+follow recomputed transitions and end at that exact goal. Paths reuse the already
+validated transition map. Zero-step paths are valid only for initial-state goals.
+Induction over transitions establishes safety of all reachable states; no producer
+search order, reachability assertion or reported verdict is needed.
+
+A wrong model anchor, malformed certificate, missing initial, bad invariant state,
+nonclosed set or false goal path is invalid/2. This rejects THIS certificate; an
+unsafe state may be unreachable, so it is not a general counterexample to the model.
+There is no exit4 verdict in certificate-check. A well-formed certificate selecting
+another checker is checker_unavailable/3, before interpreting its rule text. Input
+structure remains checked first. A trusted checker coverage failure is checker_error/1.
+
+Local max_steps is 0..4288 (default4288), counting closure edges plus goal path steps.
+It covers the maximum 64*4 + 64*63 obligations. Quota exhaustion is incomplete/3,
+including exhaustion after graph closure but before checking a goal path. Invariant
+and grammar checks are outside this counter; it is not a CPU or memory budget.
+Success is verified_certificate/0, with certificate/model/checker identities, local
+quota, and checked state/edge/path counts. There is no runtime admission or successor.
+
+### Production and transport
+
+`machine-certify MACHINE --expect-machine ID --output CERT [--max-edges N]` first
+runs the existing compiler/SKI machine checker. Only its established result supplies
+the projected model, reached states and goal paths to the independent certificate
+checker. The certificate is checked before writing. Unsafe, unreachable, incomplete
+or erroneous producer results retain machine-check's statuses/codes and write no
+certificate. Destination files are never overwritten. Library create(model,states,
+paths) likewise checks before returning bytes; other producers can construct the
+same inert format without using this implementation.
+
+`certificate-inspect CERT` reports structural identity, not validity.
+`certificate-check CERT --expect-model ID --expect-checker ID [--max-steps N]`
+checks the data. `certificate-checker` reports local checker and launcher digests.
+`certificate-unpack CERT --output NEW_DIRECTORY` exports certificate.json,
+checker.json, replay.py, a guide and license as private files. Unpacking does not
+verify the proof or execute producer code; it requires the current checker and
+never reuses an existing destination.
+
+After authenticating replay.py against an independent launcher digest, use plain
+`python -I -S replay.py certificate.json --expect-model ID --expect-checker ID`.
+The launcher verifies the checker map against the recipient's independently chosen
+ID, then executes only captured matching source text. No directory is added to
+sys.path; adjacent modules and pyc are not loaded. Model data is never Python code.
+Missing input material is3; malformed evidence is2 on both CLI and offline paths.
+Python, stdlib, host and the independently selected checker remain trusted. Installed
+checker identity assumes no concurrent source edits or in-process monkeypatches.
+The checker is intentionally a smaller separately inspectable trusted program,
+not a self-authenticating certificate or a machine-checked proof of its own code.

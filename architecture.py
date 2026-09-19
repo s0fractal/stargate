@@ -10,7 +10,7 @@ from pathlib import Path
 LAYERS = {
     '__init__': 1, 'build': 1, 'kernel': 1, 'store': 1, 'canonical': 1,
     'checks': 2, 'compiler': 2, 'boolean': 2, 'properties': 2,
-    'experiment': 3, 'records': 3, 'facts': 3, 'case': 3, 'lab': 3,
+    'certificate': 3, 'experiment': 3, 'records': 3, 'facts': 3, 'case': 3, 'lab': 3,
     'policy': 4, 'bundle': 4, 'search': 4, 'invariants': 4, 'lineage': 4, 'labtask': 4, 'machine': 4,
     'artifact': 5, 'composition': 5,
     'cli': 6, '__main__': 6,

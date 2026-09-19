@@ -15,7 +15,7 @@ from .store import Store, StoreError, hex_hash
 from .bundle import export_bundle, verify_bundle, read_bundle, write_bundle, require_bundle
 from .policy import author_policy, CompilerBug, DEFAULT_MAX_ATP
 from .case import pack_case, inspect_case, read_case, unpack_case
-from . import lab, search, invariants, lineage, labtask, machine, composition, experiment
+from . import lab, search, invariants, lineage, labtask, machine, composition, experiment, certificate
 from .artifact import subject_hash, admit_bundle, admit_all, measure_subject
 
 
@@ -95,6 +95,15 @@ def parser():
     q = cmd("case-unpack", "materialize evidence in a new directory; never execute it")
     q.add_argument("path", type=Path)
     q.add_argument("--output", required=True, type=Path)
+    cmd('certificate-checker', 'identify the independent finite-certificate checker')
+    for name in ('certificate-inspect', 'certificate-check', 'certificate-unpack'):
+        q = cmd(name, 'check a finite inductive certificate without executing producer code')
+        q.add_argument('path', type=Path)
+        if name == 'certificate-check':
+            q.add_argument('--expect-model', required=True, type=hex_hash)
+            q.add_argument('--expect-checker', required=True, type=hex_hash)
+            q.add_argument('--max-steps', type=int, default=certificate.MAX_STEPS)
+        if name == 'certificate-unpack': q.add_argument('--output', required=True, type=Path)
     q = cmd("runtime-pack", "snapshot the compiler source closure; never execute it")
     q.add_argument("--source-dir", type=Path)
     q.add_argument("--output", required=True, type=Path)
@@ -148,10 +157,10 @@ def parser():
         if name in ('composition-check','composition-change'):
             q.add_argument('--expect-composition',required=True)
             q.add_argument('--max-edges',type=int,default=256)
-    for name in ('machine-create', 'machine-inspect', 'machine-check', 'machine-unpack', 'machine-change', 'machine-search', 'machine-discover', 'machine-claim'):
+    for name in ('machine-create', 'machine-inspect', 'machine-check', 'machine-unpack', 'machine-change', 'machine-search', 'machine-discover', 'machine-claim', 'machine-certify'):
         q = cmd(name, 'check a finite synchronous machine on all reachable states')
         q.add_argument('path', type=Path)
-        if name in ('machine-create', 'machine-unpack'): q.add_argument('--output', type=Path, required=True)
+        if name in ('machine-create', 'machine-unpack', 'machine-certify'): q.add_argument('--output', type=Path, required=True)
         if name == 'machine-claim': q.add_argument('claim', type=Path)
         if name == 'machine-change':
             q.add_argument('proposal', type=Path)
@@ -160,7 +169,7 @@ def parser():
             q.add_argument('--max-candidates', type=int, default=32)
             q.add_argument('--experience', type=Path)
             q.add_argument('--output', type=Path)
-        if name in ('machine-check', 'machine-change', 'machine-search', 'machine-discover', 'machine-claim'):
+        if name in ('machine-check', 'machine-change', 'machine-search', 'machine-discover', 'machine-claim', 'machine-certify'):
             q.add_argument('--expect-machine', required=True)
             q.add_argument('--max-edges', type=int, default=256)
     for name in ('lab-task-start', 'lab-task-resume', 'lab-task-inspect', 'lab-task-unpack'):
@@ -228,6 +237,14 @@ def read_admission_plan(path):
 
 
 def execute(args):
+    if args.command == 'certificate-checker':
+        return dict(checker=certificate.checker_id(), replay_digest=lab.identity(certificate.REPLAY.encode()))
+    if args.command.startswith('certificate-'):
+        try: raw = certificate.read(args.path)
+        except OSError as exc: raise StoreError('cannot read certificate: ' + str(exc)) from exc
+        if args.command == 'certificate-inspect': return certificate.describe(raw)
+        if args.command == 'certificate-unpack': return certificate.unpack(raw, args.output, license_text=lab.LICENSE)
+        return certificate.verify(raw, args.expect_model, args.expect_checker, max_steps=args.max_steps)
     if args.command == 'runtime-pack':
         raw = experiment.pack_runtime(args.source_dir)
         write_bundle(args.output, raw)
@@ -284,6 +301,14 @@ def execute(args):
             created = machine.create(json.loads(raw, object_pairs_hook=unique))
             write_bundle(args.output, created)
             return machine.describe(created)
+        if args.command == 'machine-certify':
+            report = machine.verify(raw, args.expect_machine, max_edges=args.max_edges)
+            if report['status'] != 'established': return report
+            model = certificate.model_from_machine(machine.inspect(raw))
+            output = certificate.create(model, report['reachable'], report['goal_witnesses'])
+            checked = certificate.verify(output, certificate.identity(model), certificate.checker_id())
+            if checked['status'] == 'verified_certificate': write_bundle(args.output, output)
+            return checked
         if args.command == 'machine-discover': return machine.discover_properties(raw, args.expect_machine, max_edges=args.max_edges)
         if args.command == 'machine-claim': return machine.verify_property(raw, claim, args.expect_machine, max_edges=args.max_edges)
         if args.command == 'machine-inspect': return machine.describe(raw)
@@ -511,6 +536,9 @@ def main(argv=None):
     except lab.RuntimeMismatch as exc:
         print(json.dumps({"status": "runtime_unavailable", "error": str(exc)}), file=sys.stderr)
         return 3
+    except certificate.CheckerError as exc:
+        print(json.dumps({'status': 'checker_error', 'error': str(exc)}), file=sys.stderr)
+        return 1
     except CompilerBug as exc:
         print(json.dumps({"status": "compiler_error", "error": str(exc)}), file=sys.stderr)
         return 1
@@ -525,6 +553,11 @@ def main(argv=None):
         print(json.dumps({"status": "invalid", "error": str(exc)}), file=sys.stderr)
         return 2
     print(json.dumps(result, ensure_ascii=False, sort_keys=True))
+    if args.command == 'certificate-check': return certificate.exit_code(result)
+    if args.command == 'machine-certify':
+        if result['status'] == 'verified_certificate': return 0
+        if result['status'] in ('incomplete', 'checker_unavailable'): return 3
+        return 1 if result['status'] == 'checker_error' else 4
     if args.command == 'experiment-check': return experiment.exit_code(result)
     if args.command in ('lineage-check', 'lineage-append'):
         if result['status'] == 'verified_lineage': return 0
