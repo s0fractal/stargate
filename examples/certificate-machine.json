@@ -1,0 +1,27 @@
+{
+  "state": [
+    "a",
+    "b"
+  ],
+  "events": [
+    "tick"
+  ],
+  "initial": [
+    {
+      "a": false,
+      "b": false
+    }
+  ],
+  "next": {
+    "a": "fact a: bool\nfact b: bool\nfact tick: bool\ncheck tick",
+    "b": "fact a: bool\nfact b: bool\nfact tick: bool\ncheck tick"
+  },
+  "invariant": "fact a: bool\nfact b: bool\ncheck (a && b) || (!a && !b)",
+  "max_atp": 1000,
+  "goals": [
+    {
+      "a": true,
+      "b": true
+    }
+  ]
+}

@@ -11,7 +11,7 @@ In the default equivalence mode, a changed answer produces a concrete
 counterexample. A cheaper equivalent rule
 can become the next world; an unfinished check establishes nothing.
 
-**Build 30 · 32K draft.** The contract can change incompatibly. This is an
+**Build 31 · 32K draft.** The contract can change incompatibly. This is an
 experimental implementation, not a stable release or a general program prover.
 Python only; commands `sg` and `stargate`. MIT licensed.
 
@@ -1324,3 +1324,47 @@ Plain Python replay needs no Stargate installation or plugins.
 Build metadata now lives at `stargate.build.__version__`, outside the computation
 source closures. This changes the current lab pin once; future build-number-only
 edits do not change it. A source closure digest is not a wheel digest.
+
+
+## Share a machine certificate, not its producer
+
+`machine-certify` exports data that a smaller checker can validate **without the
+compiler, SKI kernel, or graph-search implementation**. The certificate supplies a
+closed set of safe states and a concrete path to every goal. The checker recomputes
+all Boolean transitions; neither the producer's verdict nor its claimed work is
+trusted. It proves a property of the explicit Boolean model, not execution of Python
+or SKI, ATP costs, or behavior of a real device.
+
+From the repository root, with `sg` installed:
+
+```sh
+mkdir certificate-demo
+sg machine-create examples/certificate-machine.json --output certificate-demo/machine.json
+MACHINE=$(sg machine-inspect certificate-demo/machine.json | python -c 'import json,sys; print(json.load(sys.stdin)["machine_id"])')
+sg machine-certify certificate-demo/machine.json --expect-machine "$MACHINE" \
+  --output certificate-demo/certificate.json > certificate-demo/report.json
+MODEL=$(python -c 'import json; print(json.load(open("certificate-demo/report.json"))["model_id"])')
+CHECKER=$(sg certificate-checker | python -c 'import json,sys; print(json.load(sys.stdin)["checker"])')
+sg certificate-check certificate-demo/certificate.json --expect-model "$MODEL" --expect-checker "$CHECKER"
+sg certificate-unpack certificate-demo/certificate.json --output certificate-demo/offline
+python -I -S certificate-demo/offline/replay.py certificate-demo/offline/certificate.json \
+  --expect-model "$MODEL" --expect-checker "$CHECKER"
+```
+
+This example's two flags update together and remain equal; both can become true.
+The certificate checks four closure edges and one goal-path step. A closed safe set
+may include unreachable states, so a separate path is essential to establish each
+goal. In particular, merely listing a goal among safe states does not prove reachability.
+
+For received evidence, choose the ModelID independently and authenticate the checker
+and launcher digests through an independent channel. ModelID covers the Boolean
+rules, initial states, invariant and goals; it excludes the machine runtime and ATP
+budget, so it is a different identity from MachineID. A claim about a weaker model
+cannot answer a request for your model. The example obtains IDs from locally created
+data and the locally installed checker.
+
+Certificate-check exit 0 establishes these finite obligations; 2 rejects the
+certificate, **not necessarily the model**; 3 means unfinished checking, missing
+material or an unavailable checker; 1 means checker/operation failure. There is no
+runtime adoption or automatic integration. Plain Python replay needs no Stargate
+installation, and only the independently authenticated checker code is executed.

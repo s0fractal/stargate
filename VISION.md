@@ -310,3 +310,13 @@ Boolean-компілятора, переносний корпус і окрем�
 охоплює Boolean-компіляцію; підписані допуски, автомати й композиції потребують
 власних явно визначених спостережень. Контролер, його мова й межі доказу самі
 залишаються предметом незалежної перевірки.
+
+Build 31 adds a separate proof-data path for finite Boolean machines. A producer
+supplies an inductive safe state set and concrete goal paths; a smaller pinned
+checker recomputes closure, invariants and paths without loading the producer,
+compiler, SKI evaluator or machine-search implementation. This establishes the
+finite model's obligations without certifying how the producer worked. A safe
+superset of reachable states is sufficient for induction, but membership alone
+never establishes a goal's reachability. The recipient anchors the model separately
+from any runtime or ATP budget. Python and this small checker remain trusted; its
+own correctness is not established by the certificate it checks.
