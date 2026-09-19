@@ -11,7 +11,7 @@ In the default equivalence mode, a changed answer produces a concrete
 counterexample. A cheaper equivalent rule
 can become the next world; an unfinished check establishes nothing.
 
-**Build 36 · 32K draft.** The contract can change incompatibly. This is an
+**Build 37 · 32K draft.** The contract can change incompatibly. This is an
 experimental implementation, not a stable release or a general program prover.
 Python only; commands `sg` and `stargate`. MIT licensed.
 
@@ -1508,3 +1508,64 @@ a different ModelID. Producer statistics are observations, not proof of costs.
 is a CPU limit. Safety is checked before goals, so a machine with both defects may
 return an unsafe path rather than every possible objection. The producer adapter
 lives outside the small checker: its sources and digest remain unchanged in build36.
+
+## Certified repair after a refutation
+
+A proved defect no longer has to end a world's development. Build37 adds a
+**repair edge**: a refutation of an anchored parent plus a full certificate of a
+candidate. Only `next` may change. Initial states, events, safety invariant and
+**every** goal remain identical. The checker proves the objection and rechecks
+the candidate's entire contract, without running either producer. Fixing only the
+reported trace is insufficient. An unsafe initial state may make such a repair
+impossible; this interface does not grant permission to weaken the contract.
+
+This walkthrough freezes the existing two-bit example, proves its goal unreachable,
+then checks the original transitions as a repair. It uses a new directory:
+
+```sh
+mkdir repair-demo
+python - <<'PY'
+import json
+from pathlib import Path
+from stargate import machine, evidence, lab
+source = json.loads(Path('examples/certificate-machine.json').read_text())
+frozen = dict(source, next={n: 'fact a: bool\nfact b: bool\nfact tick: bool\ncheck '+n for n in source['state']})
+for name, model in [('refutation', frozen), ('candidate', source)]:
+    raw = machine.create(model)
+    report, proof = evidence.produce(raw, lab.identity(raw))
+    assert report['status'] == ('verified_refutation' if name == 'refutation' else 'verified_certificate')
+    Path('repair-demo/'+name+'.json').write_bytes(proof)
+    if name == 'refutation': Path('repair-demo/parent-id').write_text(report['model_id'])
+PY
+MODEL=$(cat repair-demo/parent-id)
+CHECKER=$(sg certificate-checker | python -c 'import json,sys; print(json.load(sys.stdin)["checker"])')
+sg certificate-repair-pack repair-demo/refutation.json repair-demo/candidate.json \
+  --output repair-demo/repair.json
+sg certificate-repair-check repair-demo/repair.json --expect-model "$MODEL" \
+  --expect-checker "$CHECKER" --output repair-demo/successor.json
+sg certificate-repair-unpack repair-demo/repair.json --output repair-demo/offline
+python -I -S repair-demo/offline/replay.py repair-demo/offline/repair.json --repair \
+  --expect-model "$MODEL" --expect-checker "$CHECKER" --output repair-demo/replayed.json
+cmp repair-demo/successor.json repair-demo/replayed.json
+```
+
+Packing returns `unchecked_repair`; it verifies structure, not either proof.
+Checking returns `verified_repair`/0 only with both proofs complete. Invalid data
+or a changed protected field returns2; insufficient quota or an unavailable checker
+returns3; checker failure returns1. Every non-success produces no successor.
+`--max-steps` applies separately to the two proofs (at most twice that quota).
+A verified refutation alone still returns4; the repair command's0 means the defect
+**and its replacement's obligations** were established, not that the parent is safe.
+Output paths are exclusive and are never overwritten.
+
+The successor is a normal certificate, usable as a new certificate-history root.
+Keep the repair packet to retain the original objection and the repair edge;
+a bare successor does not contain that provenance. Safe-parent change/history
+semantics are unchanged. No search, minimal repair, behavioral equivalence, timing,
+chronology, or claim about all real-world defects is established.
+
+This extension changes the five-file certificate checker and launcher digests.
+Old proof bytes are preserved; their original pinned checker is needed to check
+them. There is no implicit repinning or migration. The lab runtime and experiment
+controller remain unchanged. Authenticate checker and launcher IDs independently
+before offline execution; Python and its standard library remain trusted.

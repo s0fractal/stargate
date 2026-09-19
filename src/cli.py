@@ -125,6 +125,18 @@ def parser():
             q.add_argument('--expect-checker', required=True, type=hex_hash)
             q.add_argument('--max-steps', type=int, default=certificate.MAX_STEPS)
         q.add_argument('--output', required=name != 'certificate-history-check', type=Path)
+    q = cmd('certificate-repair-pack', 'package a refutation and candidate certificate as an unchecked repair')
+    q.add_argument('path', type=Path)
+    q.add_argument('candidate', type=Path)
+    q.add_argument('--output', required=True, type=Path)
+    for name in ('certificate-repair-check', 'certificate-repair-unpack'):
+        q = cmd(name, 'check a repair without weakening the refuted model contract')
+        q.add_argument('path', type=Path)
+        if name == 'certificate-repair-check':
+            q.add_argument('--expect-model', required=True, type=hex_hash)
+            q.add_argument('--expect-checker', required=True, type=hex_hash)
+            q.add_argument('--max-steps', type=int, default=certificate.MAX_STEPS)
+        q.add_argument('--output', required=name == 'certificate-repair-unpack', type=Path)
     q = cmd('certificate-change-pack', 'package two certificates without executing producer code')
     q.add_argument('path', type=Path)
     q.add_argument('candidate', type=Path)
@@ -306,6 +318,18 @@ def execute(args):
     if args.command.startswith('certificate-'):
         try: raw = certificate.read(args.path)
         except OSError as exc: raise StoreError('cannot read certificate: ' + str(exc)) from exc
+        if args.command == 'certificate-repair-pack':
+            try: candidate = certificate.read(args.candidate)
+            except OSError as exc: raise StoreError('cannot read candidate certificate: ' + str(exc)) from exc
+            packet = certificate.pack_repair(raw, candidate)
+            write_bundle(args.output, packet)
+            return dict(status='unchecked_repair', repair_id=certificate.identity(certificate.inspect_repair(packet)))
+        if args.command == 'certificate-repair-unpack':
+            return certificate.unpack(raw, args.output, license_text=lab.LICENSE, repair=True)
+        if args.command == 'certificate-repair-check':
+            report, successor = certificate.verify_repair(raw, args.expect_model, args.expect_checker, max_steps=args.max_steps)
+            if successor is not None and args.output: write_bundle(args.output, successor)
+            return report
         if args.command == 'certificate-history-start':
             packet = certificate.start_history(raw)
             write_bundle(args.output, packet)
@@ -650,7 +674,7 @@ def main(argv=None):
     print(json.dumps(result, ensure_ascii=False, sort_keys=True))
     if args.command in ('machine-evidence', 'evidence-check'): return certificate.exit_code(result)
     if args.command in ('refutation-create', 'refutation-check'): return certificate.exit_code(result)
-    if args.command in ('certificate-check', 'certificate-change-check', 'certificate-history-check', 'certificate-history-append'): return certificate.exit_code(result)
+    if args.command in ('certificate-check', 'certificate-repair-check', 'certificate-change-check', 'certificate-history-check', 'certificate-history-append'): return certificate.exit_code(result)
     if args.command == 'machine-certify':
         if result['status'] == 'verified_certificate': return 0
         if result['status'] in ('incomplete', 'checker_unavailable'): return 3

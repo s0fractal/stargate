@@ -341,3 +341,11 @@ Bounded machine analysis now emits independently checked evidence directly: a
 positive certificate or negative refutation, or no artifact when unfinished. The
 producer remains outside the small checker; replacing search does not require
 trusting its verdict or changing the accepted proof language.
+
+A proved objection can now lead to a separately checked repair: the defective
+parent's refutation and a replacement's full certificate form a portable edge.
+Only transition rules may change; safety, initial states and every goal remain
+inherited. This closes the objection-to-repair loop without requiring a safe
+parent or allowing the repair author to weaken the question. The successor can
+continue as a certified history root; the repair packet preserves why that new
+root exists. It does not prove the repair is minimal or automatically find one.

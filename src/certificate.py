@@ -379,6 +379,52 @@ def create_refutation(model, claim):
     return raw
 
 
+def inspect_repair(raw):
+    if not isinstance(raw, bytes) or len(raw) > MAX_BYTES:
+        raise InvalidRecord('certified repair must be bytes within 1 MiB')
+    doc = decode(raw)
+    exact(doc, ('certified_repair', 'refutation', 'candidate'))
+    if type(doc['certified_repair']) is not int or doc['certified_repair'] != 1:
+        raise InvalidRecord('unsupported certified repair')
+    inspect_refutation(canon(doc['refutation']))
+    inspect(canon(doc['candidate']))
+    return doc
+
+
+def pack_repair(refutation, candidate):
+    """Package a claimed defect and repair; packing establishes neither."""
+    raw = canon(dict(certified_repair=1, refutation=inspect_refutation(refutation),
+                     candidate=inspect(candidate)))
+    inspect_repair(raw)
+    return raw
+
+
+def verify_repair(raw, expected_model, expected_checker, *, max_steps=MAX_STEPS):
+    """Prove a parent defect and the full inherited contract of a replacement.
+
+    This is a repair edge, not admission from a safe parent. The quota is per
+    proof (at most twice max_steps); no candidate bytes escape on either failure.
+    """
+    doc = inspect_repair(raw)
+    record_hash(expected_model); record_hash(expected_checker)
+    parent, candidate = doc['refutation']['model'], doc['candidate']['model']
+    if identity(parent) != expected_model:
+        raise InvalidRecord('repair parent model does not match recipient anchor')
+    _preserves_contract(parent, candidate)
+    report = dict(status='unchecked_repair', repair_id=identity(doc),
+                  parent_model=expected_model, refutation_id=identity(doc['refutation']),
+                  checker=expected_checker, checks=[])
+    for role, check, expected in (('refutation', verify_refutation, 'verified_refutation'),
+                                  ('candidate', verify, 'verified_certificate')):
+        checked = check(canon(doc[role]), identity(doc[role]['model']), expected_checker,
+                        max_steps=max_steps)
+        report['checks'].append(dict(role=role, report=checked))
+        if checked['status'] != expected:
+            return dict(report, status=checked['status'], failed=role), None
+    return dict(report, status='verified_repair', successor_model=identity(candidate),
+                successor_certificate=identity(doc['candidate'])), canon(doc['candidate'])
+
+
 def read(path):
     with Path(path).open('rb') as stream: raw = stream.read(MAX_BYTES + 1)
     if len(raw) > MAX_BYTES: raise InvalidRecord('certificate exceeds size limit')
@@ -386,7 +432,7 @@ def read(path):
 
 
 def exit_code(report):
-    return {'verified_refutation': 4, 'verified_history': 0, 'verified_change': 0, 'verified_certificate': 0, 'incomplete': 3, 'checker_unavailable': 3, 'checker_error': 1}[report['status']]
+    return {'verified_repair': 0, 'verified_refutation': 4, 'verified_history': 0, 'verified_change': 0, 'verified_certificate': 0, 'incomplete': 3, 'checker_unavailable': 3, 'checker_error': 1}[report['status']]
 
 
 REPLAY = r'''"""Authenticate this launcher independently. No producer code is loaded."""
@@ -407,9 +453,10 @@ mode = p.add_mutually_exclusive_group()
 mode.add_argument('--change', action='store_true')
 mode.add_argument('--history', action='store_true')
 mode.add_argument('--refutation', action='store_true')
+mode.add_argument('--repair', action='store_true')
 p.add_argument('--output', type=Path)
 a = p.parse_args()
-if a.output and not (a.change or a.history): p.error('--output requires --change or --history')
+if a.output and not (a.change or a.history or a.repair): p.error('--output requires --change, --history or --repair')
 names = ('__init__.py', 'store.py', 'canonical.py', 'boolean.py', 'certificate.py')
 root = Path(__file__).resolve().parent
 try:
@@ -449,7 +496,9 @@ for name in names:
     if name != '__init__.py': setattr(sys.modules['stargate'], name[:-3], module)
 from stargate import certificate
 try:
-    if a.refutation:
+    if a.repair:
+        report, successor = certificate.verify_repair(certificate.read(a.certificate), a.expect_model, a.expect_checker, max_steps=a.max_steps)
+    elif a.refutation:
         report = certificate.verify_refutation(certificate.read(a.certificate), a.expect_model, a.expect_checker, max_steps=a.max_steps)
     elif a.history:
         report, successor = certificate.verify_history(certificate.read(a.certificate), a.expect_model, a.expect_checker, max_steps=a.max_steps)
@@ -463,7 +512,7 @@ except (ValueError, TypeError, RecursionError) as exc:
 except OSError as exc:
     print(json.dumps(dict(status='unverified', error=str(exc))))
     raise SystemExit(3)
-if (a.change or a.history) and a.output and successor is not None:
+if (a.change or a.history or a.repair) and a.output and successor is not None:
     try:
         with a.output.open('xb') as stream: stream.write(successor)
     except OSError as exc:
@@ -474,9 +523,14 @@ raise SystemExit(certificate.exit_code(report))
 '''
 
 
-def unpack(raw, destination, *, license_text, change=False, history=False, refutation=False):
-    if sum((change, history, refutation)) > 1: raise InvalidRecord('choose one packet mode')
-    if refutation:
+def unpack(raw, destination, *, license_text, change=False, history=False, refutation=False, repair=False):
+    if sum((change, history, refutation, repair)) > 1: raise InvalidRecord('choose one packet mode')
+    if repair:
+        doc = inspect_repair(raw)
+        if any(doc[role]['checker'] != checker_id() for role in ('refutation', 'candidate')):
+            raise InvalidRecord('cannot export another checker')
+        report = dict(status='unchecked_repair', repair_id=identity(doc), checker=checker_id())
+    elif refutation:
         report = describe_refutation(raw)
         if report['checker'] != checker_id(): raise InvalidRecord('cannot export another checker')
     elif history:
@@ -493,7 +547,7 @@ def unpack(raw, destination, *, license_text, change=False, history=False, refut
     else:
         report = describe(raw)
         if report['checker'] != checker_id(): raise InvalidRecord('cannot export another checker')
-    files = {('refutation.json' if refutation else 'history.json' if history else 'change.json' if change else 'certificate.json'): raw, 'checker.json': canon(sources()),
+    files = {('repair.json' if repair else 'refutation.json' if refutation else 'history.json' if history else 'change.json' if change else 'certificate.json'): raw, 'checker.json': canon(sources()),
              'replay.py': REPLAY.encode(), 'LICENSE': license_text.encode(),
              'README.txt': GUIDE.encode()}
     out = Path(destination); out.mkdir(mode=0o700)
@@ -532,6 +586,13 @@ For refutation.json use --refutation: exit 4 proves a reachable unsafe endpoint
 or an unreachable required goal. A closed exclusion set need not be safe. Invalid
 evidence (2) proves neither safety nor unsafety; incomplete remains 3. No output
 option is accepted for refutations, and no admission or successor is produced.
+For repair.json use --repair; --expect-model anchors the defective parent. Its
+refutation and the candidate's full certificate are independently rechecked. Only
+next may change: all initial states, events, invariant and goals remain fixed.
+Exit 0 means verified_repair, not that the parent was safe. --output writes only
+the candidate certificate, reusable as a new certificate-history root. The repair
+packet retains the objection; a bare successor does not carry that provenance.
+Quota is per proof. No minimality, behavioral equivalence or repair search is proved.
 Exit 0 verifies these finite obligations; 3 means incomplete/unavailable; 2 means
 invalid data/certificate, not proof that the model itself is unsafe; 1 checker error.
 Python, stdlib, the host and the selected checker remain trusted. Included checker

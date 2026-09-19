@@ -1801,3 +1801,53 @@ checker and guide without producer code; it is inert. CLI machine-evidence write
 only returned verified bytes, without overwrite; evidence-check/unpack provide
 common dispatch. Existing machine-certify remains unchanged. Certificate checker
 and launcher source bytes/pins are unchanged by this adapter and CLI addition.
+
+## Certified repairs (build 37)
+
+A certified repair is canonical JSON within MAX_BYTES (1 MiB), exactly:
+`{"certified_repair":1,"refutation":REFUTATION,"candidate":CERTIFICATE}`.
+The version must be an integer, not a Boolean. Each nested object passes the
+existing format inspection. pack_repair checks structure only, returning an
+unchecked packet, without producing a verdict. No claimed result fields are allowed.
+
+verify_repair takes a recipient-selected parent ModelID, checker ID and a per-proof
+max_steps quota (0..4288). The model in the refutation MUST match the parent anchor.
+Language, state names, event names, initial states, invariant source and goal list
+MUST be structurally identical between parent and candidate; only next may differ.
+These checks precede semantic checking. The existing _preserves_contract predicate
+is shared with safe-parent certified changes and histories.
+
+The checker first runs verify_refutation against the parent model and selected
+checker, requiring exactly verified_refutation. It then runs verify against the
+candidate model with the SAME selected checker, requiring verified_certificate.
+Both supplied proofs are rechecked, regardless of how they were produced. Safety
+AND every inherited existential goal must hold on the candidate, not just the
+obligation singled out by the refutation. There is no permission to change a
+contract whose initial states already violate its invariant.
+
+Only two successful checks produce verified_repair (exit0), successor_model,
+successor_certificate and the canonical bytes of the candidate certificate. Reports
+retain repair_id, parent_model, refutation_id, checker and ordered per-role checks.
+A nonfinal proof check returns its own incomplete/checker_unavailable/checker_error
+status (3/3/1), failed role and NO successor. False evidence, anchor mismatch or
+contract change raises InvalidRecord (2), not a verified refutation of the repair.
+The quota is per proof, at most twice max_steps in total, not a CPU/memory bound.
+A standalone valid refutation retains its existing exit4; here it is one necessary
+premise of a successful repair, never itself an admission.
+
+CLI certificate-repair-pack takes refutation and candidate files, exclusively writes
+unchecked data and exits0. certificate-repair-check requires --expect-model and
+--expect-checker, supports --max-steps and optionally writes --output exclusively
+only on success. certificate-repair-unpack exports repair.json, the existing five
+checker sources, guide, licence and updated launcher; unpacking executes no code.
+The launcher adds mutually exclusive --repair; --expect-model anchors the defective
+parent. It reproduces reports and optional successor bytes exactly as the CLI.
+Checker/launcher pins must be obtained independently. No producer is exported.
+
+Repair is a distinct relation from safe-parent change. The output certificate can
+start a certificate history, but that history alone does not assert a repair edge:
+the repair packet preserves its refutation and provenance. Existing histories do
+not accept repair entries. Neither proof establishes minimality, search completeness,
+behavioral equivalence, runtime correctness, authorship or chronological order.
+The five-file checker source closure changes and so do its checker/launcher IDs;
+existing proof bytes are not rewritten or silently assigned the new checker.
