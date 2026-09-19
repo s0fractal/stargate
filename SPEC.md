@@ -1428,11 +1428,12 @@ another profile; this is not the lab's historical-runtime classification path.
 Sources are inert text until explicitly executed, even if they are invalid Python.
 
 A corpus has exactly `{corpus:1,cases}`. There are 1..32 uniquely named cases, each
-exactly `{name,inputs,rule,max_atp}`: ASCII case identifier (1..64 characters), sorted
+`{name,inputs,rule,max_atp}` with optional `expect` (`value` or `reject`): ASCII case identifier (1..64 characters), sorted
 unique WPL inputs (0..8), source within the existing grammar limits, budget 0..10000.
-Unused inputs are allowed. It contains no runtime ID, expected answers, verdicts,
-or author keys. Both controller parsers validate the source grammar; the separate
-Boolean parser/evaluator supplies the controller's truth table. Corpus identity
+Unused inputs are allowed. It contains no runtime ID, expected Boolean answers,
+verdicts or author keys. For positive cases both controller parsers validate the
+source grammar; the separate Boolean parser/evaluator supplies the truth table.
+Negative cases carry an explicit rejection obligation and bypass grammar interpretation. Corpus identity
 is SHA-256 of its canonical bytes and stays the same across runtime comparisons.
 
 An experiment is canonical JSON, at most 4 MiB, exactly
@@ -1458,7 +1459,8 @@ Each subject runs in a separate fresh working directory under the current Python
 with `-I -S -B`. A loader executes the captured source strings, not disk imports
 or pyc, in dependency order. No received directory enters sys.path. The controller
 generates all ordered rows and asks compile_source for each. Subject observations
-are `{status:complete,value,atp_spent,term}` or a typed incomplete reason. Projection
+are `{status:complete,value,atp_spent,term}`,
+`{status:rejected,reason:subject_rejected_input}` for PolicyError, or a typed incomplete reason. Projection
 compares all three completed fields (including cost and term, not just truth).
 A report must contain every row, in order, with exact fields and bounded types.
 Malformed/truncated/reordered reports are incomplete, never agreement. Complete
@@ -1475,11 +1477,11 @@ its cost, fabricate observations, or attack the host. Agreement cannot authorize
 that subject as a judge. Runtime receipts do not inherit signed-artifact trust.
 
 Outcomes (in descending priority): oracle_disagreement/4 for a completed value
-that disagrees with the controller; difference/4 for unequal completed projections;
+that disagrees with the controller; difference/4 for unequal completed projections or a rejection of a positive case;
 incomplete/3 when some rows or a process could not complete; agreement/0 only when
-all rows complete and agree with each other and the oracle. A witnessed difference
+all rows satisfy their expectations and completed projections agree. A witnessed difference
 can coexist with incomplete rows: the report keeps both, and claims no full-run
-completion. Internal subject CompilerBug, compilation refusal or exhaustion,
+completion. Internal subject CompilerBug or compilation exhaustion,
 process crash, deadline, output overflow and malformed reports are incomplete;
 none counts as a semantic mutant killed. A process-level failure returns its role
 and reason without pretending to have a complete row table. Invalid input is2;
@@ -1623,3 +1625,22 @@ Python, stdlib, host and the independently selected checker remain trusted. Inst
 checker identity assumes no concurrent source edits or in-process monkeypatches.
 The checker is intentionally a smaller separately inspectable trusted program,
 not a self-authenticating certificate or a machine-checked proof of its own code.
+
+### Experiment rejection obligations (build 32)
+
+A corpus case may carry `expect: "value"` (the default) or `expect: "reject"`.
+The latter is an independently selected corpus obligation, NOT a theorem that
+the text is malformed. Neither controller parser interprets negative text. Its
+shape, input names, byte bound and ATP bound are still validated. All input rows
+are sent to each subject as usual. A PolicyError is a completed rejection;
+budget/resource/guard failures, crashes and malformed reports are not rejections.
+
+For a negative case, a completed value violates the obligation and gives
+`oracle_disagreement` with the responsible role, even if both subjects accept.
+The row's oracle is null and its expect is reject: this is a corpus assertion,
+not a computed Boolean truth. Both rejecting satisfies that row. In a positive
+case any rejection gives difference, including both rejecting, because the
+controller has validated the input. Incomplete observations remain incomplete;
+a witnessed violation still takes precedence. Rejection reports, like costs,
+can be fabricated by a hostile subject; this does not certify judge correctness.
+The controller pin changes; historical packets and their evidence are untouched.
