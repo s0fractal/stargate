@@ -1,3 +1,4 @@
+from stargate import transport
 import itertools
 import io
 from contextlib import redirect_stdout, redirect_stderr
@@ -202,7 +203,7 @@ class Lab(unittest.TestCase):
         doc = decode(raw); doc['sources']['../../escape'] = 'raise AssertionError()'
         with tempfile.TemporaryDirectory() as tmp:
             output = Path(tmp)/'unpacked'
-            with self.assertRaises(lab.RuntimeMismatch): lab.unpack_world(canon(doc), output)
+            with self.assertRaises(lab.RuntimeMismatch): transport.unpack_world(canon(doc), output)
             self.assertFalse(output.exists())
 
     def test_malformed_runtime_material_is_still_invalid(self):
@@ -243,7 +244,7 @@ class Lab(unittest.TestCase):
         expected, successor = lab.verify_transition(raw, p)
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)/'packet'
-            lab.unpack_world(raw, root)
+            transport.unpack_world(raw, root)
             (root/'proposal.json').write_text(json.dumps(p))
             result = subprocess.run([sys.executable, '-I', '-S', str(root/'replay.py'),
                                      str(root/'proposal.json'), str(root/'child.json'),
@@ -254,7 +255,7 @@ class Lab(unittest.TestCase):
             self.assertEqual((root/'child.json').read_bytes(), successor)
             self.assertEqual((root/'LICENSE').read_text(), lab.LICENSE)
             self.assertEqual((root/'replay.py').stat().st_mode & 0o777, 0o600)
-            with self.assertRaises(FileExistsError): lab.unpack_world(raw, root)
+            with self.assertRaises(FileExistsError): transport.unpack_world(raw, root)
             self.assertEqual((root/'child.json').read_bytes(), successor)
 
     def test_runtime_digest_and_replay_preflight(self):
@@ -267,7 +268,7 @@ class Lab(unittest.TestCase):
         self.assertEqual(report['runtime_digest'], expected)
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)/'packet'
-            lab.unpack_world(raw, root)
+            transport.unpack_world(raw, root)
             (root/'proposal.json').write_text(json.dumps(proposal(raw, rule('a && b'))))
             argv = [sys.executable, '-I', '-S', str(root/'replay.py'),
                     str(root/'proposal.json'), str(root/'child.json')]
@@ -303,7 +304,7 @@ class Lab(unittest.TestCase):
         expected = lab.runtime_digest(decode(raw)['sources'])
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)/'packet'
-            lab.unpack_world(raw, root)
+            transport.unpack_world(raw, root)
             marker = root/'executed'
             payload = ("from pathlib import Path\nPath(" + repr(str(marker)) + ").touch()\n"
                        "import itertools\nitertools.product = lambda *a, **kw: [(False,)*kw['repeat']]\n")
@@ -349,15 +350,15 @@ class Lab(unittest.TestCase):
         raw = lab.create_world(rule('a || b'), ['a', 'b'])
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)/'packet'
-            lab.unpack_world(raw, root)
+            transport.unpack_world(raw, root)
             (root/'proposal.json').write_text(json.dumps(proposal(raw, rule('a || b'))))
             # Harness instrumentation of the trusted launcher simulates a file
             # changing after hashing. It is not a packet-provided hook.
-            trigger = 'from stargate.lab import read_world, read_proposal, verify_transition'
-            injection = "(root / 'stargate' / 'boolean.py').write_text('raise RuntimeError(123)')\n"
-            # On the new loader, mutate before loading, not after module execution.
-            anchor = 'loader = VerifiedLoader()' if 'loader = VerifiedLoader()' in lab.REPLAY else trigger
-            (root/'replay.py').write_text(lab.REPLAY.replace(anchor, injection + anchor))
+            injection = "(root / 'stargate' / 'boolean.py').write_text('raise RuntimeError(123)')"
+            anchor = '        load(texts, names)'
+            original = transport.replay_source()
+            self.assertIn(anchor, original)
+            (root/'replay.py').write_text(original.replace(anchor, '        '+injection+'\n'+anchor))
             result = subprocess.run([sys.executable, '-I', '-S', str(root/'replay.py'),
                            '--expect-runtime', lab.runtime_digest(decode(raw)['sources']),
                            str(root/'proposal.json')], cwd='/', capture_output=True, text=True)
@@ -382,11 +383,11 @@ class Lab(unittest.TestCase):
                 if flags & os.O_WRONLY:
                     raise OSError('disk full')
                 return original_open(path, flags, *args, **kwargs)
-            with patch.object(lab.os, 'open', side_effect=fail_write):
-                with self.assertRaises(OSError): lab.unpack_world(raw, root)
+            with patch.object(transport.os, 'open', side_effect=fail_write):
+                with self.assertRaises(OSError): transport.unpack_world(raw, root)
             self.assertFalse(root.exists())
             with patch.object(compiler, 'compile_source', side_effect=AssertionError('must not evaluate')):
-                lab.unpack_world(raw, root)
+                transport.unpack_world(raw, root)
             self.assertTrue((root/'world.json').exists())
 
     def test_cli_statuses_no_publication_on_refusal(self):
@@ -403,7 +404,7 @@ class Lab(unittest.TestCase):
             self.assertEqual(call('lab-inspect', root/'world')[1]['runtime_digest'],
                              lab.runtime_digest(lab.runtime_sources()))
             self.assertEqual(call('lab-inspect', root/'world')[1]['replay_digest'],
-                             lab.identity(lab.REPLAY.encode()))
+                             lab.identity(transport.replay_source().encode()))
             raw = (root/'world').read_bytes()
             (root/'proposal').write_text(json.dumps(proposal(raw, rule('a && b'))))
             code, report = call('lab-check', root/'world', root/'proposal', '--output', root/'child')

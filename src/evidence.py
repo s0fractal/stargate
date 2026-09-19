@@ -25,11 +25,6 @@ def verify(raw, expected_model, expected_checker, *, max_steps=certificate.MAX_S
     return check(raw, expected_model, expected_checker, max_steps=max_steps)
 
 
-def unpack(raw, destination, *, license_text):
-    return certificate.unpack(raw, destination, license_text=license_text,
-                              refutation=kind(raw) == 'refutation')
-
-
 def produce(raw, expected_machine, *, max_edges=256, max_steps=certificate.MAX_STEPS):
     record_hash(expected_machine)
     if hashlib.sha256(raw).hexdigest() != expected_machine:

@@ -1,3 +1,4 @@
+from stargate import transport
 import argparse
 from pathlib import Path
 import unittest
@@ -24,10 +25,8 @@ class Portability(unittest.TestCase):
 
     def test_launcher_argument_orders_and_mode_exclusion(self):
         # Exercise the actual parser definition without importing bundled code.
-        source=lab.REPLAY.split('parser = argparse.ArgumentParser()',1)[1].split('args = parser.',1)[0]
-        namespace={'argparse':argparse,'Path':Path}
-        exec('parser = argparse.ArgumentParser()'+source,namespace)
-        parser=namespace['parser']
+        from stargate import replay
+        parser=replay.parser()
         for args in [['input','output','--task','--rows','1','--expect-runtime','pin'],
                      ['input','--task','--rows','1','--expect-runtime','pin','output']]:
             parsed=parser.parse_intermixed_args(args)
@@ -36,4 +35,4 @@ class Portability(unittest.TestCase):
             parser.parse_intermixed_args(['input','--machine','--task','--expect-runtime','pin'])
         self.assertEqual(caught.exception.code,2)
         # Hold the launcher entry point too; legacy parse_args is patch-version dependent.
-        self.assertIn('args = parser.parse_intermixed_args()',lab.REPLAY)
+        self.assertIn('p.parse_intermixed_args(argv)',transport.replay_source())

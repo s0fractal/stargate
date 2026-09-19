@@ -1,7 +1,5 @@
 """Anchored finite-world histories; proposals are data, every transition replays."""
-import os
 from pathlib import Path
-import shutil
 
 from . import lab
 from .canonical import canon, decode, exact, record_hash, InvalidRecord
@@ -79,18 +77,3 @@ def read(path):
     if len(raw) > MAX_LINEAGE:
         raise InvalidRecord('lineage exceeds size limit')
     return raw
-
-
-def unpack(raw, output):
-    doc = inspect(raw)  # Materialization validates shape/runtime, not transitions.
-    output = Path(output)
-    result = lab.unpack_world(canon(doc['root']), output)
-    # unpack_world owns a newly created directory; never remove an existing one.
-    try:
-        fd = os.open(output / 'lineage.json', os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
-        with os.fdopen(fd, 'wb') as stream:
-            stream.write(raw)
-    except BaseException:
-        shutil.rmtree(output)
-        raise
-    return dict(result, lineage_id=lab.identity(raw), total_steps=len(doc['proposals']))

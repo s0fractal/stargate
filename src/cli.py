@@ -2,6 +2,7 @@
 import argparse
 import json
 import os
+from . import transport
 from pathlib import Path
 import sys
 
@@ -96,7 +97,7 @@ def parser():
     q.add_argument("path", type=Path)
     q.add_argument("--output", required=True, type=Path)
     for name in ('evidence-check', 'evidence-unpack'):
-        q = cmd(name, 'check or export either existing proof format')
+        q = cmd(name, 'check certificate/refutation data or export any certificate-family packet')
         q.add_argument('path', type=Path)
         if name == 'evidence-check':
             q.add_argument('--expect-model', required=True, type=hex_hash)
@@ -108,15 +109,14 @@ def parser():
     q.add_argument('path', type=Path)
     q.add_argument('claim', type=Path)
     q.add_argument('--output', required=True, type=Path)
-    for name in ('refutation-inspect', 'refutation-check', 'refutation-unpack'):
+    for name in ('refutation-inspect', 'refutation-check'):
         q = cmd(name, 'check a finite refutation without executing producer code')
         q.add_argument('path', type=Path)
         if name == 'refutation-check':
             q.add_argument('--expect-model', required=True, type=hex_hash)
             q.add_argument('--expect-checker', required=True, type=hex_hash)
             q.add_argument('--max-steps', type=int, default=certificate.MAX_STEPS)
-        if name == 'refutation-unpack': q.add_argument('--output', required=True, type=Path)
-    for name in ('certificate-history-start', 'certificate-history-append', 'certificate-history-check', 'certificate-history-unpack'):
+    for name in ('certificate-history-start', 'certificate-history-append', 'certificate-history-check'):
         q = cmd(name, 'carry a root-anchored path of independently checked certificates')
         q.add_argument('path', type=Path)
         if name == 'certificate-history-append': q.add_argument('candidate', type=Path)
@@ -125,41 +125,26 @@ def parser():
             q.add_argument('--expect-checker', required=True, type=hex_hash)
             q.add_argument('--max-steps', type=int, default=certificate.MAX_STEPS)
         q.add_argument('--output', required=name != 'certificate-history-check', type=Path)
-    q = cmd('certificate-repair-pack', 'package a refutation and candidate certificate as an unchecked repair')
-    q.add_argument('path', type=Path)
-    q.add_argument('candidate', type=Path)
-    q.add_argument('--output', required=True, type=Path)
-    for name in ('certificate-repair-check', 'certificate-repair-unpack'):
-        q = cmd(name, 'check a repair without weakening the refuted model contract')
+    for name in ('certificate-repair-pack', 'certificate-change-pack'):
+        q = cmd(name, 'package unchecked proof data for a next-only model transition')
         q.add_argument('path', type=Path)
-        if name == 'certificate-repair-check':
-            q.add_argument('--expect-model', required=True, type=hex_hash)
-            q.add_argument('--expect-checker', required=True, type=hex_hash)
-            q.add_argument('--max-steps', type=int, default=certificate.MAX_STEPS)
-        q.add_argument('--output', required=name == 'certificate-repair-unpack', type=Path)
-    q = cmd('certificate-change-pack', 'package two certificates without executing producer code')
-    q.add_argument('path', type=Path)
-    q.add_argument('candidate', type=Path)
-    q.add_argument('--output', required=True, type=Path)
-    for name in ('certificate-change-check', 'certificate-change-unpack'):
-        q = cmd(name, 'check a next-only model change using two inductive certificates')
+        q.add_argument('candidate', type=Path)
+        q.add_argument('--output', required=True, type=Path)
+    for name in ('certificate-repair-check', 'certificate-change-check'):
+        q = cmd(name, 'check both proofs and preserve the inherited model contract')
         q.add_argument('path', type=Path)
-        if name == 'certificate-change-check':
-            q.add_argument('--expect-model', required=True, type=hex_hash)
-            q.add_argument('--expect-checker', required=True, type=hex_hash)
-            q.add_argument('--max-steps', type=int, default=certificate.MAX_STEPS)
-            q.add_argument('--output', type=Path)
-        else:
-            q.add_argument('--output', required=True, type=Path)
+        q.add_argument('--expect-model', required=True, type=hex_hash)
+        q.add_argument('--expect-checker', required=True, type=hex_hash)
+        q.add_argument('--max-steps', type=int, default=certificate.MAX_STEPS)
+        q.add_argument('--output', type=Path)
     cmd('certificate-checker', 'identify the independent finite-certificate checker')
-    for name in ('certificate-inspect', 'certificate-check', 'certificate-unpack'):
+    for name in ('certificate-inspect', 'certificate-check'):
         q = cmd(name, 'check a finite inductive certificate without executing producer code')
         q.add_argument('path', type=Path)
         if name == 'certificate-check':
             q.add_argument('--expect-model', required=True, type=hex_hash)
             q.add_argument('--expect-checker', required=True, type=hex_hash)
             q.add_argument('--max-steps', type=int, default=certificate.MAX_STEPS)
-        if name == 'certificate-unpack': q.add_argument('--output', required=True, type=Path)
     q = cmd("runtime-pack", "snapshot the compiler source closure; never execute it")
     q.add_argument("--source-dir", type=Path)
     q.add_argument("--output", required=True, type=Path)
@@ -213,10 +198,10 @@ def parser():
         if name in ('composition-check','composition-change'):
             q.add_argument('--expect-composition',required=True)
             q.add_argument('--max-edges',type=int,default=256)
-    for name in ('machine-create', 'machine-inspect', 'machine-check', 'machine-unpack', 'machine-change', 'machine-search', 'machine-discover', 'machine-claim', 'machine-certify', 'machine-evidence'):
+    for name in ('machine-create', 'machine-inspect', 'machine-check', 'machine-unpack', 'machine-change', 'machine-search', 'machine-discover', 'machine-claim', 'machine-evidence'):
         q = cmd(name, 'check a finite synchronous machine on all reachable states')
         q.add_argument('path', type=Path)
-        if name in ('machine-create', 'machine-unpack', 'machine-certify', 'machine-evidence'): q.add_argument('--output', type=Path, required=True)
+        if name in ('machine-create', 'machine-unpack', 'machine-evidence'): q.add_argument('--output', type=Path, required=True)
         if name == 'machine-evidence': q.add_argument('--max-steps', type=int, default=certificate.MAX_STEPS)
         if name == 'machine-claim': q.add_argument('claim', type=Path)
         if name == 'machine-change':
@@ -226,7 +211,7 @@ def parser():
             q.add_argument('--max-candidates', type=int, default=32)
             q.add_argument('--experience', type=Path)
             q.add_argument('--output', type=Path)
-        if name in ('machine-check', 'machine-change', 'machine-search', 'machine-discover', 'machine-claim', 'machine-certify', 'machine-evidence'):
+        if name in ('machine-check', 'machine-change', 'machine-search', 'machine-discover', 'machine-claim', 'machine-evidence'):
             q.add_argument('--expect-machine', required=True)
             q.add_argument('--max-edges', type=int, default=256)
     for name in ('lab-task-start', 'lab-task-resume', 'lab-task-inspect', 'lab-task-unpack'):
@@ -297,7 +282,7 @@ def execute(args):
     if args.command.startswith('evidence-'):
         try: raw = certificate.read(args.path)
         except OSError as exc: raise StoreError('cannot read evidence: ' + str(exc)) from exc
-        if args.command == 'evidence-unpack': return evidence.unpack(raw, args.output, license_text=lab.LICENSE)
+        if args.command == 'evidence-unpack': return transport.unpack_certificate(raw, args.output, license_text=lab.LICENSE)
         return evidence.verify(raw, args.expect_model, args.expect_checker, max_steps=args.max_steps)
     if args.command.startswith('refutation-'):
         try:
@@ -311,10 +296,9 @@ def execute(args):
             if report['status'] == 'verified_refutation': write_bundle(args.output, output)
             return report
         if args.command == 'refutation-inspect': return certificate.describe_refutation(raw)
-        if args.command == 'refutation-unpack': return certificate.unpack(raw, args.output, license_text=lab.LICENSE, refutation=True)
         return certificate.verify_refutation(raw, args.expect_model, args.expect_checker, max_steps=args.max_steps)
     if args.command == 'certificate-checker':
-        return dict(checker=certificate.checker_id(), replay_digest=lab.identity(certificate.REPLAY.encode()))
+        return dict(checker=certificate.checker_id(), replay_digest=lab.identity(transport.replay_source().encode()))
     if args.command.startswith('certificate-'):
         try: raw = certificate.read(args.path)
         except OSError as exc: raise StoreError('cannot read certificate: ' + str(exc)) from exc
@@ -324,8 +308,6 @@ def execute(args):
             packet = certificate.pack_repair(raw, candidate)
             write_bundle(args.output, packet)
             return dict(status='unchecked_repair', repair_id=certificate.identity(certificate.inspect_repair(packet)))
-        if args.command == 'certificate-repair-unpack':
-            return certificate.unpack(raw, args.output, license_text=lab.LICENSE, repair=True)
         if args.command == 'certificate-repair-check':
             report, successor = certificate.verify_repair(raw, args.expect_model, args.expect_checker, max_steps=args.max_steps)
             if successor is not None and args.output: write_bundle(args.output, successor)
@@ -334,8 +316,6 @@ def execute(args):
             packet = certificate.start_history(raw)
             write_bundle(args.output, packet)
             return dict(status='unchecked_history', history_id=certificate.identity(certificate.inspect_history(packet)))
-        if args.command == 'certificate-history-unpack':
-            return certificate.unpack(raw, args.output, license_text=lab.LICENSE, history=True)
         if args.command in ('certificate-history-check', 'certificate-history-append'):
             if args.command == 'certificate-history-append':
                 try: candidate = certificate.read(args.candidate)
@@ -351,14 +331,11 @@ def execute(args):
             packet = certificate.pack_change(raw, candidate)
             write_bundle(args.output, packet)
             return dict(status='unchecked_change', change_id=certificate.identity(certificate.inspect_change(packet)))
-        if args.command == 'certificate-change-unpack':
-            return certificate.unpack(raw, args.output, license_text=lab.LICENSE, change=True)
         if args.command == 'certificate-change-check':
             report, successor = certificate.verify_change(raw, args.expect_model, args.expect_checker, max_steps=args.max_steps)
             if successor is not None and args.output: write_bundle(args.output, successor)
             return report
         if args.command == 'certificate-inspect': return certificate.describe(raw)
-        if args.command == 'certificate-unpack': return certificate.unpack(raw, args.output, license_text=lab.LICENSE)
         return certificate.verify(raw, args.expect_model, args.expect_checker, max_steps=args.max_steps)
     if args.command == 'runtime-pack':
         raw = experiment.pack_runtime(args.source_dir)
@@ -367,7 +344,7 @@ def execute(args):
                 'runtime': experiment.digest(experiment.runtime(raw))}
     if args.command == 'experiment-controller':
         return {'controller': experiment.controller_id(), 'profile': experiment.PROFILE,
-                'replay_digest': lab.identity(experiment.REPLAY.encode('utf-8'))}
+                'replay_digest': lab.identity(transport.replay_source().encode('utf-8'))}
     if args.command == 'experiment-create':
         raw = experiment.create(experiment.read(args.parent), experiment.read(args.candidate),
             experiment.decode(experiment.read(args.corpus)), timeout=args.timeout)
@@ -376,7 +353,7 @@ def execute(args):
     if args.command.startswith('experiment-'):
         raw = experiment.read(args.path)
         if args.command == 'experiment-inspect': return experiment.describe(raw)
-        if args.command == 'experiment-unpack': return experiment.unpack(raw, args.output)
+        if args.command == 'experiment-unpack': return transport.unpack_experiment(raw, args.output)
         return experiment.run(raw, expect_controller=args.expect_controller, execute=args.execute_runtimes)
     if args.command.startswith('composition-'):
         try:
@@ -388,7 +365,7 @@ def execute(args):
             write_bundle(args.output,created)
             return composition.describe(created)
         if args.command=='composition-inspect': return composition.describe(raw)
-        if args.command=='composition-unpack': return composition.unpack(raw,args.output)
+        if args.command=='composition-unpack': return transport.unpack_composition(raw,args.output)
         if args.command=='composition-change':
             report,output=composition.verify_change(raw,proposal,args.expect_composition,max_edges=args.max_edges)
             if output is not None and args.output is not None: write_bundle(args.output,output)
@@ -420,18 +397,10 @@ def execute(args):
             report, output = evidence.produce(raw, args.expect_machine, max_edges=args.max_edges, max_steps=args.max_steps)
             if output is not None: write_bundle(args.output, output)
             return report
-        if args.command == 'machine-certify':
-            report = machine.verify(raw, args.expect_machine, max_edges=args.max_edges)
-            if report['status'] != 'established': return report
-            model = certificate.model_from_machine(machine.inspect(raw))
-            output = certificate.create(model, report['reachable'], report['goal_witnesses'])
-            checked = certificate.verify(output, certificate.identity(model), certificate.checker_id())
-            if checked['status'] == 'verified_certificate': write_bundle(args.output, output)
-            return checked
         if args.command == 'machine-discover': return machine.discover_properties(raw, args.expect_machine, max_edges=args.max_edges)
         if args.command == 'machine-claim': return machine.verify_property(raw, claim, args.expect_machine, max_edges=args.max_edges)
         if args.command == 'machine-inspect': return machine.describe(raw)
-        if args.command == 'machine-unpack': return machine.unpack(raw, args.output)
+        if args.command == 'machine-unpack': return transport.unpack_machine(raw, args.output)
         if args.command == 'machine-search':
             report, output = search.search_machine(raw, args.expect_machine, max_candidates=args.max_candidates,
                 max_edges=args.max_edges, experience=experience)
@@ -451,7 +420,7 @@ def execute(args):
         except OSError as exc:
             raise StoreError('cannot read lab task input: ' + str(exc)) from exc
         if args.command == 'lab-task-inspect': return labtask.describe(raw)
-        if args.command == 'lab-task-unpack': return labtask.unpack(raw, args.output)
+        if args.command == 'lab-task-unpack': return transport.unpack_task(raw, args.output)
         if args.command == 'lab-task-start':
             report, output = labtask.start(raw, proposal, rows=args.rows)
         else:
@@ -471,7 +440,7 @@ def execute(args):
             write_bundle(args.output, created)
             return dict(status='created', lineage_id=lab.identity(created), root=lab.identity(raw))
         if args.command == 'lineage-unpack':
-            return lineage.unpack(raw, args.output)
+            return transport.unpack_lineage(raw, args.output)
         if args.command == 'lineage-append':
             report, output = lineage.append(raw, proposal, args.expect_root)
         else:
@@ -518,7 +487,7 @@ def execute(args):
         except OSError as exc:
             raise StoreError('cannot read experiment: ' + str(exc)) from exc
         if args.command == 'lab-unpack':
-            return lab.unpack_world(raw, args.output)
+            return transport.unpack_world(raw, args.output)
         if args.command == 'lab-check':
             try:
                 with args.proposal.open('rb') as stream:
@@ -532,7 +501,7 @@ def execute(args):
         doc = lab.inspect_world(raw)
         return dict(status='intact', world_id=lab.identity(raw),
                     runtime_digest=lab.runtime_digest(doc['sources']),
-                    replay_digest=lab.identity(lab.REPLAY.encode()), guide=doc['guide'],
+                    replay_digest=lab.identity(transport.replay_source().encode()), guide=doc['guide'],
                     rule=doc['rule'], inputs=doc['inputs'], max_atp=doc['max_atp'],
                     contract=doc['contract'], properties=doc.get('properties'),
                     objective=doc['objective'], predecessor=doc['predecessor'])
@@ -675,10 +644,6 @@ def main(argv=None):
     if args.command in ('machine-evidence', 'evidence-check'): return certificate.exit_code(result)
     if args.command in ('refutation-create', 'refutation-check'): return certificate.exit_code(result)
     if args.command in ('certificate-check', 'certificate-repair-check', 'certificate-change-check', 'certificate-history-check', 'certificate-history-append'): return certificate.exit_code(result)
-    if args.command == 'machine-certify':
-        if result['status'] == 'verified_certificate': return 0
-        if result['status'] in ('incomplete', 'checker_unavailable'): return 3
-        return 1 if result['status'] == 'checker_error' else 4
     if args.command == 'experiment-check': return experiment.exit_code(result)
     if args.command in ('lineage-check', 'lineage-append'):
         if result['status'] == 'verified_lineage': return 0

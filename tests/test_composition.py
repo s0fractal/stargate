@@ -1,3 +1,4 @@
+from stargate import transport
 import copy
 import itertools
 import json
@@ -228,7 +229,7 @@ class Composition(unittest.TestCase):
     def test_cli_offline_match_success_failure_quota_and_no_child_on_refusal(self):
         with tempfile.TemporaryDirectory() as tmp:
             root=Path(tmp);raw=co.create(delivery());path=root/'composition.json';path.write_bytes(raw)
-            anchor=lab.identity(raw);unpacked=root/'offline';desc=co.unpack(raw,unpacked)
+            anchor=lab.identity(raw);unpacked=root/'offline';desc=transport.unpack_composition(raw,unpacked)
             cli=[sys.executable,'-I','-m','stargate'];offline=[sys.executable,'-I','-S',str(unpacked/'replay.py')]
             def run(command,code):
                 result=subprocess.run(command,cwd='/',capture_output=True,text=True)

@@ -1,3 +1,4 @@
+from stargate import transport
 import copy
 import itertools
 import json
@@ -132,7 +133,7 @@ class Refutations(unittest.TestCase):
             with self.assertRaises(InvalidRecord):c.inspect_refutation(canon(doc))
         with patch.object(c,'verify_refutation',side_effect=AssertionError('must not execute')):
             with tempfile.TemporaryDirectory() as tmp:
-                report=c.unpack(raw,Path(tmp)/'out',license_text='test',refutation=True)
+                report=transport.unpack_certificate(raw,Path(tmp)/'out',license_text='test')
                 self.assertEqual(report['status'],'unchecked_refutation')
                 self.assertEqual((Path(tmp)/'out/refutation.json').read_bytes(),raw)
 
@@ -146,7 +147,7 @@ class Refutations(unittest.TestCase):
                 self.assertEqual(result.returncode,4,result.stderr)
                 self.assertEqual((root/'proof').read_bytes(),self.raw(m,claim))
                 again=subprocess.run(create,capture_output=True);self.assertEqual(again.returncode,1)
-                result=subprocess.run(cmd+['refutation-unpack',str(root/'proof'),'--output',str(root/'offline')],capture_output=True)
+                result=subprocess.run(cmd+['evidence-unpack',str(root/'proof'),'--output',str(root/'offline')],capture_output=True)
                 self.assertEqual(result.returncode,0,result.stderr)
                 args=['--expect-model',c.identity(m),'--expect-checker',c.checker_id()]
                 cli=cmd+['refutation-check',str(root/'proof')]

@@ -1,3 +1,4 @@
+from stargate import transport
 import io
 import json
 from contextlib import redirect_stdout, redirect_stderr
@@ -102,7 +103,7 @@ class Lineage(unittest.TestCase):
         self.assertIsNone(appended)
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp)
-            lineage.unpack(raw, path/'offline')
+            transport.unpack_lineage(raw, path/'offline')
             history_path = path/'offline'/'lineage.json'
             output = path/'tip.json'
             commands = [
@@ -212,7 +213,7 @@ class Lineage(unittest.TestCase):
         raw, root, _, _ = history()
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp)/'offline'
-            lineage.unpack(raw, path)
+            transport.unpack_lineage(raw, path)
             output = Path(tmp)/'no-tip.json'
             runtime = lab.runtime_digest(decode(root)['sources'])
             def replay(anchor, digest=runtime):
@@ -238,7 +239,8 @@ class Lineage(unittest.TestCase):
             (path/'lineage.json').write_bytes(canon(doc))
             r = replay(lab.identity(canon(doc['root'])), lab.runtime_digest(doc['root']['sources']))
             self.assertEqual(r.returncode, 1)
-            self.assertIn('RuntimeError: planted checker failure', r.stderr)
+            self.assertEqual(json.loads(r.stdout)['status'], 'checker_error')
+            self.assertIn('planted checker failure', json.loads(r.stdout)['error'])
             self.assertNotIn('"status": "invalid"', r.stderr)
             self.assertFalse(output.exists())
 
@@ -258,7 +260,7 @@ class Lineage(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp); offline = path/'offline'
             # The launcher/runtime are current; the supplied history is independent.
-            lineage.unpack(lineage.create(current), offline)
+            transport.unpack_lineage(lineage.create(current), offline)
             runtime = lab.runtime_digest(decode(current)['sources'])
             for name,root,expected,status in cases:
                 with self.subTest(case=name):
@@ -307,17 +309,17 @@ class Lineage(unittest.TestCase):
 
     def test_unpack_failure_cleans_only_its_new_directory(self):
         raw,_,_,_=history()
-        real_open=lineage.os.open
+        real_open=transport.os.open
         def fail_final(path,*args,**kwargs):
             if Path(path).name=='lineage.json':raise OSError('planted final write failure')
             return real_open(path,*args,**kwargs)
         with tempfile.TemporaryDirectory() as tmp:
             out=Path(tmp)/'unpacked'
-            with patch.object(lineage.os,'open',fail_final),self.assertRaises(OSError):
-                lineage.unpack(raw,out)
+            with patch.object(transport.os,'open',fail_final),self.assertRaises(OSError):
+                transport.unpack_lineage(raw,out)
             self.assertFalse(out.exists())
             out.mkdir();(out/'keep').write_bytes(b'keep')
-            with self.assertRaises(FileExistsError):lineage.unpack(raw,out)
+            with self.assertRaises(FileExistsError):transport.unpack_lineage(raw,out)
             self.assertEqual((out/'keep').read_bytes(),b'keep')
 
     def test_cli_refusal_never_writes_tip_or_transcript(self):
@@ -335,7 +337,7 @@ class Lineage(unittest.TestCase):
                     code=cli.main([command,*map(str,args),'--expect-root',lab.identity(root),'--output',str(path/'never.json')])
                 self.assertEqual(code,4)
                 self.assertFalse((path/'never.json').exists())
-            with self.assertRaises(FileExistsError):lineage.unpack(raw,path)
+            with self.assertRaises(FileExistsError):transport.unpack_lineage(raw,path)
             self.assertEqual((path/'prefix.json').read_bytes(),prefix)
 
 

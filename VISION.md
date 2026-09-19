@@ -349,3 +349,11 @@ inherited. This closes the objection-to-repair loop without requiring a safe
 parent or allowing the repair author to weaken the question. The successor can
 continue as a certified history root; the repair packet preserves why that new
 root exists. It does not prove the repair is minimal or automatically find one.
+
+
+Build38 changes the selector: reduce duplicate surface before adding contracts.
+Machine proofs are the canonical durable path; exploration remains a replaceable
+producer. Peterson mutual exclusion is the first retained external problem driving
+this consolidation. A future domain extension needs a concrete model that cannot
+be expressed, not merely another possible certification wrapper. Transport is
+separated from the checker so presentation work need not rename the judge.

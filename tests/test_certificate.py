@@ -1,3 +1,4 @@
+from stargate import transport
 import copy
 import itertools
 import json
@@ -181,12 +182,12 @@ class Certificates(unittest.TestCase):
             spec={k:self.model[k] for k in c.MODEL_FIELDS};spec['max_atp']=1000
             raw=machine.create(spec);(root/'machine.json').write_bytes(raw)
             command=[sys.executable,'-I','-m','stargate']
-            produce=subprocess.run(command+['machine-certify',str(root/'machine.json'),'--expect-machine',lab.identity(raw),
+            produce=subprocess.run(command+['machine-evidence',str(root/'machine.json'),'--expect-machine',lab.identity(raw),
                 '--output',str(root/'cert.json')],capture_output=True,text=True,cwd='/')
             self.assertEqual(produce.returncode,0,produce.stderr)
             packet=(root/'cert.json').read_bytes();self.assertEqual(decode(packet)['model'],self.model)
-            report=json.loads(produce.stdout);self.assertEqual(report['status'],'verified_certificate')
-            c.unpack(packet,root/'offline',license_text=lab.LICENSE)
+            report=json.loads(produce.stdout)['check'];self.assertEqual(report['status'],'verified_certificate')
+            transport.unpack_certificate(packet,root/'offline',license_text=lab.LICENSE)
             self.assertEqual(set(json.loads((root/'offline/checker.json').read_bytes())),set(c.SOURCES))
             marker=root/'executed'
             for name in ('machine.py','compiler.py','sitecustomize.py','tempfile.py'):
@@ -196,7 +197,7 @@ class Certificates(unittest.TestCase):
             self.assertEqual(offline.returncode,0,offline.stderr)
             self.assertEqual(json.loads(offline.stdout),report)
             self.assertFalse(marker.exists());self.assertFalse(list((root/'offline').rglob('__pycache__')))
-            with self.assertRaises(FileExistsError):c.unpack(packet,root/'offline',license_text=lab.LICENSE)
+            with self.assertRaises(FileExistsError):transport.unpack_certificate(packet,root/'offline',license_text=lab.LICENSE)
             altered = decode(packet); altered['paths'][0]['trace']['steps'] = []
             (root/'forged.json').write_bytes(canon(altered))
             wrong_anchor = '0'*64
@@ -222,7 +223,7 @@ class Certificates(unittest.TestCase):
             self.assertNotIn('Traceback',outcome.stderr)
             checker_file.write_bytes(original)
             # No certificate is produced from an unfinished producer run.
-            refused=subprocess.run(command+['machine-certify',str(root/'machine.json'),'--expect-machine',lab.identity(raw),
+            refused=subprocess.run(command+['machine-evidence',str(root/'machine.json'),'--expect-machine',lab.identity(raw),
                 '--max-edges','0','--output',str(root/'absent.json')],capture_output=True,text=True,cwd='/')
             self.assertEqual(refused.returncode,3,refused.stderr)
             self.assertFalse((root/'absent.json').exists())

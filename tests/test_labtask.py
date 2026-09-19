@@ -1,3 +1,4 @@
+from stargate import transport
 import io
 import json
 import os
@@ -207,7 +208,7 @@ class LabTask(unittest.TestCase):
         anchor=labtask.identity(world,proposal)
         with tempfile.TemporaryDirectory() as tmp:
             root=Path(tmp); offline=root/'offline'
-            description=labtask.unpack(raw,offline)
+            description=transport.unpack_task(raw,offline)
             self.assertEqual(description['status'],'unverified_progress')
             self.assertEqual(description['replay_digest'],lab.identity((offline/'replay.py').read_bytes()))
             self.assertIn('replay.py task.json next.json --task', (offline/'README.txt').read_text())
@@ -266,9 +267,9 @@ class LabTask(unittest.TestCase):
             return real_open(path, flags, *args, **kwargs)
         with tempfile.TemporaryDirectory() as tmp:
             root=Path(tmp); marker=root/'keep'; marker.write_bytes(b'keep')
-            with patch.object(labtask.os,'open',side_effect=fail):
+            with patch.object(transport.os,'open',side_effect=fail):
                 with self.assertRaisesRegex(OSError,'planted task write failure'):
-                    labtask.unpack(raw,root/'output')
+                    transport.unpack_task(raw,root/'output')
             self.assertFalse((root/'output').exists())
             self.assertEqual(marker.read_bytes(),b'keep')
 
@@ -300,5 +301,5 @@ class LabTask(unittest.TestCase):
             self.assertEqual(code,1);self.assertEqual(out.read_bytes(),original)
             code,_=invoke('lab-task-resume',str(root/'absent'),'--expect-task',report['task_id'],'--output',str(root/'unused'))
             self.assertEqual(code,3);self.assertFalse((root/'unused').exists())
-            with self.assertRaises(FileExistsError):labtask.unpack(original,root)
+            with self.assertRaises(FileExistsError):transport.unpack_task(original,root)
             self.assertEqual(out.read_bytes(),original)

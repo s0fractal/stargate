@@ -1,8 +1,6 @@
 """Finite Boolean safety checking: exhaustive reachable graph, concrete traces."""
 import itertools
-import os
 from pathlib import Path
-import shutil
 
 from . import lab, compiler, boolean, kernel
 from .canonical import canon, decode, exact, record_hash, InvalidRecord
@@ -114,7 +112,7 @@ def describe(raw):
     doc = inspect(raw)
     return dict(status='unchecked_machine', machine_id=lab.identity(raw),
                 state_bits=len(doc['state']), event_bits=len(doc['events']),
-                runtime_digest=lab.runtime_digest(doc['sources']), replay_digest=lab.identity(lab.REPLAY.encode()))
+                runtime_digest=lab.runtime_digest(doc['sources']))
 
 
 def _closed(report, states, state_names, event_names, event_rows):
@@ -402,18 +400,3 @@ def verify_property(raw, claim, expected_machine, *, max_edges=256):
     if graph is None: return dict(report, claim=claim)
     result = _assess_property(prop, *graph)
     return dict(report, **result, claim=claim)
-
-
-def unpack(raw, output):
-    doc = inspect(raw)
-    output = Path(output)
-    result = lab.unpack_world(_view(doc), output)
-    try:
-        fd = os.open(output/'machine.json', os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
-        with os.fdopen(fd, 'wb') as stream: stream.write(raw)
-        (output/'README.txt').write_text(GUIDE + '\npython -I -S replay.py machine.json --machine '
-            '--expect-machine INDEPENDENT_MACHINE_ID --max-edges 256 --expect-runtime INDEPENDENT_DIGEST\n')
-    except BaseException:
-        shutil.rmtree(output)
-        raise
-    return dict(result, **describe(raw))

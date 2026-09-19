@@ -1,3 +1,4 @@
+from stargate import transport
 import io
 import json
 from pathlib import Path
@@ -218,7 +219,7 @@ class MachineSearch(unittest.TestCase):
         raw,_,_=fixture()
         with tempfile.TemporaryDirectory() as tmp:
             root=Path(tmp);source=root/'parent';source.write_bytes(raw)
-            child=root/'child';offline=root/'offline';desc=machine.unpack(raw,offline)
+            child=root/'child';offline=root/'offline';desc=transport.unpack_machine(raw,offline)
             result=subprocess.run([sys.executable,'-I','-m','stargate','machine-search',str(source),
                 '--expect-machine',lab.identity(raw),'--output',str(child)],cwd='/',capture_output=True,text=True)
             self.assertEqual(result.returncode,0,result.stderr)

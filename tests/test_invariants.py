@@ -1,3 +1,4 @@
+from stargate import transport
 import json
 from pathlib import Path
 import subprocess
@@ -118,7 +119,7 @@ class Invariants(unittest.TestCase):
         raw=world()
         with tempfile.TemporaryDirectory() as tmp:
             root=Path(tmp);(root/'world.json').write_bytes(raw)
-            lab.unpack_world(raw,root/'offline')
+            transport.unpack_world(raw,root/'offline')
             def cli(*args):
                 p=subprocess.run([sys.executable,'-I','-m','stargate',*map(str,args)],cwd='/',capture_output=True,text=True)
                 return p.returncode,json.loads(p.stdout or p.stderr)
