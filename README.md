@@ -11,7 +11,7 @@ In the default equivalence mode, a changed answer produces a concrete
 counterexample. A cheaper equivalent rule
 can become the next world; an unfinished check establishes nothing.
 
-**Build 34 · 32K draft.** The contract can change incompatibly. This is an
+**Build 35 · 32K draft.** The contract can change incompatibly. This is an
 experimental implementation, not a stable release or a general program prover.
 Python only; commands `sg` and `stargate`. MIT licensed.
 
@@ -1436,3 +1436,42 @@ edge/path obligations. It is not a CPU bound. No-op steps are legal. Truncating 
 valid path gives a shorter valid path; this format proves neither completeness nor
 freshness, authorship or chronological truth. An alternative proof of the same
 root model is allowed. Pin the full history ID separately if its exact bytes matter.
+
+## Portable refutations
+
+A participant can now supply proof that a fixed model violates its contract:
+a concrete path ending outside the invariant (`unsafe`), or a closed set containing
+all initial states but excluding a required goal (`unreachable_goal`). The small
+checker recomputes transitions without a compiler, BFS or producer code. An
+exclusion set may itself contain unsafe states: safety is not needed to prove
+that a goal is unreachable.
+
+The examples prove both defects in the same two-bit model: x becomes true despite
+the invariant, while y stays false so the required all-true goal is unreachable.
+Input files are canonical JSON. Successful refutation creation/checking returns
+**4**, meaning a proved negative result, and creation writes the verified proof.
+
+```sh
+mkdir refutation-demo
+sg refutation-create examples/refutation-model.json examples/refutation-unsafe.json \
+  --output refutation-demo/proof.json > refutation-demo/report.json || test "$?" -eq 4
+MODEL=$(python -c 'import json; print(json.load(open("refutation-demo/report.json"))["model_id"])')
+CHECKER=$(sg certificate-checker | python -c 'import json,sys; print(json.load(sys.stdin)["checker"])')
+sg refutation-check refutation-demo/proof.json --expect-model "$MODEL" \
+  --expect-checker "$CHECKER" || test "$?" -eq 4
+sg refutation-unpack refutation-demo/proof.json --output refutation-demo/offline
+python -I -S refutation-demo/offline/replay.py refutation-demo/offline/refutation.json \
+  --refutation --expect-model "$MODEL" --expect-checker "$CHECKER" || test "$?" -eq 4
+```
+
+Use `examples/refutation-unreachable.json` as the claim to prove the missing goal.
+For received evidence, select ModelID and authenticate checker/launcher independently;
+the example's IDs come from your locally authored model and installed checker.
+Inspection/export are inert. Invalid evidence gives2 and establishes neither safety
+nor unsafety; unfinished/unavailable checking gives3, checker/operation failure1.
+No refutation produces a successor. A zero-length unsafe path can prove a bad
+initial state even with zero transition quota. Paths need not be shortest.
+
+This proves a property of the named finite model, not of Python, SKI execution,
+performance or an unmodelled real system. Proofs survive as data; no signer is
+required, but the independently selected checker and Python host remain trusted.
