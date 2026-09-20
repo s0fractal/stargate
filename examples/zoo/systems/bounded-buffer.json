@@ -1,0 +1,21 @@
+{
+  "name": "bounded-buffer",
+  "title": "Producer and consumer over a buffer of capacity two",
+  "source": "Textbook bounded buffer (Dijkstra, \"Cooperating sequential processes\", 1965, §4). Boolean encoding and the off-by-one fault written for this zoo; the bounded buffer of the earlier Gemini session was not available (see README).",
+  "state": ["c1", "c0"],
+  "events": ["p", "q"],
+  "initial": [{"c1": false, "c0": false}],
+  "invariant": "!(c1 && c0)",
+  "goals": [{"c1": false, "c0": true}, {"c1": true, "c0": false}],
+  "max_atp": 1000,
+  "max_candidates": 256,
+  "correct": {
+    "c1": "(p && !q && !c1 && c0) || (c1 && !(p && !q && !c1) && !(q && !p && (c1 || c0)))",
+    "c0": "(p && !q && !c1 && !c0) || (q && !p && c1) || (c0 && !(p && !q && !c1) && !(q && !p && (c1 || c0)))"
+  },
+  "broken": {
+    "c1": "(p && !q && !c1 && c0) || (p && !q && c1) || (c1 && !(p && !q) && !(q && !p && (c1 || c0)))",
+    "c0": "(p && !q && !c1 && !c0) || (p && !q && c1) || (q && !p && c1) || (c0 && !(p && !q) && !(q && !p && (c1 || c0)))"
+  },
+  "note": "Count is encoded as two bits, 00/01/10; the invariant forbids the fourth code. The broken producer no longer checks the bound, so the count leaves the encoding."
+}

@@ -1,0 +1,26 @@
+{
+  "name": "alternating-bit",
+  "title": "Alternating bit protocol, one frame in flight",
+  "source": "Protocol of K. A. Bartlett, R. A. Scantlebury, P. T. Wilkinson, \"A note on reliable full-duplex transmission over half-duplex links\", CACM 12(5), 1969. Boolean encoding written for this zoo; acknowledgement is collapsed into the delivery step.",
+  "state": ["s", "c", "cb", "r"],
+  "events": ["d"],
+  "initial": [{"s": false, "c": false, "cb": false, "r": false}],
+  "invariant": "!c || (cb && s) || (!cb && !s)",
+  "goals": [{"s": true, "c": false, "cb": false, "r": true},
+            {"s": false, "c": false, "cb": true, "r": false}],
+  "max_atp": 2000,
+  "max_candidates": 256,
+  "correct": {
+    "s": "(c && d && ((cb && r) || (!cb && !r)) && !s) || (!(c && d && ((cb && r) || (!cb && !r))) && s)",
+    "c": "!c || (c && !d)",
+    "cb": "(c && cb) || (!c && s)",
+    "r": "(c && d && ((cb && r) || (!cb && !r)) && !r) || (!(c && d && ((cb && r) || (!cb && !r))) && r)"
+  },
+  "broken": {
+    "s": "(c && d && ((cb && r) || (!cb && !r)) && !s) || (!(c && d && ((cb && r) || (!cb && !r))) && s)",
+    "c": "!c || (c && !d)",
+    "cb": "(c && cb) || (!c && !s)",
+    "r": "(c && d && ((cb && r) || (!cb && !r)) && !r) || (!(c && d && ((cb && r) || (!cb && !r))) && r)"
+  },
+  "note": "The broken sender stamps the frame with the complement of its own sequence bit, so the channel carries a frame that no longer matches the sender."
+}

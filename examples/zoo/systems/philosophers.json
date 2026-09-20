@@ -1,0 +1,26 @@
+{
+  "name": "philosophers",
+  "title": "Two dining philosophers with a shared scheduler bit",
+  "source": "Stargate task list T0 (honest rules given verbatim by the task author); broken variant written for this zoo.",
+  "state": ["e0", "e1", "h0", "h1"],
+  "events": ["s"],
+  "initial": [{"e0": false, "e1": false, "h0": false, "h1": false}],
+  "invariant": "!(e0 && e1)",
+  "goals": [{"e0": true, "e1": false, "h0": false, "h1": false},
+            {"e0": false, "e1": true, "h0": false, "h1": false}],
+  "max_atp": 1000,
+  "max_candidates": 256,
+  "correct": {
+    "h0": "(!s && !h0 && !e0) || (h0 && !e0)",
+    "e0": "(!s && h0 && !h1 && !e1) || (e0 && s)",
+    "h1": "(s && !h1 && !e1) || (h1 && !e1)",
+    "e1": "(s && h1 && !h0 && !e0) || (e1 && !s)"
+  },
+  "broken": {
+    "h0": "(!s && !h0 && !e0) || (h0 && !e0)",
+    "e0": "(!s && h0 && !h1 && !e1) || (e0 && s)",
+    "h1": "(s && !h1 && !e1) || (h1 && !e1)",
+    "e1": "(s && h1) || (e1 && !s)"
+  },
+  "note": "The honest model's deadlock (h0 && h1) is not a safety violation and not a goal-unreachability from the initial state, so today it certifies. That limit is the red example for T2. The broken variant drops P1's check of P0, which is a real mutual-exclusion fault."
+}

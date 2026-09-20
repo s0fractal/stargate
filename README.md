@@ -104,7 +104,11 @@ On this Peterson example, at the same 256-candidate limit:
 | Backward priority + exchanges + screening | 1 | 2 | 1 | Found |
 
 The expanded grammar makes this repair possible; ranking and screening reduce work.
-These counts describe this example, not a general speed guarantee. The found
+These counts describe this example, not a general speed guarantee: on the thirteen
+systems of [examples/zoo](examples/zoo/README.md), measured with one command,
+`trace` needed **more** attempts than `one-edit` on nine of them, the same on one,
+and fewer on two. Where it helps it can change the outcome rather than the cost,
+and where it does not it costs extra work for the same repair. The found
 transition system matches the correct Peterson program-counter model on all 64
 state/event combinations. Its proof and Git application need no search implementation.
 
@@ -244,6 +248,15 @@ These remain useful tools, but their reports do not replace machine proof data:
 Use `sg --help` and `sg COMMAND --help` for arguments. `sg` and `stargate` are the
 same CLI. [SPEC.md](SPEC.md) owns semantics; [ARCHITECTURE.md](ARCHITECTURE.md) owns
 layer rules; [VISION.md](VISION.md) describes direction, not extra guarantees.
+
+## Writing a model over named values
+
+Bits are the contract, but a model does not have to be typed as bits.
+[`tools/enum_frontend.py`](tools/README.md) compiles enums and flags into the same
+machine input, and always excludes the codes that name no value — three colours take
+two bits, and the fourth code is not a state of anything. It is outside every checked
+closure and proves nothing by itself; `tools/README.md` says what is measured about
+it and what is not.
 
 ## Two commands read packets, and you say which kind
 

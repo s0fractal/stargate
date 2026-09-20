@@ -2,6 +2,7 @@ name: Python contract
 on:
   push:
     branches: [main]
+    tags: ['**']
   pull_request:
 permissions:
   contents: read
@@ -22,6 +23,13 @@ jobs:
       - run: python -m pip install dist/*.whl
       - name: Architecture
         run: python architecture.py
+      - name: Anchors describe this source
+        run: python tools/anchors.py --check
+      - name: Tag name follows the checker digest
+        if: github.ref_type == 'tag'
+        env:
+          TAG: ${{ github.ref_name }}
+        run: python tools/anchors.py --check-tag "$TAG"
       - name: Installed wheel tests outside checkout
         run: |
           cd "$RUNNER_TEMP"
