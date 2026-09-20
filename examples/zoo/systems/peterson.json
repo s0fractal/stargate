@@ -1,0 +1,58 @@
+{
+  "name": "peterson",
+  "title": "Peterson's mutual exclusion for two processes",
+  "source": "examples/peterson_repair.py, in the repository since build 38; algorithm of G. L. Peterson, \"Myths about the mutual exclusion problem\", IPL 12(3), 1981.",
+  "state": [
+    "a0",
+    "a1",
+    "b0",
+    "b1",
+    "t"
+  ],
+  "events": [
+    "s"
+  ],
+  "initial": [
+    {
+      "a0": false,
+      "a1": false,
+      "b0": false,
+      "b1": false,
+      "t": false
+    }
+  ],
+  "invariant": "!(a1 && a0 && b1 && b0)",
+  "goals": [
+    {
+      "a0": true,
+      "a1": true,
+      "b0": false,
+      "b1": false,
+      "t": true
+    },
+    {
+      "a0": false,
+      "a1": false,
+      "b0": true,
+      "b1": true,
+      "t": false
+    }
+  ],
+  "max_atp": 4000,
+  "max_candidates": 256,
+  "correct": {
+    "a0": "(!s && ((!a1 && !a0) || (a1 && !a0 && ((!b1 && !b0) || !t)))) || (!(!s) && a0)",
+    "a1": "(!s && ((a1 && !a0) || (!a1 && a0))) || (!(!s) && a1)",
+    "b0": "(s && ((!b1 && !b0) || (b1 && !b0 && ((!a1 && !a0) || t)))) || (!(s) && b0)",
+    "b1": "(s && ((b1 && !b0) || (!b1 && b0))) || (!(s) && b1)",
+    "t": "(!s && !a1 && a0) || (t && !(s && !b1 && b0))"
+  },
+  "broken": {
+    "a0": "(!s && ((!a1 && !a0) || (a1 && !a0 && ((!b1 && !b0) || !t)))) || (!(!s) && a0)",
+    "a1": "(!s && ((a1 && !a0) || (!a1 && a0))) || (!(!s) && a1)",
+    "b0": "(s && ((!b1 && !b0) || (b1 && !b0 && ((!a1 && !a0) || t)))) || (!(s) && b0)",
+    "b1": "(s && ((b1 && !b0) || (!b1 && b0))) || (!(s) && b1)",
+    "t": "(s && !b1 && b0) || (t && !(!s && !a1 && a0))"
+  },
+  "note": "The broken variant claims the turn for itself instead of yielding it; this is the system the trace strategy of build 41 was written against."
+}

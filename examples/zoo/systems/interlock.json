@@ -1,0 +1,15 @@
+{
+  "name": "interlock",
+  "title": "Door interlock: the door may only be open while armed",
+  "source": "examples/interlock.json, in the repository since build 31.",
+  "state": ["armed", "open"],
+  "events": ["request"],
+  "initial": [{"armed": false, "open": false}],
+  "invariant": "!open || armed",
+  "goals": [{"armed": true, "open": true}],
+  "max_atp": 1000,
+  "max_candidates": 256,
+  "correct": {"armed": "request", "open": "request || armed"},
+  "broken": {"armed": "request && !open", "open": "request || armed"},
+  "note": "The broken variant disarms as soon as the door is open."
+}
