@@ -1,0 +1,23 @@
+{
+  "name": "token-ring-natural",
+  "title": "Three-node token ring, natural duplication fault",
+  "source": "Stargate task list T0 (rules given verbatim by the task author).",
+  "state": ["t0", "t1", "t2"],
+  "events": ["p"],
+  "initial": [{"t0": true, "t1": false, "t2": false}],
+  "invariant": "(t0 && !t1 && !t2) || (!t0 && t1 && !t2) || (!t0 && !t1 && t2)",
+  "goals": [{"t0": false, "t1": true, "t2": false}, {"t0": false, "t1": false, "t2": true}],
+  "max_atp": 1000,
+  "max_candidates": 256,
+  "correct": {
+    "t0": "(p && t2) || (!p && t0)",
+    "t1": "(p && t0) || (!p && t1)",
+    "t2": "(p && t1) || (!p && t2)"
+  },
+  "broken": {
+    "t0": "t0 || (p && t2)",
+    "t1": "(p && t0) || (!p && t1)",
+    "t2": "(p && t1) || (!p && t2)"
+  },
+  "note": "The node keeps the token while also accepting the next one."
+}

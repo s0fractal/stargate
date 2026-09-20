@@ -104,7 +104,11 @@ On this Peterson example, at the same 256-candidate limit:
 | Backward priority + exchanges + screening | 1 | 2 | 1 | Found |
 
 The expanded grammar makes this repair possible; ranking and screening reduce work.
-These counts describe this example, not a general speed guarantee. The found
+These counts describe this example, not a general speed guarantee: on the eight
+systems of [examples/zoo](examples/zoo/README.md), measured with one command,
+`trace` needed **more** attempts than `one-edit` on five of them, the same on one,
+and fewer on two. Where it helps it can change the outcome rather than the cost,
+and where it does not it costs extra work for the same repair. The found
 transition system matches the correct Peterson program-counter model on all 64
 state/event combinations. Its proof and Git application need no search implementation.
 

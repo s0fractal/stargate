@@ -1,0 +1,23 @@
+{
+  "name": "readers-writer",
+  "title": "One reader, one writer, one pending write request",
+  "source": "Fault modelled after the readers/writers problem of P. J. Courtois, F. Heymans, D. L. Parnas, \"Concurrent control with readers and writers\", CACM 14(10), 1971. Boolean encoding written for this zoo.",
+  "state": ["r", "w", "q"],
+  "events": ["c", "d"],
+  "initial": [{"r": false, "w": false, "q": false}],
+  "invariant": "!(r && w)",
+  "goals": [{"r": true, "w": false, "q": false}, {"r": false, "w": true, "q": false}],
+  "max_atp": 1000,
+  "max_candidates": 256,
+  "correct": {
+    "r": "(c && !w && !q) || (r && !w && !c)",
+    "w": "(d && q && !r && !w) || (w && !d)",
+    "q": "(d && !q && !w) || (q && !w)"
+  },
+  "broken": {
+    "r": "(c && !w && !q) || (r && !w && !c)",
+    "w": "(d && q && !w) || (w && !d)",
+    "q": "(d && !q && !w) || (q && !w)"
+  },
+  "note": "The broken writer stops checking whether a reader is active."
+}
