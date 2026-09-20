@@ -20,6 +20,51 @@ from . import lab, search, invariants, lineage, labtask, machine, composition, e
 from .artifact import subject_hash, admit_bundle, admit_all, measure_subject
 
 
+HELP = {
+    # One sentence per command: the families below are built in loops, and a loop
+    # cannot say what its members do. `sg --help` is read by people who have not
+    # read this file.
+    'evidence-check': 'check a certificate or refutation against an expected model and checker',
+    'evidence-unpack': 'write a certificate-family packet and an offline launcher into a directory',
+    'refutation-inspect': 'describe a refutation and check its shape, never its claim',
+    'refutation-check': 'check a refutation claim against an expected model and checker',
+    'certificate-inspect': 'describe a certificate and check its shape, never its proof',
+    'certificate-check': 'check an inductive certificate against an expected model and checker',
+    'certificate-history-start': 'begin a certificate history at a root certificate',
+    'certificate-history-append': 'extend a certificate history with the next checked certificate',
+    'certificate-history-check': 'check every step of a certificate history against its root',
+    'certificate-repair-pack': 'package a refutation and a candidate certificate as an unchecked repair',
+    'certificate-change-pack': 'package parent and candidate certificates as an unchecked next-only change',
+    'certificate-repair-check': 'check a repair: the parent defect, the candidate proof, the inherited contract',
+    'certificate-change-check': 'check a next-only change: both certificates and the inherited contract',
+    'composition-create': 'build a composition of two components under a joint contract',
+    'composition-inspect': 'describe a composition and check its shape, never its behaviour',
+    'composition-check': 'explore a composition and check the joint contract',
+    'composition-unpack': 'write a composition and an offline launcher into a directory',
+    'composition-change': 'check a next-only change to one component of a composition',
+    'machine-create': 'build a machine from a specification and write its bytes',
+    'machine-inspect': 'describe a machine and check its shape, never its reachable states',
+    'machine-check': 'explore every reachable state and check the invariant and the goals',
+    'machine-unpack': 'write a machine and an offline launcher into a directory',
+    'machine-change': 'check a next-only change, exploring parent and candidate again',
+    'machine-search': 'search one-rule edits for a candidate that passes the change check',
+    'machine-discover': 'report the bit properties that hold at every reached state',
+    'machine-claim': 'check one claimed property at every reached state',
+    'machine-evidence': 'produce a certificate or a refutation for a machine and write it',
+    'experiment-inspect': 'describe an experiment and its capsules; never run included code',
+    'experiment-check': 'compare two capsules over a corpus, executing them only with --execute-runtimes',
+    'experiment-unpack': 'write an experiment and an offline launcher into a directory',
+    'lab-task-start': 'begin a portable lab task from a world and a row budget',
+    'lab-task-resume': 'continue a lab task, recomputing every imported row',
+    'lab-task-inspect': 'describe a lab task and its progress; never run it',
+    'lab-task-unpack': 'write a lab task and an offline launcher into a directory',
+    'lineage-start': 'begin a world history at a root world',
+    'lineage-append': 'extend a world history with the next checked transition',
+    'lineage-check': 'replay a world history against its declared root',
+    'lineage-unpack': 'write a world history and an offline launcher into a directory',
+}
+
+
 def parser():
     p = argparse.ArgumentParser(prog="sg", allow_abbrev=False,
         description="Stargate: computation and signed checks. 32K is a draft contract.")
@@ -28,7 +73,8 @@ def parser():
     p.add_argument("--store", default=".stargate", help="content-addressed object directory")
     sub = p.add_subparsers(dest="command")
     def cmd(name, help):
-        return sub.add_parser(name, help=help, allow_abbrev=False)
+        # A family built in a loop gets its own sentence from HELP; the rest keep theirs.
+        return sub.add_parser(name, help=HELP.get(name, help), allow_abbrev=False)
     cmd("init", "create the object directory")
     q = cmd("keygen", "write a new private seed (never overwrite)")
     q.add_argument("path", type=Path)

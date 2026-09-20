@@ -22,29 +22,29 @@ fail on a stale table.
 | `case-inspect` | check packet integrity; never execute its contents | 3 | 0 | 0 | 0 |
 | `case-pack` | pack counterexample evidence as inert data | 1 | 0 | 0 | 0 |
 | `case-unpack` | materialize evidence in a new directory; never execute it | 2 | 0 | 0 | 0 |
-| `certificate-change-check` | check both proofs and preserve the inherited model contract | 1 | 1 | 0 | 0 |
-| `certificate-change-pack` | package unchecked proof data for a next-only model transition | 1 | 0 | 0 | 0 |
-| `certificate-check` | check a finite inductive certificate without executing producer code | 1 | 0 | 0 | 0 |
+| `certificate-change-check` | check a next-only change: both certificates and the inherited contract | 1 | 1 | 0 | 0 |
+| `certificate-change-pack` | package parent and candidate certificates as an unchecked next-only change | 1 | 0 | 0 | 0 |
+| `certificate-check` | check an inductive certificate against an expected model and checker | 1 | 0 | 0 | 0 |
 | `certificate-checker` | identify the independent finite-certificate checker | 0 | 3 | 0 | 0 |
-| `certificate-history-append` | carry a root-anchored path of independently checked certificates | 1 | 0 | 0 | 0 |
-| `certificate-history-check` | carry a root-anchored path of independently checked certificates | 1 | 1 | 0 | 0 |
-| `certificate-history-start` | carry a root-anchored path of independently checked certificates | 1 | 0 | 0 | 0 |
-| `certificate-inspect` | check a finite inductive certificate without executing producer code | 0 | 0 | 0 | 0 |
-| `certificate-repair-check` | check both proofs and preserve the inherited model contract | 3 | 4 | 0 | 0 |
-| `certificate-repair-pack` | package unchecked proof data for a next-only model transition | 1 | 1 | 0 | 0 |
-| `composition-change` | check two components under a joint synchronous contract | 1 | 0 | 0 | 0 |
-| `composition-check` | check two components under a joint synchronous contract | 2 | 0 | 0 | 0 |
-| `composition-create` | check two components under a joint synchronous contract | 1 | 0 | 0 | 0 |
-| `composition-inspect` | check two components under a joint synchronous contract | 0 | 0 | 0 | 0 |
-| `composition-unpack` | check two components under a joint synchronous contract | 0 | 0 | 0 | 0 |
+| `certificate-history-append` | extend a certificate history with the next checked certificate | 1 | 0 | 0 | 0 |
+| `certificate-history-check` | check every step of a certificate history against its root | 1 | 1 | 0 | 0 |
+| `certificate-history-start` | begin a certificate history at a root certificate | 1 | 0 | 0 | 0 |
+| `certificate-inspect` | describe a certificate and check its shape, never its proof | 0 | 0 | 0 | 0 |
+| `certificate-repair-check` | check a repair: the parent defect, the candidate proof, the inherited contract | 3 | 4 | 0 | 0 |
+| `certificate-repair-pack` | package a refutation and a candidate certificate as an unchecked repair | 1 | 1 | 0 | 0 |
+| `composition-change` | check a next-only change to one component of a composition | 1 | 0 | 0 | 0 |
+| `composition-check` | explore a composition and check the joint contract | 2 | 0 | 0 | 0 |
+| `composition-create` | build a composition of two components under a joint contract | 1 | 0 | 0 | 0 |
+| `composition-inspect` | describe a composition and check its shape, never its behaviour | 0 | 0 | 0 | 0 |
+| `composition-unpack` | write a composition and an offline launcher into a directory | 0 | 0 | 0 | 0 |
 | `eval` | evaluate a term, reporting result, exit and cost | 6 | 4 | 0 | 0 |
-| `evidence-check` | check certificate/refutation data or export any certificate-family packet | 1 | 2 | 0 | 0 |
-| `evidence-unpack` | check certificate/refutation data or export any certificate-family packet | 6 | 3 | 0 | 0 |
-| `experiment-check` | inspect, explicitly execute, or export a runtime experiment | 2 | 0 | 0 | 0 |
+| `evidence-check` | check a certificate or refutation against an expected model and checker | 1 | 2 | 0 | 0 |
+| `evidence-unpack` | write a certificate-family packet and an offline launcher into a directory | 6 | 3 | 0 | 0 |
+| `experiment-check` | compare two capsules over a corpus, executing them only with --execute-runtimes | 2 | 0 | 0 | 0 |
 | `experiment-controller` | show the local experiment controller and replay identities | 0 | 2 | 0 | 0 |
 | `experiment-create` | bind two source capsules and a runtime-independent corpus | 0 | 0 | 0 | 0 |
-| `experiment-inspect` | inspect, explicitly execute, or export a runtime experiment | 0 | 0 | 0 | 0 |
-| `experiment-unpack` | inspect, explicitly execute, or export a runtime experiment | 0 | 0 | 0 | 0 |
+| `experiment-inspect` | describe an experiment and its capsules; never run included code | 0 | 0 | 0 | 0 |
+| `experiment-unpack` | write an experiment and an offline launcher into a directory | 0 | 0 | 0 | 0 |
 | `export` | verify and export one portable signed check | 2 | 0 | 0 | 0 |
 | `genesis` | show intrinsic I/K/S hashes | 1 | 1 | 0 | 0 |
 | `init` | create the object directory | 4 | 1 | 1 | 0 |
@@ -55,31 +55,31 @@ fail on a stale table.
 | `lab-discover` | enumerate and check finite input/output properties | 2 | 0 | 0 | 0 |
 | `lab-inspect` | describe a finite experiment; never run included code | 6 | 2 | 0 | 0 |
 | `lab-search` | search a bounded WPL neighborhood using replayed counterexamples | 4 | 1 | 0 | 0 |
-| `lab-task-inspect` | transfer lab work; imported progress is always recomputed | 1 | 0 | 0 | 0 |
-| `lab-task-resume` | transfer lab work; imported progress is always recomputed | 3 | 0 | 0 | 0 |
-| `lab-task-start` | transfer lab work; imported progress is always recomputed | 1 | 0 | 0 | 0 |
-| `lab-task-unpack` | transfer lab work; imported progress is always recomputed | 0 | 0 | 0 | 0 |
+| `lab-task-inspect` | describe a lab task and its progress; never run it | 1 | 0 | 0 | 0 |
+| `lab-task-resume` | continue a lab task, recomputing every imported row | 3 | 0 | 0 | 0 |
+| `lab-task-start` | begin a portable lab task from a world and a row budget | 1 | 0 | 0 | 0 |
+| `lab-task-unpack` | write a lab task and an offline launcher into a directory | 0 | 0 | 0 | 0 |
 | `lab-unpack` | extract a standalone checker for explicit offline replay | 0 | 1 | 0 | 0 |
-| `lineage-append` | create, extend, replay or materialize an anchored world history | 2 | 0 | 0 | 0 |
-| `lineage-check` | create, extend, replay or materialize an anchored world history | 6 | 0 | 0 | 0 |
-| `lineage-start` | create, extend, replay or materialize an anchored world history | 1 | 0 | 0 | 0 |
-| `lineage-unpack` | create, extend, replay or materialize an anchored world history | 1 | 0 | 0 | 0 |
-| `machine-change` | check a finite synchronous machine on all reachable states | 2 | 0 | 0 | 0 |
-| `machine-check` | check a finite synchronous machine on all reachable states | 2 | 0 | 0 | 0 |
-| `machine-claim` | check a finite synchronous machine on all reachable states | 1 | 0 | 0 | 0 |
-| `machine-create` | check a finite synchronous machine on all reachable states | 2 | 2 | 0 | 0 |
-| `machine-discover` | check a finite synchronous machine on all reachable states | 1 | 0 | 0 | 0 |
-| `machine-evidence` | check a finite synchronous machine on all reachable states | 3 | 3 | 0 | 0 |
-| `machine-inspect` | check a finite synchronous machine on all reachable states | 1 | 0 | 0 | 0 |
-| `machine-search` | check a finite synchronous machine on all reachable states | 2 | 0 | 0 | 0 |
-| `machine-unpack` | check a finite synchronous machine on all reachable states | 0 | 0 | 0 | 0 |
+| `lineage-append` | extend a world history with the next checked transition | 2 | 0 | 0 | 0 |
+| `lineage-check` | replay a world history against its declared root | 6 | 0 | 0 | 0 |
+| `lineage-start` | begin a world history at a root world | 1 | 0 | 0 | 0 |
+| `lineage-unpack` | write a world history and an offline launcher into a directory | 1 | 0 | 0 | 0 |
+| `machine-change` | check a next-only change, exploring parent and candidate again | 2 | 0 | 0 | 0 |
+| `machine-check` | explore every reachable state and check the invariant and the goals | 2 | 0 | 0 | 0 |
+| `machine-claim` | check one claimed property at every reached state | 1 | 0 | 0 | 0 |
+| `machine-create` | build a machine from a specification and write its bytes | 2 | 2 | 0 | 0 |
+| `machine-discover` | report the bit properties that hold at every reached state | 1 | 0 | 0 | 0 |
+| `machine-evidence` | produce a certificate or a refutation for a machine and write it | 3 | 3 | 0 | 0 |
+| `machine-inspect` | describe a machine and check its shape, never its reachable states | 1 | 0 | 0 | 0 |
+| `machine-search` | search one-rule edits for a candidate that passes the change check | 2 | 0 | 0 | 0 |
+| `machine-unpack` | write a machine and an offline launcher into a directory | 0 | 0 | 0 | 0 |
 | `model-apply` | apply a certified change or repair to a bare Git branch | 2 | 3 | 0 | 0 |
 | `policy` | compile a boolean WPL file and sign its decision | 25 | 0 | 1 | 0 |
 | `put` | store object bytes | 0 | 1 | 0 | 0 |
 | `record` | execute a check and store its signed decision | 10 | 3 | 0 | 0 |
-| `refutation-check` | check a finite refutation without executing producer code | 1 | 0 | 0 | 0 |
+| `refutation-check` | check a refutation claim against an expected model and checker | 1 | 0 | 0 | 0 |
 | `refutation-create` | check a supplied model and refutation claim before writing proof data | 1 | 0 | 0 | 0 |
-| `refutation-inspect` | check a finite refutation without executing producer code | 0 | 0 | 0 | 0 |
+| `refutation-inspect` | describe a refutation and check its shape, never its claim | 0 | 0 | 0 | 0 |
 | `repair-search` | search a bounded neighborhood for a certified model repair | 2 | 2 | 0 | 0 |
 | `require` | require a verified accept for the recipient's rule and facts | 4 | 1 | 0 | 0 |
 | `runtime-pack` | snapshot the compiler source closure; never execute it | 0 | 1 | 0 | 0 |
