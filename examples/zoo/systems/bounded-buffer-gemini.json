@@ -1,0 +1,41 @@
+{
+  "name": "bounded-buffer-gemini",
+  "title": "Two-slot counter buffer (Gemini session encoding)",
+  "source": "Gemini session log, 2026-09-20; rules copied verbatim from the log, not edited after any run.",
+  "state": [
+    "b0",
+    "b1"
+  ],
+  "events": [
+    "s"
+  ],
+  "initial": [
+    {
+      "b0": false,
+      "b1": false
+    }
+  ],
+  "invariant": "!(b1 && b0)",
+  "goals": [
+    {
+      "b0": false,
+      "b1": true
+    },
+    {
+      "b0": false,
+      "b1": false
+    }
+  ],
+  "correct": {
+    "b0": "(!s && !b1 && !b0) || (s && b1 && !b0)",
+    "b1": "(!s && b0) || (!s && b1 && !b0)"
+  },
+  "broken": {
+    "b0": "(!s && !b0) || (s && b1 && !b0)",
+    "b1": "(!s && b0) || (!s && b1 && !b0)"
+  },
+  "note": "",
+  "max_atp": 1000,
+  "max_candidates": 256,
+  "constructed_for_neighbourhood": null
+}
