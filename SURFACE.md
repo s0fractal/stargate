@@ -90,6 +90,11 @@ fail on a stale table.
 
 <!-- inventory: end -->
 
+A worked example of that caveat, from this very table: `init` shows one mention under
+`examples` because `examples/two-phase-commit/two_phase_commit.py` names a coordinator
+state `'init'`. The counter sees a quoted string, not a command. Read the columns as
+"something here spells this name", never as coverage.
+
 ## What the numbers say
 
 **69 commands in 24 families.** The test suite drives the command layer from
