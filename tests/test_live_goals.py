@@ -90,6 +90,12 @@ class LiveGoals(unittest.TestCase):
         report, _ = produce(raw)
         self.assertEqual(report['status'], 'verified_certificate')
 
+    def test_an_empty_live_goals_list_is_refused(self):
+        """A field that demands nothing is a label wider than its predicate: it
+        makes a second model ID whose certificate carries no rank map at all."""
+        with self.assertRaises(InvalidRecord):
+            build('philosophers', live=[])
+
     def test_live_goals_must_be_declared_goals(self):
         base = build('philosophers', live=None)
         stranger = dict(e0=True, e1=True, h0=True, h1=True)
