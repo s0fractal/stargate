@@ -127,7 +127,7 @@ class CertificateHistory(unittest.TestCase):
                 result=subprocess.run(command+['certificate-history-append',str(root/f'h{i-1}'),str(root/f'c{i}'),*args,'--output',str(root/f'h{i}')],capture_output=True)
                 self.assertEqual(result.returncode,0,result.stderr)
             self.assertEqual((root/'h2').read_bytes(),self.history())
-            result=subprocess.run(command+['evidence-unpack',str(root/'h2'),'--output',str(root/'offline')],capture_output=True)
+            result=subprocess.run(command+['unpack', '--expect-kind', 'evidence',str(root/'h2'),'--output',str(root/'offline')],capture_output=True)
             self.assertEqual(result.returncode,0,result.stderr)
             cli=command+['certificate-history-check',str(root/'h2')]
             replay=[sys.executable,'-I','-S',str(root/'offline/replay.py'),str(root/'offline/history.json'),'--history']

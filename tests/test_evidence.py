@@ -130,7 +130,7 @@ class Evidence(unittest.TestCase):
                 checked=subprocess.run(cmd+['evidence-check',str(root/'proof'),*pins],capture_output=True)
                 self.assertEqual(checked.returncode,exitcode,checked.stderr)
                 self.assertEqual(json.loads(checked.stdout),report['check'])
-                exported=subprocess.run(cmd+['evidence-unpack',str(root/'proof'),'--output',str(root/'offline')],capture_output=True)
+                exported=subprocess.run(cmd+['unpack', '--expect-kind', 'evidence',str(root/'proof'),'--output',str(root/'offline')],capture_output=True)
                 self.assertEqual(exported.returncode,0,exported.stderr)
                 kind=e.kind(saved);name='certificate.json' if kind=='certificate' else 'refutation.json'
                 offline=[sys.executable,'-I','-S',str(root/'offline/replay.py'),str(root/'offline'/name),*pins]

@@ -195,7 +195,7 @@ class Lineage(unittest.TestCase):
             self.assertEqual(code,0);self.assertEqual((path/'tip.json').read_bytes(),tip)
             code,_=run('lineage-check',current,'--expect-root',lab.identity(root),'--output',path/'tip.json')
             self.assertEqual(code,1);self.assertEqual((path/'tip.json').read_bytes(),tip)
-            code,_=run('lineage-unpack',current,'--output',path/'offline')
+            code,_=run('unpack', '--expect-kind', 'lineage',current,'--output',path/'offline')
             self.assertEqual(code,0)
             args=[sys.executable,'-I','-S',str(path/'offline/replay.py'),str(path/'offline/lineage.json'),str(path/'offline-tip.json'),
                   '--lineage','--expect-root',lab.identity(root),'--expect-runtime',lab.runtime_digest(decode(root)['sources'])]
@@ -269,7 +269,7 @@ class Lineage(unittest.TestCase):
                     history_path.write_bytes(canon(dict(stargate_lineage=32,root=decode(root),proposals=[])))
                     output = path/'must-not-exist.json'
                     anchor = lab.identity(root)
-                    for args in [('lab-inspect',str(world_path)),
+                    for args in [('inspect', '--expect-kind', 'lab',str(world_path)),
                                  ('lineage-check',str(history_path),'--expect-root',anchor,'--output',str(output))]:
                         out,err=io.StringIO(),io.StringIO()
                         with redirect_stdout(out),redirect_stderr(err): code=cli.main(list(args))

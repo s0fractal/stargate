@@ -25,7 +25,7 @@ sg certificate-repair-pack peterson-demo/broken.json peterson-demo/peterson.json
   --output peterson-demo/repair.json
 sg certificate-repair-check peterson-demo/repair.json --expect-model "$MODEL" \
   --expect-checker "$CHECKER" --output peterson-demo/successor.json
-sg evidence-unpack peterson-demo/repair.json --output peterson-demo/offline
+sg unpack --expect-kind evidence peterson-demo/repair.json --output peterson-demo/offline
 python -I -S peterson-demo/offline/replay.py peterson-demo/offline/repair.json \
   --repair --expect-model "$MODEL" --expect-checker "$CHECKER" \
   --output peterson-demo/replayed.json
@@ -244,6 +244,21 @@ These remain useful tools, but their reports do not replace machine proof data:
 Use `sg --help` and `sg COMMAND --help` for arguments. `sg` and `stargate` are the
 same CLI. [SPEC.md](SPEC.md) owns semantics; [ARCHITECTURE.md](ARCHITECTURE.md) owns
 layer rules; [VISION.md](VISION.md) describes direction, not extra guarantees.
+
+## Two commands read packets, and you say which kind
+
+There is one `sg inspect` and one `sg unpack`, and both require `--expect-kind`:
+
+```sh
+sg inspect --expect-kind machine world.json
+sg unpack --expect-kind evidence repair.json --output offline
+```
+
+Sixteen commands used to spell that expectation in their own names. The kind is now
+an argument, like `--expect-model`, `--expect-checker` and `--expect-root` elsewhere:
+the caller states what it believes the file is, and a file of another kind is refused
+with exit 2. A single command that read the packet's own type field would let the
+packet choose its reader, which is the one thing this repository does not do.
 
 ## Development
 

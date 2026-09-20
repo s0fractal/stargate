@@ -30,7 +30,10 @@ SPEC = dict(state=['armed', 'open'], events=['request'],
 def run(*arguments):
     out, err = io.StringIO(), io.StringIO()
     with redirect_stdout(out), redirect_stderr(err):
-        code = cli.main([str(argument) for argument in arguments])
+        try:
+            code = cli.main([str(argument) for argument in arguments])
+        except SystemExit as exit:          # argparse refuses a missing argument this way
+            code = exit.code
     return code, out.getvalue(), err.getvalue()
 
 

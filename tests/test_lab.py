@@ -179,7 +179,7 @@ class Lab(unittest.TestCase):
         with self.assertRaises(lab.RuntimeMismatch): lab.inspect_world(raw)
         out = io.StringIO()
         with redirect_stderr(out):
-            code = cli.main(['lab-inspect', str(Path(__file__).with_name('world-build17-9a52255.json'))])
+            code = cli.main(['inspect', '--expect-kind', 'lab', str(Path(__file__).with_name('world-build17-9a52255.json'))])
         self.assertEqual((code, json.loads(out.getvalue())['status']), (3, 'runtime_unavailable'))
         for field in ('guide', 'license'):
             current = decode(lab.create_world('check true', []))
@@ -400,10 +400,10 @@ class Lab(unittest.TestCase):
             (root/'rule').write_text(rule('a || b'))
             code, created = call('lab-create', root/'rule', '--input', 'a', '--input', 'b', '--output', root/'world')
             self.assertEqual(code, 0)
-            self.assertEqual(call('lab-inspect', root/'world')[1]['world_id'], created['world_id'])
-            self.assertEqual(call('lab-inspect', root/'world')[1]['runtime_digest'],
+            self.assertEqual(call('inspect', '--expect-kind', 'lab', root/'world')[1]['world_id'], created['world_id'])
+            self.assertEqual(call('inspect', '--expect-kind', 'lab', root/'world')[1]['runtime_digest'],
                              lab.runtime_digest(lab.runtime_sources()))
-            self.assertEqual(call('lab-inspect', root/'world')[1]['replay_digest'],
+            self.assertEqual(call('inspect', '--expect-kind', 'lab', root/'world')[1]['replay_digest'],
                              lab.identity(transport.replay_source().encode()))
             raw = (root/'world').read_bytes()
             (root/'proposal').write_text(json.dumps(proposal(raw, rule('a && b'))))
