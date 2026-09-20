@@ -245,5 +245,58 @@ class Controls(unittest.TestCase):
         self.assertIsNotNone(successor)
 
 
+class Attacks(unittest.TestCase):
+    """Rank maps that are wrong in one place each. None may be admitted."""
+
+    def setUp(self):
+        base = build('philosophers', live=None)
+        raw = build('philosophers', live=decode(base)['goals'],
+                    rules={'h0': RELEASE_0, 'h1': RELEASE_1})
+        report, packet = produce(raw)
+        self.assertEqual(report['status'], 'verified_certificate')
+        self.document = decode(packet)
+        self.model_id = certificate.identity(self.document['model'])
+
+    def refuse(self, mutate):
+        document = copy.deepcopy(self.document)
+        mutate(document)
+        with self.assertRaises(InvalidRecord):
+            certificate.verify(canon(document), self.model_id, certificate.checker_id())
+
+    def test_a_plateau_of_equal_ranks_is_not_almost_strict_enough(self):
+        def plateau(document):
+            rows = document['ranks'][0]['ranks']
+            top = max(row['rank'] for row in rows)
+            for row in rows:
+                if row['rank'] >= top - 1 and row['state'] != document['ranks'][0]['goal']:
+                    row['rank'] = top
+        self.refuse(plateau)
+
+    def test_a_second_state_may_not_share_rank_zero(self):
+        self.refuse(lambda document: document['ranks'][0]['ranks'][0].update(rank=0))
+
+    def test_the_goal_may_not_be_lifted_off_zero(self):
+        def lift(document):
+            goal = document['ranks'][0]['goal']
+            for row in document['ranks'][0]['ranks']:
+                if row['state'] == goal: row['rank'] = 1
+        self.refuse(lift)
+
+    def test_the_map_must_cover_the_certified_set_exactly(self):
+        self.refuse(lambda document: document['ranks'][0]['ranks'].pop())
+        self.refuse(lambda document: document['ranks'][0]['ranks'].append(
+            dict(state=document['states'][0], rank=1)))
+
+    def test_rank_maps_are_read_in_live_goal_order(self):
+        self.refuse(lambda document: document['ranks'].reverse())
+
+    def test_a_rank_must_be_a_bounded_integer(self):
+        self.refuse(lambda document: document['ranks'][0]['ranks'][0].update(rank=len(document['states'])))
+        self.refuse(lambda document: document['ranks'][0]['ranks'][0].update(rank=True))
+
+    def test_the_maps_may_not_be_dropped(self):
+        self.refuse(lambda document: document.pop('ranks'))
+
+
 if __name__ == '__main__':
     unittest.main()
