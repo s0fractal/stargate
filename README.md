@@ -245,6 +245,15 @@ Use `sg --help` and `sg COMMAND --help` for arguments. `sg` and `stargate` are t
 same CLI. [SPEC.md](SPEC.md) owns semantics; [ARCHITECTURE.md](ARCHITECTURE.md) owns
 layer rules; [VISION.md](VISION.md) describes direction, not extra guarantees.
 
+## Writing a model over named values
+
+Bits are the contract, but a model does not have to be typed as bits.
+[`tools/enum_frontend.py`](tools/README.md) compiles enums and flags into the same
+machine input, and always excludes the codes that name no value — three colours take
+two bits, and the fourth code is not a state of anything. It is outside every checked
+closure and proves nothing by itself; `tools/README.md` says what is measured about
+it and what is not.
+
 ## Development
 
 Python 3.11–3.14, one flat `src/` projection installed as `stargate`. x0 remains an

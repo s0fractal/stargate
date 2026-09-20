@@ -75,5 +75,68 @@ class Peterson(unittest.TestCase):
         self.assertEqual(len(decode(packet)['claim']['trace']['steps']), 6)
 
 
+LIGHT = dict(
+    enums={'light': ['red', 'green', 'yellow']}, flags=[], events=['c'],
+    initial={'light': 'red'},
+    invariant='true',
+    goals=[{'light': 'red'}, {'light': 'green'}],
+    transitions={'light': [('c && light:red', 'green'), ('c && light:green', 'yellow'),
+                           ('c && light:yellow', 'red')]},
+    flag_rules={}, max_atp=1000)
+
+ESCAPE = {'light_0': 'c || light_0', 'light_1': 'c || light_1'}   # red --c--> the unused code
+
+
+class UnusedCodes(unittest.TestCase):
+    """Three values take two bits; the fourth code names nothing."""
+
+    def setUp(self):
+        self.tool = frontend()
+        self.assertIsNotNone(self.tool)
+
+    def escaping(self, spec):
+        declared = 'fact c: bool\nfact light_0: bool\nfact light_1: bool\n'
+        compiled = dict(spec)
+        compiled['next'] = {bit: declared + 'check ' + source + '\n'
+                            for bit, source in ESCAPE.items()}
+        return machine.create(compiled)
+
+    def test_the_generated_invariant_excludes_the_code_that_names_nothing(self):
+        self.assertEqual(self.tool.unused(LIGHT['enums']), ['!(light_0 && light_1)'])
+        compiled = self.tool.compile_spec(LIGHT)
+        self.assertIn('!(light_0 && light_1)', compiled['invariant'])
+
+    def test_a_model_that_enters_the_unused_code_is_refuted(self):
+        raw = self.escaping(self.tool.compile_spec(LIGHT))
+        report, packet = evidence.produce(raw, lab.identity(raw))
+        self.assertEqual(report['status'], 'verified_refutation')
+        steps = self.tool.decode_trace(decode(packet)['claim']['trace'], LIGHT)
+        self.assertEqual(steps[0]['state'], {'light': 'red'})
+        self.assertIn('unused_code', steps[-1]['state'])
+
+    def test_without_the_exclusion_the_same_model_certifies(self):
+        """The control: an obligation nothing can violate would prove nothing."""
+        spec = self.tool.compile_spec(LIGHT)
+        spec['invariant'] = spec['invariant'].split('check ')[0] + 'check true\n'
+        spec['goals'] = [self.tool.flatten(LIGHT, {'light': 'red'})]
+        raw = self.escaping(spec)
+        report, _ = evidence.produce(raw, lab.identity(raw))
+        self.assertEqual(report['status'], 'verified_certificate')
+
+    def test_the_exclusion_is_what_gives_repair_search_something_to_repair(self):
+        """Measured, not predicted: with the clause there is a defect, without it none."""
+        with_clause = self.escaping(self.tool.compile_spec(LIGHT))
+        report, _ = evidence.repair_search(with_clause, lab.identity(with_clause),
+                                           max_candidates=64)
+        self.assertIn(report['status'], ('found', 'neighborhood_exhausted', 'search_incomplete'))
+        self.assertNotEqual(report['status'], 'not_needed')
+        spec = self.tool.compile_spec(LIGHT)
+        spec['invariant'] = spec['invariant'].split('check ')[0] + 'check true\n'
+        spec['goals'] = [self.tool.flatten(LIGHT, {'light': 'red'})]
+        without = self.escaping(spec)
+        quiet, _ = evidence.repair_search(without, lab.identity(without), max_candidates=64)
+        self.assertEqual(quiet['status'], 'not_needed')
+
+
 if __name__ == '__main__':
     unittest.main()
