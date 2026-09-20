@@ -69,7 +69,8 @@ def _model(doc, *, programs):
     goals = _assignments(doc['goals'], doc['state'])
     if 'live_goals' in doc:
         # A live goal is a declared goal with a stronger obligation, never a new target.
-        if any(key not in goals for key in _assignments(doc['live_goals'], doc['state'])):
+        # An empty list would be a field that demands nothing while changing identity.
+        if any(key not in goals for key in _assignments(doc['live_goals'], doc['state'], nonempty=True)):
             raise InvalidRecord('every live goal must also be a declared goal')
     exact(doc['next'], doc['state'])
     for source in [doc['invariant'], *doc['next'].values()]:

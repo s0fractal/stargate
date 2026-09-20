@@ -96,8 +96,8 @@ def inspect(raw):
     if len({canon(g) for g in goals}) != len(goals): raise InvalidRecord('duplicate reachability goal')
     live = doc.get('live_goals')
     if live is not None:
-        if not isinstance(live, list) or len(live) > len(goals):
-            raise InvalidRecord('live_goals must be a bounded list of declared goals')
+        if not isinstance(live, list) or not 1 <= len(live) <= len(goals):
+            raise InvalidRecord('live_goals must be a nonempty bounded list of declared goals')
         if len({canon(g) for g in live}) != len(live):
             raise InvalidRecord('duplicate live goal')
         declared = {canon(g) for g in goals}

@@ -15,8 +15,8 @@ after a run. The one disagreement is named below and in `results.json`.
 
 ## The table
 
-Measured at build 42, checker
-`033648cde8c2b3abb6e3381355d249d9614fccbae63135668d674976079edc0c`. The last column
+Measured at snapshot `checker-b4eee031f709`, checker
+`b4eee031f7097e0a3aad5f81c0877b8a5baae5d48ee637486863dc73c6a8298c`. The last column
 declares every goal of the `correct` model live (reachable from every certified
 state) and reports what the checker then says; `interlock` has no certificate to
 extend, because its model is refuted for safety first.
@@ -79,6 +79,13 @@ and every row came out as predicted.
 
 The column says nothing about fairness: a live goal is reachable under *some*
 event sequence from every certified state, never under every sequence.
+
+It is not an extra, either. Every system here is measured with its goals live, and a
+new system is added with that column filled, because safety plus reachability from
+the initial state is a contract a machine can satisfy while parked: a repair that
+freezes a model in one state forever satisfies both and is refused only by this
+column. The repair search found exactly such a repair for a three-colour traffic
+light in `tools/` work, and nothing but a live goal saw it.
 
 ## What this table does not establish
 

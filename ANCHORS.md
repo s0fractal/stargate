@@ -9,10 +9,12 @@ checkpoints, not frozen temperatures, signed approvals or package releases.
 Builds 39–41 add a local executor and repair producer outside these closures; all
 four anchors remain identical to build-38. Build 41 is an untagged PR candidate,
 not a published checkpoint.
-`build-42` adds the optional `live_goals` obligation, which changes the proof
-checker and the lab runtime on purpose; the controller and the launcher are
-untouched. Its row below is computed from the branch that introduces it. The tag
-is published against the reviewed merge commit, after review, never before.
+`checker-b4eee031f709` adds the optional `live_goals` obligation, which changes the
+proof checker and the lab runtime on purpose; the controller and the launcher are
+untouched. Its name is derived from its own checker digest, so it cannot claim a
+snapshot whose checker differs; `build-37` and `build-38` predate that rule. The row
+below is computed from the branch that introduces it, and the tag is published
+against the reviewed merge commit, after review, never before.
 
 | Snapshot | Closure | Source SHA-256 | Launcher SHA-256 |
 | --- | --- | --- | --- |
@@ -22,9 +24,9 @@ is published against the reviewed merge commit, after review, never before.
 | `build-38` | Machine proof checker | `c06c1384f3b0c890ed9105da68a3212183939e8165b56950ff5629d84fabdd05` | `da59473debe6d255a8500527337963620012485101a192a19e94c46da7334a6b` |
 | `build-38` | Boolean lab runtime | `3aa9144d5e786873d9d5578444b8f3dc95cc51f2f62381149fddc69e3c4acd12` | `da59473debe6d255a8500527337963620012485101a192a19e94c46da7334a6b` |
 | `build-38` | Experiment controller | `8acd80175b60ed4e4cc2646cdb95ea2ff245e7fbc0f01208388947ae6cfe89c4` | `da59473debe6d255a8500527337963620012485101a192a19e94c46da7334a6b` |
-| `build-42` | Machine proof checker | `033648cde8c2b3abb6e3381355d249d9614fccbae63135668d674976079edc0c` | `da59473debe6d255a8500527337963620012485101a192a19e94c46da7334a6b` |
-| `build-42` | Boolean lab runtime | `4ad287a6d497d3b38c2601063b1de893f470a5dab898c180d9835a6e5e673da4` | `da59473debe6d255a8500527337963620012485101a192a19e94c46da7334a6b` |
-| `build-42` | Experiment controller | `8acd80175b60ed4e4cc2646cdb95ea2ff245e7fbc0f01208388947ae6cfe89c4` | `da59473debe6d255a8500527337963620012485101a192a19e94c46da7334a6b` |
+| `checker-b4eee031f709` | Machine proof checker | `b4eee031f7097e0a3aad5f81c0877b8a5baae5d48ee637486863dc73c6a8298c` | `da59473debe6d255a8500527337963620012485101a192a19e94c46da7334a6b` |
+| `checker-b4eee031f709` | Boolean lab runtime | `5bb13f5a9500eefe6c2ee24c25477a97159359a6b1e465ba7fd8ea96c30750bd` | `da59473debe6d255a8500527337963620012485101a192a19e94c46da7334a6b` |
+| `checker-b4eee031f709` | Experiment controller | `8acd80175b60ed4e4cc2646cdb95ea2ff245e7fbc0f01208388947ae6cfe89c4` | `da59473debe6d255a8500527337963620012485101a192a19e94c46da7334a6b` |
 
 For a machine proof choose its model ID separately; for histories choose the root,
 for changes/repairs the parent. Runtime or checker identity does not identify the
