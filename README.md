@@ -25,7 +25,7 @@ sg certificate-repair-pack peterson-demo/broken.json peterson-demo/peterson.json
   --output peterson-demo/repair.json
 sg certificate-repair-check peterson-demo/repair.json --expect-model "$MODEL" \
   --expect-checker "$CHECKER" --output peterson-demo/successor.json
-sg evidence-unpack peterson-demo/repair.json --output peterson-demo/offline
+sg unpack --expect-kind evidence peterson-demo/repair.json --output peterson-demo/offline
 python -I -S peterson-demo/offline/replay.py peterson-demo/offline/repair.json \
   --repair --expect-model "$MODEL" --expect-checker "$CHECKER" \
   --output peterson-demo/replayed.json
@@ -257,6 +257,21 @@ machine input, and always excludes the codes that name no value — three colour
 two bits, and the fourth code is not a state of anything. It is outside every checked
 closure and proves nothing by itself; `tools/README.md` says what is measured about
 it and what is not.
+
+## Two commands read packets, and you say which kind
+
+There is one `sg inspect` and one `sg unpack`, and both require `--expect-kind`:
+
+```sh
+sg inspect --expect-kind machine world.json
+sg unpack --expect-kind evidence repair.json --output offline
+```
+
+Sixteen commands used to spell that expectation in their own names. The kind is now
+an argument, like `--expect-model`, `--expect-checker` and `--expect-root` elsewhere:
+the caller states what it believes the file is, and a file of another kind is refused
+with exit 2. A single command that read the packet's own type field would let the
+packet choose its reader, which is the one thing this repository does not do.
 
 ## Development
 

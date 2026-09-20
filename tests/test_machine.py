@@ -265,7 +265,7 @@ class Machine(unittest.TestCase):
             self.assertEqual(code,0);self.assertEqual(output.read_bytes(),machine.create(spec))
             out=io.StringIO()
             with redirect_stdout(out),patch.object(compiler,'compile_source',side_effect=AssertionError('inspect')):
-                code=cli.main(['machine-inspect',str(output)])
+                code=cli.main(['inspect', '--expect-kind', 'machine',str(output)])
             self.assertEqual((code,json.loads(out.getvalue())['status']),(0,'unchecked_machine'))
             path.write_text('{"state": [], "state": ["q"]}')
             with redirect_stdout(io.StringIO()),redirect_stderr(io.StringIO()):

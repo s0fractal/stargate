@@ -17,10 +17,11 @@ ROOT=Path(__file__).resolve().parents[1]
 class Transport(unittest.TestCase):
     def test_real_surface_removes_six_commands_without_aliases(self):
         choices=next(a.choices for a in cli.parser()._actions if isinstance(a,argparse._SubParsersAction))
-        self.assertEqual(len(choices),69)
+        self.assertEqual(len(choices),55)
         for name in ('machine-certify','certificate-unpack','refutation-unpack','certificate-change-unpack','certificate-history-unpack','certificate-repair-unpack'):
             self.assertNotIn(name,choices)
-        self.assertIn('evidence-unpack',choices)
+        self.assertIn('unpack',choices)
+        self.assertIn('inspect',choices)
 
     def test_anchor_table_matches_this_snapshot(self):
         table=(ROOT/'ANCHORS.md').read_text()
