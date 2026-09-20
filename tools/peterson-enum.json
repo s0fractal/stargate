@@ -1,0 +1,82 @@
+{
+  "enums": {
+    "a": [
+      "idle",
+      "want",
+      "wait",
+      "crit"
+    ],
+    "b": [
+      "idle",
+      "want",
+      "wait",
+      "crit"
+    ]
+  },
+  "events": [
+    "s"
+  ],
+  "flag_rules": {
+    "t": "(!s && a:want) || (t && !(s && b:want))"
+  },
+  "flags": [
+    "t"
+  ],
+  "goals": [
+    {
+      "a": "crit",
+      "b": "idle",
+      "t": true
+    },
+    {
+      "a": "idle",
+      "b": "crit",
+      "t": false
+    }
+  ],
+  "initial": {
+    "a": "idle",
+    "b": "idle",
+    "t": false
+  },
+  "invariant": "!(a:crit && b:crit)",
+  "max_atp": 4000,
+  "transitions": {
+    "a": [
+      [
+        "!s && a:idle",
+        "want"
+      ],
+      [
+        "!s && a:want",
+        "wait"
+      ],
+      [
+        "!s && a:wait && (b:idle || !t)",
+        "crit"
+      ],
+      [
+        "!s && a:crit",
+        "idle"
+      ]
+    ],
+    "b": [
+      [
+        "s && b:idle",
+        "want"
+      ],
+      [
+        "s && b:want",
+        "wait"
+      ],
+      [
+        "s && b:wait && (a:idle || t)",
+        "crit"
+      ],
+      [
+        "s && b:crit",
+        "idle"
+      ]
+    ]
+  }
+}
