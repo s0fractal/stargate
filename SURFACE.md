@@ -47,7 +47,7 @@ fail on a stale table.
 | `experiment-unpack` | inspect, explicitly execute, or export a runtime experiment | 0 | 0 | 0 | 0 |
 | `export` | verify and export one portable signed check | 2 | 0 | 0 | 0 |
 | `genesis` | show intrinsic I/K/S hashes | 1 | 1 | 0 | 0 |
-| `init` | create the object directory | 4 | 1 | 0 | 0 |
+| `init` | create the object directory | 4 | 1 | 1 | 0 |
 | `keygen` | write a new private seed (never overwrite) | 4 | 1 | 0 | 0 |
 | `lab-check` | exhaustively check a text proposal without trusted keys | 9 | 3 | 0 | 0 |
 | `lab-check-invariant` | recompute a finite property claim without trusting its author | 1 | 0 | 0 | 0 |
@@ -89,6 +89,11 @@ fail on a stale table.
 69 commands. `tests`, `examples` and `integration` count the quoted command name in those files; `docs` counts `sg NAME` or `NAME` in backticks across README, VISION, SPEC and ANCHORS. These are mentions, not coverage.
 
 <!-- inventory: end -->
+
+A worked example of that caveat, from this very table: `init` shows one mention under
+`examples` because `examples/two-phase-commit/two_phase_commit.py` names a coordinator
+state `'init'`. The counter sees a quoted string, not a command. Read the columns as
+"something here spells this name", never as coverage.
 
 ## What the numbers say
 
