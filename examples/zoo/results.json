@@ -1,0 +1,334 @@
+{
+  "mismatches": [
+    "interlock"
+  ],
+  "rows": [
+    {
+      "certificate": {
+        "bytes": 1913,
+        "states": 5
+      },
+      "event_bits": 1,
+      "measured": {
+        "evidence": {
+          "broken": "verified_refutation",
+          "correct": "verified_certificate"
+        },
+        "search": {
+          "one-edit": {
+            "attempted": 25,
+            "status": "found"
+          },
+          "trace": {
+            "attempted": 42,
+            "status": "found"
+          }
+        }
+      },
+      "name": "alternating-bit",
+      "refutation": {
+        "bytes": 1184,
+        "excluded_states": null,
+        "kind": "unsafe",
+        "trace_steps": 1
+      },
+      "registered": {
+        "evidence": {
+          "broken": "verified_refutation",
+          "correct": "verified_certificate"
+        },
+        "search": {}
+      },
+      "state_bits": 4,
+      "title": "Alternating bit protocol, one frame in flight"
+    },
+    {
+      "certificate": {
+        "bytes": 1114,
+        "states": 3
+      },
+      "event_bits": 2,
+      "measured": {
+        "evidence": {
+          "broken": "verified_refutation",
+          "correct": "verified_certificate"
+        },
+        "search": {
+          "one-edit": {
+            "attempted": 102,
+            "status": "found"
+          },
+          "trace": {
+            "attempted": 11,
+            "status": "found"
+          }
+        }
+      },
+      "name": "bounded-buffer",
+      "refutation": {
+        "bytes": 953,
+        "excluded_states": null,
+        "kind": "unsafe",
+        "trace_steps": 3
+      },
+      "registered": {
+        "evidence": {
+          "broken": "verified_refutation",
+          "correct": "verified_certificate"
+        },
+        "search": {}
+      },
+      "state_bits": 2,
+      "title": "Producer and consumer over a buffer of capacity two"
+    },
+    {
+      "certificate": null,
+      "event_bits": 1,
+      "measured": {
+        "evidence": {
+          "broken": "verified_refutation",
+          "correct": "verified_refutation"
+        },
+        "search": {
+          "one-edit": {
+            "attempted": 11,
+            "status": "neighborhood_exhausted"
+          },
+          "trace": {
+            "attempted": 11,
+            "status": "neighborhood_exhausted"
+          }
+        }
+      },
+      "name": "interlock",
+      "refutation": {
+        "bytes": 729,
+        "excluded_states": null,
+        "kind": "unsafe",
+        "trace_steps": 2
+      },
+      "registered": {
+        "evidence": {
+          "broken": "verified_refutation",
+          "correct": "verified_certificate"
+        },
+        "search": {}
+      },
+      "state_bits": 2,
+      "title": "Door interlock: the door may only be open while armed"
+    },
+    {
+      "certificate": {
+        "bytes": 3216,
+        "states": 20
+      },
+      "event_bits": 1,
+      "measured": {
+        "evidence": {
+          "broken": "verified_refutation",
+          "correct": "verified_certificate"
+        },
+        "search": {
+          "one-edit": {
+            "attempted": 178,
+            "status": "neighborhood_exhausted"
+          },
+          "trace": {
+            "attempted": 1,
+            "status": "found"
+          }
+        }
+      },
+      "name": "peterson",
+      "refutation": {
+        "bytes": 1927,
+        "excluded_states": null,
+        "kind": "unsafe",
+        "trace_steps": 6
+      },
+      "registered": {
+        "evidence": {
+          "broken": "verified_refutation",
+          "correct": "verified_certificate"
+        },
+        "search": {}
+      },
+      "state_bits": 5,
+      "title": "Peterson's mutual exclusion for two processes"
+    },
+    {
+      "certificate": {
+        "bytes": 2112,
+        "states": 10
+      },
+      "event_bits": 1,
+      "measured": {
+        "evidence": {
+          "broken": "verified_refutation",
+          "correct": "verified_certificate"
+        },
+        "search": {
+          "one-edit": {
+            "attempted": 24,
+            "status": "found"
+          },
+          "trace": {
+            "attempted": 28,
+            "status": "found"
+          }
+        }
+      },
+      "name": "philosophers",
+      "refutation": {
+        "bytes": 1321,
+        "excluded_states": null,
+        "kind": "unsafe",
+        "trace_steps": 4
+      },
+      "registered": {
+        "evidence": {
+          "broken": "verified_refutation",
+          "correct": "verified_certificate"
+        },
+        "search": {}
+      },
+      "state_bits": 4,
+      "title": "Two dining philosophers with a shared scheduler bit"
+    },
+    {
+      "certificate": {
+        "bytes": 1415,
+        "states": 6
+      },
+      "event_bits": 2,
+      "measured": {
+        "evidence": {
+          "broken": "verified_refutation",
+          "correct": "verified_certificate"
+        },
+        "search": {
+          "one-edit": {
+            "attempted": 42,
+            "status": "found"
+          },
+          "trace": {
+            "attempted": 46,
+            "status": "found"
+          }
+        }
+      },
+      "name": "readers-writer",
+      "refutation": {
+        "bytes": 942,
+        "excluded_states": null,
+        "kind": "unsafe",
+        "trace_steps": 2
+      },
+      "registered": {
+        "evidence": {
+          "broken": "verified_refutation",
+          "correct": "verified_certificate"
+        },
+        "search": {}
+      },
+      "state_bits": 3,
+      "title": "One reader, one writer, one pending write request"
+    },
+    {
+      "certificate": {
+        "bytes": 1258,
+        "states": 3
+      },
+      "event_bits": 1,
+      "measured": {
+        "evidence": {
+          "broken": "verified_refutation",
+          "correct": "verified_certificate"
+        },
+        "search": {
+          "one-edit": {
+            "attempted": 37,
+            "status": "neighborhood_exhausted"
+          },
+          "trace": {
+            "attempted": 39,
+            "status": "neighborhood_exhausted"
+          }
+        }
+      },
+      "name": "token-ring-natural",
+      "refutation": {
+        "bytes": 875,
+        "excluded_states": null,
+        "kind": "unsafe",
+        "trace_steps": 1
+      },
+      "registered": {
+        "evidence": {
+          "broken": "verified_refutation",
+          "correct": "verified_certificate"
+        },
+        "search": {
+          "one-edit": {
+            "attempted": 37,
+            "status": "neighborhood_exhausted"
+          },
+          "trace": {
+            "attempted": 39,
+            "status": "neighborhood_exhausted"
+          }
+        }
+      },
+      "state_bits": 3,
+      "title": "Three-node token ring, natural duplication fault"
+    },
+    {
+      "certificate": {
+        "bytes": 1258,
+        "states": 3
+      },
+      "event_bits": 1,
+      "measured": {
+        "evidence": {
+          "broken": "verified_refutation",
+          "correct": "verified_certificate"
+        },
+        "search": {
+          "one-edit": {
+            "attempted": 12,
+            "status": "found"
+          },
+          "trace": {
+            "attempted": 15,
+            "status": "found"
+          }
+        }
+      },
+      "name": "token-ring-onestep",
+      "refutation": {
+        "bytes": 885,
+        "excluded_states": null,
+        "kind": "unsafe",
+        "trace_steps": 1
+      },
+      "registered": {
+        "evidence": {
+          "broken": "verified_refutation",
+          "correct": "verified_certificate"
+        },
+        "search": {
+          "one-edit": {
+            "attempted": 12,
+            "status": "found"
+          },
+          "trace": {
+            "attempted": 15,
+            "status": "found"
+          }
+        }
+      },
+      "state_bits": 3,
+      "title": "Three-node token ring, fault constructed to sit inside the one-edit neighbourhood"
+    }
+  ]
+}
