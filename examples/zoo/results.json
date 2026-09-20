@@ -44,6 +44,54 @@
     },
     {
       "certificate": {
+        "bytes": 896,
+        "states": 3
+      },
+      "event_bits": 1,
+      "measured": {
+        "evidence": {
+          "broken": "verified_refutation",
+          "correct": "verified_certificate"
+        },
+        "search": {
+          "one-edit": {
+            "attempted": 7,
+            "status": "found"
+          },
+          "trace": {
+            "attempted": 9,
+            "status": "found"
+          }
+        }
+      },
+      "name": "bounded-buffer-gemini",
+      "refutation": {
+        "bytes": 755,
+        "excluded_states": null,
+        "kind": "unsafe",
+        "trace_steps": 3
+      },
+      "registered": {
+        "evidence": {
+          "broken": "verified_refutation",
+          "correct": "verified_certificate"
+        },
+        "search": {
+          "one-edit": {
+            "attempted": 7,
+            "status": "found"
+          },
+          "trace": {
+            "attempted": 9,
+            "status": "found"
+          }
+        }
+      },
+      "state_bits": 2,
+      "title": "Two-slot counter buffer (Gemini session encoding)"
+    },
+    {
+      "certificate": {
         "bytes": 1114,
         "states": 3
       },
@@ -116,6 +164,54 @@
       },
       "state_bits": 2,
       "title": "Door interlock: the door may only be open while armed"
+    },
+    {
+      "certificate": {
+        "bytes": 1220,
+        "states": 5
+      },
+      "event_bits": 1,
+      "measured": {
+        "evidence": {
+          "broken": "verified_refutation",
+          "correct": "verified_certificate"
+        },
+        "search": {
+          "one-edit": {
+            "attempted": 19,
+            "status": "found"
+          },
+          "trace": {
+            "attempted": 21,
+            "status": "found"
+          }
+        }
+      },
+      "name": "lift-doors",
+      "refutation": {
+        "bytes": 967,
+        "excluded_states": null,
+        "kind": "unsafe",
+        "trace_steps": 4
+      },
+      "registered": {
+        "evidence": {
+          "broken": "verified_refutation",
+          "correct": "verified_certificate"
+        },
+        "search": {
+          "one-edit": {
+            "attempted": 19,
+            "status": "found"
+          },
+          "trace": {
+            "attempted": 21,
+            "status": "found"
+          }
+        }
+      },
+      "state_bits": 3,
+      "title": "Lift door / motor interlock (Gemini session, final variant in the log)"
     },
     {
       "certificate": {
@@ -194,6 +290,85 @@
       },
       "state_bits": 4,
       "title": "Two dining philosophers with a shared scheduler bit"
+    },
+    {
+      "certificate": null,
+      "event_bits": 1,
+      "measured": {
+        "evidence": {
+          "broken": "verified_refutation",
+          "correct": "verified_refutation"
+        },
+        "search": {
+          "one-edit": {
+            "attempted": 4,
+            "status": "found"
+          },
+          "trace": {
+            "attempted": 6,
+            "status": "found"
+          }
+        }
+      },
+      "name": "railroad-crossing-v1",
+      "refutation": {
+        "bytes": 987,
+        "excluded_states": null,
+        "kind": "unsafe",
+        "trace_steps": 4
+      },
+      "registered": {
+        "evidence": {
+          "broken": "verified_refutation",
+          "correct": "verified_refutation"
+        },
+        "search": {}
+      },
+      "state_bits": 3,
+      "title": "Railroad crossing gate (Gemini session, FIRST variant, discarded in the log)"
+    },
+    {
+      "certificate": {
+        "bytes": 1280,
+        "states": 6
+      },
+      "event_bits": 1,
+      "measured": {
+        "evidence": {
+          "broken": "verified_certificate",
+          "correct": "verified_certificate"
+        },
+        "search": {
+          "one-edit": {
+            "attempted": 0,
+            "status": "not_needed"
+          },
+          "trace": {
+            "attempted": 0,
+            "status": "not_needed"
+          }
+        }
+      },
+      "name": "railroad-crossing",
+      "refutation": null,
+      "registered": {
+        "evidence": {
+          "broken": "verified_certificate",
+          "correct": "verified_certificate"
+        },
+        "search": {
+          "one-edit": {
+            "attempted": 0,
+            "status": "not_needed"
+          },
+          "trace": {
+            "attempted": 0,
+            "status": "not_needed"
+          }
+        }
+      },
+      "state_bits": 3,
+      "title": "Railroad crossing gate (Gemini session, second variant in the log)"
     },
     {
       "certificate": {
@@ -329,6 +504,54 @@
       },
       "state_bits": 3,
       "title": "Three-node token ring, fault constructed to sit inside the one-edit neighbourhood"
+    },
+    {
+      "certificate": {
+        "bytes": 1321,
+        "states": 5
+      },
+      "event_bits": 1,
+      "measured": {
+        "evidence": {
+          "broken": "verified_refutation",
+          "correct": "verified_certificate"
+        },
+        "search": {
+          "one-edit": {
+            "attempted": 11,
+            "status": "found"
+          },
+          "trace": {
+            "attempted": 13,
+            "status": "found"
+          }
+        }
+      },
+      "name": "traffic-lights",
+      "refutation": {
+        "bytes": 854,
+        "excluded_states": null,
+        "kind": "unsafe",
+        "trace_steps": 1
+      },
+      "registered": {
+        "evidence": {
+          "broken": "verified_refutation",
+          "correct": "verified_certificate"
+        },
+        "search": {
+          "one-edit": {
+            "attempted": 11,
+            "status": "found"
+          },
+          "trace": {
+            "attempted": 13,
+            "status": "found"
+          }
+        }
+      },
+      "state_bits": 3,
+      "title": "Two-way traffic lights with a request latch (Gemini session)"
     }
   ]
 }

@@ -1,4 +1,4 @@
-# Zoo: eight systems through the same pipeline
+# Zoo: thirteen systems through the same pipeline
 
 Every system here is a pair of models over the same `state`, `events`, `initial`,
 `invariant` and `goals`; only `next` differs. The harness builds both, asks
@@ -21,13 +21,18 @@ Measured at build 41 (`16eb087`), checker
 | system | bits (state/event) | refutation | trace | certificate | one-edit | trace search |
 | --- | --- | --- | --- | --- | --- | --- |
 | `alternating-bit` | 4/1 | unsafe | 1 steps | 5 states, 1913 B | found at 25 | found at 42 |
+| `bounded-buffer-gemini` | 2/1 | unsafe | 3 steps | 3 states, 896 B | found at 7 | found at 9 |
 | `bounded-buffer` | 2/2 | unsafe | 3 steps | 3 states, 1114 B | found at 102 | found at 11 |
 | `interlock` | 2/1 | unsafe | 2 steps | — | neighborhood_exhausted at 11 | neighborhood_exhausted at 11 |
+| `lift-doors` | 3/1 | unsafe | 4 steps | 5 states, 1220 B | found at 19 | found at 21 |
 | `peterson` | 5/1 | unsafe | 6 steps | 20 states, 3216 B | neighborhood_exhausted at 178 | found at 1 |
 | `philosophers` | 4/1 | unsafe | 4 steps | 10 states, 2112 B | found at 24 | found at 28 |
+| `railroad-crossing-v1` | 3/1 | unsafe | 4 steps | — | found at 4 | found at 6 |
+| `railroad-crossing` | 3/1 | — | — | 6 states, 1280 B | not_needed at 0 | not_needed at 0 |
 | `readers-writer` | 3/2 | unsafe | 2 steps | 6 states, 1415 B | found at 42 | found at 46 |
 | `token-ring-natural` | 3/1 | unsafe | 1 steps | 3 states, 1258 B | neighborhood_exhausted at 37 | neighborhood_exhausted at 39 |
 | `token-ring-onestep` | 3/1 | unsafe | 1 steps | 3 states, 1258 B | found at 12 | found at 15 |
+| `traffic-lights` | 3/1 | unsafe | 1 steps | 5 states, 1321 B | found at 11 | found at 13 |
 
 "trace" is the length of the refuting counterexample for the broken model;
 "certificate" is the inductive set proved for the correct one. The `interlock`
@@ -35,14 +40,17 @@ certificate column is empty because both of its models are refuted — see below
 
 ## What the numbers say about the trace strategy
 
-On eight systems, with the same quota per system:
+On twelve systems that need a repair at all, with the same quota per system:
 
-* `trace` needed **more** attempts on five: alternating-bit (42 vs 25),
-  readers-writer (46 vs 42), philosophers (28 vs 24), token-ring-onestep (15 vs 12),
-  token-ring-natural (39 vs 37, both exhausted).
+* `trace` needed **more** attempts on nine: alternating-bit (42 vs 25),
+  readers-writer (46 vs 42), philosophers (28 vs 24), lift-doors (21 vs 19),
+  traffic-lights (13 vs 11), bounded-buffer-gemini (9 vs 7), railroad-crossing-v1
+  (6 vs 4), token-ring-onestep (15 vs 12), token-ring-natural (39 vs 37, both
+  exhausted). Eight of those nine cost exactly two extra attempts.
 * It needed the **same** on one: interlock, where both strategies exhaust at 11.
 * It needed **fewer** on two: bounded-buffer (11 vs 102) and peterson (1 attempt and
   a repair, where one-edit exhausts after 178 without one).
+* `railroad-crossing` needs no repair at all, so neither strategy runs.
 
 So the ordering is not an improvement of the search in general; it is an
 improvement on models whose fault sits upstream of the violated invariant, which
@@ -51,8 +59,8 @@ the cost — Peterson has no repair inside the plain one-edit neighborhood at al
 Where it loses, it loses two to four attempts, except alternating-bit, where the
 compound exchanges cost 68% more work before the same repair.
 
-This is eight systems chosen by one author, with one quota each and one fault per
-system. It does not establish an average, a distribution, or that either strategy
+This is thirteen systems, eight chosen by one author and five carried over from an
+earlier session, with one quota each and one fault per system. It does not establish an average, a distribution, or that either strategy
 behaves this way on systems outside this file.
 
 ## The one disagreement with the pre-registration
@@ -92,6 +100,30 @@ That is the red example for a goal-reachability obligation: a certificate would
 have to prove the goals reachable from *every* state of the certified set, not only
 from the initial one. Nothing in this pull request adds that obligation.
 
+## The five systems from the earlier session
+
+`lift-doors`, `traffic-lights`, `bounded-buffer-gemini` and the two
+`railroad-crossing` variants come from a Gemini session log; the owner carried the
+rules over unchanged and reported that session's numbers before this harness ever
+saw them. They are registered in
+[REGISTRY-GEMINI.md](REGISTRY-GEMINI.md) and every registered cell reproduced here:
+19/21, 11/13 and 7/9 attempts, and both railroad verdicts.
+
+The two railroad rows are the interesting ones, and neither is a success:
+
+* `railroad-crossing-v1` is the first variant. Its **correct** model is refuted as
+  well, so the pair says nothing about the defect — the certificate column is empty
+  for it. Repair search still finds a repair for the broken side, because it repairs
+  against the invariant, not against whatever the author meant by "correct".
+* `railroad-crossing` is what the rules became after that. Now the **broken** model
+  certifies: the defect stopped being a defect, `repair-search` answers `not_needed`,
+  and there is nothing left to demonstrate. That row never reached the earlier
+  table.
+
+Both variants are kept as they are, marked as a discarded variant and its
+replacement. This is what "the table wins" looks like when the table has nothing to
+show.
+
 ## What did not fit
 
 * **Hyman's algorithm** (CACM 9(1), 1966) was dropped before any run. Its fault is
@@ -99,11 +131,12 @@ from the initial one. Nothing in this pull request adds that obligation.
   are atomic per process, so every six-bit encoding of it is safe for the wrong
   reason. No command refused it — it was never submitted, and that is the honest
   statement: this is an analysis, not a measurement.
-* **Four systems from an earlier Gemini session** (lift doors, traffic lights,
-  bounded buffer, railroad crossing) were requested with their rules frozen as they
-  are. They are not in this repository or in any handoff, so nothing was frozen and
-  nothing was invented in their place. The `bounded-buffer` here is a new encoding
-  written for this zoo.
+* **The four systems from the earlier Gemini session** were not in this repository
+  or in any handoff when the first eight rows were written, so nothing was frozen
+  and nothing was invented in their place. The owner has since supplied them from
+  the session log and they are the five rows above. The plain `bounded-buffer` row
+  remains a separate encoding written for this zoo; `bounded-buffer-gemini` is the
+  one from the log.
 * One command did refuse during the work: `machine-create` rejected state names in
   an order of my choosing —
   `InvalidRecord: inputs must be at most eight sorted unique WPL names`. The
