@@ -44,6 +44,10 @@ class Zoo(unittest.TestCase):
             for field in ('state', 'events', 'initial', 'invariant', 'goals'):
                 self.assertEqual(correct[field], broken[field], (system['name'], field))
 
+    def test_every_system_file_has_a_row(self):
+        self.assertEqual(sorted(system['name'] for system in self.systems),
+                         sorted(row['name'] for row in self.committed['rows']))
+
     def test_table_regenerates(self):
         self.assertEqual(self.module.measure(self.systems), self.committed['rows'])
 
