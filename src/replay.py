@@ -8,6 +8,7 @@ from pathlib import Path
 import sys
 
 PROOF = ('__init__.py', 'store.py', 'canonical.py', 'boolean.py', 'certificate.py')
+PROJECTION = PROOF + ('projection_check.py',)
 SUBJECT = ('__init__.py', 'kernel.py', 'store.py', 'canonical.py', 'checks.py', 'compiler.py', 'boolean.py')
 LAB = SUBJECT + ('properties.py', 'lab.py', 'invariants.py', 'lineage.py', 'labtask.py', 'machine.py', 'composition.py')
 
@@ -21,9 +22,11 @@ def parser():
     for name in ('runtime', 'checker', 'controller'): pins.add_argument('--expect-'+name)
     mode = p.add_mutually_exclusive_group()
     for name in ('invariant','lineage','task','machine','machine-discover','machine-claim',
-                 'machine-change','composition','composition-change','change','history','refutation','repair'):
+                 'machine-change','composition','composition-change','change','history','refutation','repair',
+                 'projection'):
         mode.add_argument('--'+name, action='store_true')
     for name in ('model','root','task','machine','composition'): p.add_argument('--expect-'+name)
+    p.add_argument('--expect-projection-checker')
     p.add_argument('--max-steps', type=int)  # default: the loaded checker's own ceiling
     p.add_argument('--max-edges', type=int, default=256)
     p.add_argument('--rows', type=int)
@@ -57,6 +60,12 @@ def load(texts, names):
 
 
 def dispatch(a, root):
+    if a.projection:
+        from stargate import certificate as c, projection_check as pc
+        with a.proposal.open('rb') as f: raw = f.read(pc.MAX_PROJECTION + 1)
+        report = pc.check(raw, c.read(root/'certificate.json'), a.expect_model, a.expect_checker,
+                          a.expect_projection_checker)
+        return report, None, pc.exit_code(report)
     if a.expect_checker:
         from stargate import certificate as c
         check = c.verify_repair if a.repair else c.verify_history if a.history else c.verify_change if a.change else c.verify_refutation if a.refutation else c.verify
@@ -101,7 +110,8 @@ def main(argv=None):
     p = parser(); a = p.parse_intermixed_args(argv)
     if a.output and a.output_flag: p.error('choose one output path')
     a.output = a.output or a.output_flag
-    proof_modes = a.change or a.history or a.refutation or a.repair
+    proof_modes = a.change or a.history or a.refutation or a.repair or a.projection
+    if bool(a.projection) != bool(a.expect_projection_checker): p.error('--projection and --expect-projection-checker come together')
     lab_modes = a.invariant or a.lineage or a.task or a.machine or a.machine_change or a.machine_discover or a.machine_claim or a.composition or a.composition_change
     if (proof_modes and not a.expect_checker) or (lab_modes and not a.expect_runtime): p.error('mode and anchor family disagree')
     if bool(a.expect_checker) != bool(a.expect_model): p.error('proof checking requires --expect-model')
@@ -114,15 +124,16 @@ def main(argv=None):
     if a.output and (a.expect_controller or (a.expect_checker and not (a.change or a.history or a.repair)) or a.invariant or a.machine or a.machine_discover or a.machine_claim or a.composition):
         p.error('this check does not produce successor bytes')
     root = Path(__file__).resolve().parent
-    names = PROOF if a.expect_checker else SUBJECT+('experiment.py',) if a.expect_controller else LAB
-    expected = a.expect_checker or a.expect_controller or a.expect_runtime
+    names = PROJECTION if a.projection else PROOF if a.expect_checker else SUBJECT+('experiment.py',) if a.expect_controller else LAB
+    expected = a.expect_projection_checker or a.expect_checker or a.expect_controller or a.expect_runtime
     if re.fullmatch(r'[0-9a-f]{64}', expected) is None: p.error('expected a lowercase SHA-256 source anchor')
-    unavailable = 'checker_unavailable' if a.expect_checker else 'controller_unavailable' if a.expect_controller else 'runtime_unavailable'
+    unavailable = 'projection_checker_unavailable' if a.projection else 'checker_unavailable' if a.expect_checker else 'controller_unavailable' if a.expect_controller else 'runtime_unavailable'
     try:
         if a.expect_runtime:
             texts = {n:(root/'stargate'/n).read_bytes().decode('utf-8') for n in names}
         else:
-            with (root/('checker.json' if a.expect_checker else 'controller.json')).open('rb') as f: raw = f.read((1024*1024 if a.expect_checker else 4*1024*1024)+1)
+            source_map = 'projection-checker.json' if a.projection else 'checker.json' if a.expect_checker else 'controller.json'
+            with (root/source_map).open('rb') as f: raw = f.read((1024*1024 if a.expect_checker else 4*1024*1024)+1)
             if len(raw)>(1024*1024 if a.expect_checker else 4*1024*1024): raise ValueError('source map exceeds limit')
             texts = json.loads(raw)
         if type(texts) is not dict or set(texts)!=set(names) or any(type(s) is not str for s in texts.values()):

@@ -20,16 +20,17 @@ import re
 import sys
 
 ROOT = Path(__file__).resolve().parent.parent
-CLOSURES = ('Machine proof checker', 'Boolean lab runtime', 'Experiment controller')
+CLOSURES = ('Machine proof checker', 'Boolean lab runtime', 'Experiment controller', 'Projection checker')
 ROW = re.compile(r'^\|\s*`([^`]+)`\s*\|\s*([^|]+?)\s*\|\s*`([0-9a-f]{64})`\s*\|\s*`([0-9a-f]{64})`\s*\|$')
 
 
 def current():
     """Recomputed from the installed package, never read from the table."""
-    from stargate import certificate, experiment, lab
+    from stargate import certificate, experiment, lab, projection_check
     return {'Machine proof checker': certificate.checker_id(),
             'Boolean lab runtime': lab.runtime_digest(lab.runtime_sources()),
-            'Experiment controller': experiment.controller_id()}
+            'Experiment controller': experiment.controller_id(),
+            'Projection checker': projection_check.projection_checker_id()}
 
 
 def launcher():

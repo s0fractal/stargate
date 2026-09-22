@@ -196,8 +196,14 @@ class Control(unittest.TestCase):
             out = tmp / 'out'
             self.assertTrue((out / 'projection-checker.json').exists(), 'nothing was unpacked')
             sources = decode((out / 'projection-checker.json').read_bytes())
-            sources['projection_check.py'] = sources['projection_check.py'].replace(
-                '        if actual != expected:\n', '        if False:\n')
+            # A verifier that answers conforms for everything: no row comparison, and no
+            # self-identity check either — the one a lying verifier would drop first.
+            lying = sources['projection_check.py']
+            for site in ('        if actual != expected:\n',
+                         '    if projection_checker_id() != expected_projection_checker:\n'):
+                self.assertIn(site, lying)
+                lying = lying.replace(site, site[:len(site) - len(site.lstrip())] + 'if False:\n')
+            sources['projection_check.py'] = lying
             (out / 'projection-checker.json').write_bytes(canon(sources))
             launcher = (out / 'replay.py').read_text()
             self.assertIn(self.COMPARISON, launcher, 'mutation site not found: the control would prove nothing')

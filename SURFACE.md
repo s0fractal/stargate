@@ -62,8 +62,8 @@ fail on a stale table.
 | `model-apply` | apply a certified change or repair to a bare Git branch | 2 | 3 | 0 | 0 |
 | `model-project` | write a machine's full transition table as a canonical projection, unchecked | 4 | 1 | 0 | 0 |
 | `policy` | compile a boolean WPL file and sign its decision | 25 | 0 | 1 | 0 |
-| `projection-check` | check a projection row by row against a verified certificate of its model | 1 | 1 | 0 | 0 |
-| `projection-checker` | identify the independent projection checker | 1 | 2 | 0 | 0 |
+| `projection-check` | check a projection row by row against a verified certificate of its model | 2 | 1 | 0 | 0 |
+| `projection-checker` | identify the independent projection checker | 1 | 3 | 0 | 0 |
 | `put` | store object bytes | 0 | 1 | 0 | 0 |
 | `record` | execute a check and store its signed decision | 10 | 3 | 0 | 0 |
 | `refutation-check` | check a refutation claim against an expected model and checker | 1 | 0 | 0 | 0 |
@@ -71,7 +71,7 @@ fail on a stale table.
 | `repair-search` | search a bounded neighborhood for a certified model repair | 2 | 2 | 0 | 0 |
 | `require` | require a verified accept for the recipient's rule and facts | 4 | 1 | 0 | 0 |
 | `runtime-pack` | snapshot the compiler source closure; never execute it | 0 | 1 | 0 | 0 |
-| `unpack` | write a packet of a stated kind and an offline launcher into a directory | 12 | 3 | 0 | 0 |
+| `unpack` | write a packet of a stated kind and an offline launcher into a directory | 17 | 4 | 0 | 0 |
 | `verify` | verify a stored signed record by independent re-execution | 35 | 4 | 0 | 0 |
 | `verify-bundle` | verify a file without any local object store | 1 | 0 | 0 | 0 |
 
