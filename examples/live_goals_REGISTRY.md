@@ -75,3 +75,47 @@ the verdict.
 
 The two rows marked "already measured" are recorded for completeness and are not
 counted as predictions. Disagreements are reported, not corrected.
+
+---
+
+# Third registration: the step quota and the consumers (2026-09-23)
+
+Written after the outside review of head `77cb68e` and before any fix. The quota
+defect was reproduced once, in a scratch script, before this text was written: a
+valid certificate of 749 989 bytes stopped at `incomplete` / `step_quota` after
+256 edges and 4 032 path steps, with 0 of its 4 096 rank checks done. That run is
+the reason for this registration, not a result of it.
+
+## The bound, derived from the schema
+
+A certificate model has at most 6 state bits and 2 event bits, so at most 64
+certified states and 4 events per state. The checker charges one step per
+closure edge, per goal-path step and per rank row:
+
+| part | worst case | steps |
+| --- | --- | --- |
+| closure edges | 64 states × 4 events | 256 |
+| goal paths | 64 goals × 63 steps | 4 032 |
+| rank rows | 64 live goals × 64 states | 4 096 |
+| total | | **8 384** |
+
+## Expected outcomes
+
+* A six-bit counter with 64 goals, all live, 63-step paths and full rank maps is a
+  valid certificate within 1 MiB; at the default quota it is
+  `verified_certificate`, having charged exactly 8 384 steps.
+* The same certificate at `max_steps=8383` is `incomplete` / `step_quota`.
+* `max_steps=8385` is refused as invalid input.
+* `search_machine` on the philosophers model with its goals live reports
+  `parent_rejected`, and `sg machine-search` exits 4.
+* `machine.verify_change` with that model as parent reports `parent_rejected`,
+  program `parent`.
+* A composition has no `live_goals` field; a composition spec that carries one is
+  refused as invalid input. This already holds and is recorded as a guard, not a
+  prediction of a change.
+* The zoo table does not change: raising a ceiling changes no verdict below it.
+
+## Control
+
+With the quota put back to 4 288, the counter certificate must come back
+`incomplete` again.
