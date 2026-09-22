@@ -205,7 +205,7 @@ class PropertyWorlds(unittest.TestCase):
                 return code,json.loads(out.getvalue() or err.getvalue())
             code,_=run('lab-create',path/'rule.wpl','--input','a','--input','b','--properties',path/'props.json','--output',path/'world.json')
             self.assertEqual(code,0);raw=(path/'world.json').read_bytes()
-            code,r=run('lab-inspect',path/'world.json')
+            code,r=run('inspect', '--expect-kind', 'lab',path/'world.json')
             self.assertEqual((code,r['contract'],r['objective'],r['properties']),(0,'boolean-properties-1','satisfy',obligations()))
             for expr,expected in [('a || b',0),('!(a && b)',4)]:
                 (path/'proposal.json').write_text(json.dumps(dict(parent=lab.identity(raw),candidate=rule(expr))))

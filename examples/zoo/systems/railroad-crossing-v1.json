@@ -1,0 +1,47 @@
+{
+  "name": "railroad-crossing-v1",
+  "title": "Railroad crossing gate (Gemini session, FIRST variant, discarded in the log)",
+  "source": "Gemini session log, 2026-09-20; rules copied verbatim from the log, not edited after any run.",
+  "state": [
+    "app",
+    "g",
+    "t"
+  ],
+  "events": [
+    "e"
+  ],
+  "initial": [
+    {
+      "app": false,
+      "g": false,
+      "t": false
+    }
+  ],
+  "invariant": "!t || g",
+  "goals": [
+    {
+      "app": true,
+      "g": true,
+      "t": true
+    },
+    {
+      "app": false,
+      "g": false,
+      "t": false
+    }
+  ],
+  "correct": {
+    "app": "(e && !t) || (app && !t)",
+    "g": "app",
+    "t": "(app && g && !t) || (t && !e)"
+  },
+  "broken": {
+    "app": "(e && !t) || (app && !t)",
+    "g": "app",
+    "t": "(app && !t) || (t && !e)"
+  },
+  "note": "Discarded variant kept on purpose.",
+  "max_atp": 1000,
+  "max_candidates": 256,
+  "constructed_for_neighbourhood": null
+}

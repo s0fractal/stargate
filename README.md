@@ -25,7 +25,7 @@ sg certificate-repair-pack peterson-demo/broken.json peterson-demo/peterson.json
   --output peterson-demo/repair.json
 sg certificate-repair-check peterson-demo/repair.json --expect-model "$MODEL" \
   --expect-checker "$CHECKER" --output peterson-demo/successor.json
-sg evidence-unpack peterson-demo/repair.json --output peterson-demo/offline
+sg unpack --expect-kind evidence peterson-demo/repair.json --output peterson-demo/offline
 python -I -S peterson-demo/offline/replay.py peterson-demo/offline/repair.json \
   --repair --expect-model "$MODEL" --expect-checker "$CHECKER" \
   --output peterson-demo/replayed.json
@@ -139,9 +139,9 @@ On this Peterson example, at the same 256-candidate limit:
 | Backward priority + exchanges + screening | 1 | 2 | 1 | Found |
 
 The expanded grammar makes this repair possible; ranking and screening reduce work.
-These counts describe this example, not a general speed guarantee: on the eight
+These counts describe this example, not a general speed guarantee: on the thirteen
 systems of [examples/zoo](examples/zoo/README.md), measured with one command,
-`trace` needed **more** attempts than `one-edit` on five of them, the same on one,
+`trace` needed **more** attempts than `one-edit` on nine of them, the same on one,
 and fewer on two. Where it helps it can change the outcome rather than the cost,
 and where it does not it costs extra work for the same repair. The found
 transition system matches the correct Peterson program-counter model on all 64
@@ -283,6 +283,30 @@ These remain useful tools, but their reports do not replace machine proof data:
 Use `sg --help` and `sg COMMAND --help` for arguments. `sg` and `stargate` are the
 same CLI. [SPEC.md](SPEC.md) owns semantics; [ARCHITECTURE.md](ARCHITECTURE.md) owns
 layer rules; [VISION.md](VISION.md) describes direction, not extra guarantees.
+
+## Writing a model over named values
+
+Bits are the contract, but a model does not have to be typed as bits.
+[`tools/enum_frontend.py`](tools/README.md) compiles enums and flags into the same
+machine input, and always excludes the codes that name no value — three colours take
+two bits, and the fourth code is not a state of anything. It is outside every checked
+closure and proves nothing by itself; `tools/README.md` says what is measured about
+it and what is not.
+
+## Two commands read packets, and you say which kind
+
+There is one `sg inspect` and one `sg unpack`, and both require `--expect-kind`:
+
+```sh
+sg inspect --expect-kind machine world.json
+sg unpack --expect-kind evidence repair.json --output offline
+```
+
+Sixteen commands used to spell that expectation in their own names. The kind is now
+an argument, like `--expect-model`, `--expect-checker` and `--expect-root` elsewhere:
+the caller states what it believes the file is, and a file of another kind is refused
+with exit 2. A single command that read the packet's own type field would let the
+packet choose its reader, which is the one thing this repository does not do.
 
 ## Development
 

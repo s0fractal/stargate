@@ -69,7 +69,9 @@ def measure(systems):
     from stargate import evidence, lab, machine
     from stargate.canonical import decode
     rows = []
-    registry = registered((HERE / 'REGISTRY.md').read_text())
+    registry = {}
+    for path in sorted(HERE.glob('REGISTRY*.md')):
+        registry.update(registered(path.read_text()))
     for system in systems:
         row = dict(name=system['name'], title=system['title'],
                    state_bits=len(system['state']), event_bits=len(system['events']))

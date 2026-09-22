@@ -20,6 +20,44 @@ from . import lab, search, invariants, lineage, labtask, machine, composition, e
 from .artifact import subject_hash, admit_bundle, admit_all, measure_subject
 
 
+INSPECT_KINDS = ('case', 'certificate', 'composition', 'experiment', 'lab', 'lab-task',
+                 'machine', 'refutation')
+UNPACK_KINDS = ('case', 'composition', 'evidence', 'experiment', 'lab', 'lab-task',
+                'lineage', 'machine')
+
+HELP = {
+    # One sentence per command: the families below are built in loops, and a loop
+    # cannot say what its members do. `sg --help` is read by people who have not
+    # read this file.
+    'evidence-check': 'check a certificate or refutation against an expected model and checker',
+    'refutation-check': 'check a refutation claim against an expected model and checker',
+    'certificate-check': 'check an inductive certificate against an expected model and checker',
+    'certificate-history-start': 'begin a certificate history at a root certificate',
+    'certificate-history-append': 'extend a certificate history with the next checked certificate',
+    'certificate-history-check': 'check every step of a certificate history against its root',
+    'certificate-repair-pack': 'package a refutation and a candidate certificate as an unchecked repair',
+    'certificate-change-pack': 'package parent and candidate certificates as an unchecked next-only change',
+    'certificate-repair-check': 'check a repair: the parent defect, the candidate proof, the inherited contract',
+    'certificate-change-check': 'check a next-only change: both certificates and the inherited contract',
+    'composition-create': 'build a composition of two components under a joint contract',
+    'composition-check': 'explore a composition and check the joint contract',
+    'composition-change': 'check a next-only change to one component of a composition',
+    'machine-create': 'build a machine from a specification and write its bytes',
+    'machine-check': 'explore every reachable state and check the invariant and the goals',
+    'machine-change': 'check a next-only change, exploring parent and candidate again',
+    'machine-search': 'search one-rule edits for a candidate that passes the change check',
+    'machine-discover': 'report the bit properties that hold at every reached state',
+    'machine-claim': 'check one claimed property at every reached state',
+    'machine-evidence': 'produce a certificate or a refutation for a machine and write it',
+    'experiment-check': 'compare two capsules over a corpus, executing them only with --execute-runtimes',
+    'lab-task-start': 'begin a portable lab task from a world and a row budget',
+    'lab-task-resume': 'continue a lab task, recomputing every imported row',
+    'lineage-start': 'begin a world history at a root world',
+    'lineage-append': 'extend a world history with the next checked transition',
+    'lineage-check': 'replay a world history against its declared root',
+}
+
+
 def parser():
     p = argparse.ArgumentParser(prog="sg", allow_abbrev=False,
         description="Stargate: computation and signed checks. 32K is a draft contract.")
@@ -28,7 +66,8 @@ def parser():
     p.add_argument("--store", default=".stargate", help="content-addressed object directory")
     sub = p.add_subparsers(dest="command")
     def cmd(name, help):
-        return sub.add_parser(name, help=help, allow_abbrev=False)
+        # A family built in a loop gets its own sentence from HELP; the rest keep theirs.
+        return sub.add_parser(name, help=HELP.get(name, help), allow_abbrev=False)
     cmd("init", "create the object directory")
     q = cmd("keygen", "write a new private seed (never overwrite)")
     q.add_argument("path", type=Path)
@@ -91,12 +130,7 @@ def parser():
     q.add_argument("manifest", type=Path)
     q.add_argument("--root", required=True, type=Path)
     q.add_argument("--output", required=True, type=Path)
-    q = cmd("case-inspect", "check packet integrity; never execute its contents")
-    q.add_argument("path", type=Path)
-    q = cmd("case-unpack", "materialize evidence in a new directory; never execute it")
-    q.add_argument("path", type=Path)
-    q.add_argument("--output", required=True, type=Path)
-    for name in ('evidence-check', 'evidence-unpack'):
+    for name in ('evidence-check',):
         q = cmd(name, 'check certificate/refutation data or export any certificate-family packet')
         q.add_argument('path', type=Path)
         if name == 'evidence-check':
@@ -105,6 +139,13 @@ def parser():
             q.add_argument('--max-steps', type=int, default=certificate.MAX_STEPS)
         else:
             q.add_argument('--output', required=True, type=Path)
+    q = cmd('inspect', 'describe a packet of a stated kind and check its shape; never run it')
+    q.add_argument('path', type=Path)
+    q.add_argument('--expect-kind', required=True, choices=INSPECT_KINDS)
+    q = cmd('unpack', 'write a packet of a stated kind and an offline launcher into a directory')
+    q.add_argument('path', type=Path)
+    q.add_argument('--output', required=True, type=Path)
+    q.add_argument('--expect-kind', required=True, choices=UNPACK_KINDS)
     q = cmd('repair-search', 'search a bounded neighborhood for a certified model repair')
     q.add_argument('--strategy', choices=('one-edit','trace'), default='one-edit')
     q.add_argument('path', type=Path)
@@ -117,7 +158,7 @@ def parser():
     q.add_argument('path', type=Path)
     q.add_argument('claim', type=Path)
     q.add_argument('--output', required=True, type=Path)
-    for name in ('refutation-inspect', 'refutation-check'):
+    for name in ('refutation-check',):
         q = cmd(name, 'check a finite refutation without executing producer code')
         q.add_argument('path', type=Path)
         if name == 'refutation-check':
@@ -154,7 +195,7 @@ def parser():
     q.add_argument('--expect-checker', required=True)
     q.add_argument('--max-steps', type=int, default=certificate.MAX_STEPS)
     cmd('certificate-checker', 'identify the independent finite-certificate checker')
-    for name in ('certificate-inspect', 'certificate-check'):
+    for name in ('certificate-check',):
         q = cmd(name, 'check a finite inductive certificate without executing producer code')
         q.add_argument('path', type=Path)
         if name == 'certificate-check':
@@ -169,7 +210,7 @@ def parser():
     q.add_argument("parent", type=Path); q.add_argument("candidate", type=Path)
     q.add_argument("corpus", type=Path); q.add_argument("--timeout", type=int, default=30)
     q.add_argument("--output", required=True, type=Path)
-    for command in ("experiment-inspect", "experiment-check", "experiment-unpack"):
+    for command in ("experiment-check",):
         q = cmd(command, "inspect, explicitly execute, or export a runtime experiment")
         q.add_argument("path", type=Path)
         if command == "experiment-check":
@@ -184,15 +225,10 @@ def parser():
     q.add_argument("--objective", choices=("equivalence", "satisfy", "lower_max_atp"), default=None)
     q.add_argument("--output", required=True, type=Path)
     q.add_argument("--properties", type=Path, help="JSON property contract; explicitly permits behavior changes")
-    q = cmd("lab-inspect", "describe a finite experiment; never run included code")
-    q.add_argument("path", type=Path)
     q = cmd("lab-check", "exhaustively check a text proposal without trusted keys")
     q.add_argument("path", type=Path)
     q.add_argument("proposal", type=Path)
     q.add_argument("--output", type=Path, help="write an admitted successor, never overwrite")
-    q = cmd("lab-unpack", "extract a standalone checker for explicit offline replay")
-    q.add_argument("path", type=Path)
-    q.add_argument("--output", required=True, type=Path)
     q = cmd("lab-search", "search a bounded WPL neighborhood using replayed counterexamples")
     q.add_argument("path", type=Path)
     q.add_argument("--max-candidates", type=int, default=32)
@@ -204,7 +240,7 @@ def parser():
     q = cmd("lab-check-invariant", "recompute a finite property claim without trusting its author")
     q.add_argument("path", type=Path)
     q.add_argument("claim", type=Path)
-    for name in ('composition-create','composition-inspect','composition-check','composition-unpack','composition-change'):
+    for name in ('composition-create','composition-check','composition-change'):
         q=cmd(name,'check two components under a joint synchronous contract')
         q.add_argument('path',type=Path)
         if name in ('composition-create','composition-unpack'): q.add_argument('--output',type=Path,required=True)
@@ -214,7 +250,7 @@ def parser():
         if name in ('composition-check','composition-change'):
             q.add_argument('--expect-composition',required=True)
             q.add_argument('--max-edges',type=int,default=256)
-    for name in ('machine-create', 'machine-inspect', 'machine-check', 'machine-unpack', 'machine-change', 'machine-search', 'machine-discover', 'machine-claim', 'machine-evidence'):
+    for name in ('machine-create', 'machine-check', 'machine-change', 'machine-search', 'machine-discover', 'machine-claim', 'machine-evidence'):
         q = cmd(name, 'check a finite synchronous machine on all reachable states')
         q.add_argument('path', type=Path)
         if name in ('machine-create', 'machine-unpack', 'machine-evidence'): q.add_argument('--output', type=Path, required=True)
@@ -230,7 +266,7 @@ def parser():
         if name in ('machine-check', 'machine-change', 'machine-search', 'machine-discover', 'machine-claim', 'machine-evidence'):
             q.add_argument('--expect-machine', required=True)
             q.add_argument('--max-edges', type=int, default=256)
-    for name in ('lab-task-start', 'lab-task-resume', 'lab-task-inspect', 'lab-task-unpack'):
+    for name in ('lab-task-start', 'lab-task-resume'):
         q = cmd(name, 'transfer lab work; imported progress is always recomputed')
         q.add_argument('path', type=Path)
         if name == 'lab-task-start': q.add_argument('proposal', type=Path)
@@ -240,7 +276,7 @@ def parser():
         if name != 'lab-task-inspect':
             q.add_argument('--output', type=Path, required=True,
                            help='new task if suspended, world if admitted; never overwrite')
-    for name in ('lineage-start', 'lineage-append', 'lineage-check', 'lineage-unpack'):
+    for name in ('lineage-start', 'lineage-append', 'lineage-check'):
         q = cmd(name, 'create, extend, replay or materialize an anchored world history')
         q.add_argument('path', type=Path)
         if name == 'lineage-append': q.add_argument('proposal', type=Path)
@@ -642,6 +678,9 @@ def execute(args):
 def main(argv=None):
     p = parser()
     args = p.parse_args(argv)
+    if args.command in ('inspect', 'unpack'):
+        # The caller's stated kind picks the handler; the packet never picks its reader.
+        args.command = args.expect_kind + '-' + args.command
     if args.command is None:
         p.print_help()
         return 0

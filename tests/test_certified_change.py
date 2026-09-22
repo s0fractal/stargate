@@ -149,7 +149,7 @@ class CertifiedChanges(unittest.TestCase):
             packed = subprocess.run(command+['certificate-change-pack', str(root/'parent'), str(root/'candidate'), '--output', str(root/'packet')], capture_output=True)
             self.assertEqual(packed.returncode, 0, packed.stderr)
             self.assertEqual((root/'packet').read_bytes(), raw)
-            exported = subprocess.run(command+['evidence-unpack', str(root/'packet'), '--output', str(root/'offline')], capture_output=True)
+            exported = subprocess.run(command+['unpack', '--expect-kind', 'evidence', str(root/'packet'), '--output', str(root/'offline')], capture_output=True)
             self.assertEqual(exported.returncode, 0, exported.stderr)
             replay = [sys.executable, '-I', '-S', str(root/'offline/replay.py'), str(root/'offline/change.json'), '--change']
             cli = command+['certificate-change-check', str(root/'packet')]

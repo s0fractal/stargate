@@ -147,7 +147,7 @@ class Refutations(unittest.TestCase):
                 self.assertEqual(result.returncode,4,result.stderr)
                 self.assertEqual((root/'proof').read_bytes(),self.raw(m,claim))
                 again=subprocess.run(create,capture_output=True);self.assertEqual(again.returncode,1)
-                result=subprocess.run(cmd+['evidence-unpack',str(root/'proof'),'--output',str(root/'offline')],capture_output=True)
+                result=subprocess.run(cmd+['unpack', '--expect-kind', 'evidence',str(root/'proof'),'--output',str(root/'offline')],capture_output=True)
                 self.assertEqual(result.returncode,0,result.stderr)
                 args=['--expect-model',c.identity(m),'--expect-checker',c.checker_id()]
                 cli=cmd+['refutation-check',str(root/'proof')]

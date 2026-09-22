@@ -295,7 +295,7 @@ class LabTask(unittest.TestCase):
             self.assertEqual((code,report['status']),(3,'suspended'))
             original=out.read_bytes()
             with patch.object(compiler,'compile_source',side_effect=AssertionError('inspect must not execute')):
-                code,description=invoke('lab-task-inspect',str(out))
+                code,description=invoke('inspect', '--expect-kind', 'lab-task',str(out))
             self.assertEqual((code,description['status']),(0,'unverified_progress'))
             code,_=invoke('lab-task-resume',str(out),'--expect-task',report['task_id'],'--rows','256','--output',str(out))
             self.assertEqual(code,1);self.assertEqual(out.read_bytes(),original)

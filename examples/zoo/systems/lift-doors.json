@@ -1,0 +1,47 @@
+{
+  "name": "lift-doors",
+  "title": "Lift door / motor interlock (Gemini session, final variant in the log)",
+  "source": "Gemini session log, 2026-09-20; rules copied verbatim from the log, not edited after any run.",
+  "state": [
+    "d",
+    "f",
+    "m"
+  ],
+  "events": [
+    "c"
+  ],
+  "initial": [
+    {
+      "d": false,
+      "f": false,
+      "m": false
+    }
+  ],
+  "invariant": "!(m && d)",
+  "goals": [
+    {
+      "d": true,
+      "f": true,
+      "m": false
+    },
+    {
+      "d": false,
+      "f": false,
+      "m": false
+    }
+  ],
+  "correct": {
+    "m": "c && !d && !m",
+    "f": "(m && !f) || (!m && f)",
+    "d": "(!m && f && !c && !d) || (d && !c && !m)"
+  },
+  "broken": {
+    "m": "c && !m",
+    "f": "(m && !f) || (!m && f)",
+    "d": "(!m && f && !c) || (d && !m)"
+  },
+  "note": "The log shows an earlier single-rule fault (m only) that was replaced by this two-rule fault after a run.",
+  "max_atp": 1000,
+  "max_candidates": 256,
+  "constructed_for_neighbourhood": null
+}

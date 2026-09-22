@@ -32,6 +32,16 @@ For a machine proof choose its model ID separately; for histories choose the roo
 for changes/repairs the parent. Runtime or checker identity does not identify the
 question. Old artifacts keep their original pins; no automatic migration occurs.
 
+Every snapshot from now on is named after its own checker: `checker-` plus the first
+twelve characters of the proof checker's source digest, so a tag cannot claim a
+snapshot whose checker differs. `build-37` and `build-38` predate that rule and keep
+their names. CI recomputes all four digests on every push and pull request and
+refuses a table that no single snapshot describes — including a table where each
+digest is present but under different snapshots — with
+`python tools/anchors.py --check`; on a tag it also checks the tag name. The gate is
+outside every closure and compares this repository against itself: it catches a table
+that was not updated, not a table that is untrustworthy.
+
 Recompute source IDs with `sg certificate-checker`, `sg experiment-controller`, or
 `sg lab-inspect WORLD`. Exported `replay.py` is hashed as raw UTF-8 file bytes.
 Every current export uses the same launcher, but loads only its selected closure.
