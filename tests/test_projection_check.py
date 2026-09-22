@@ -237,6 +237,7 @@ class Control(unittest.TestCase):
         self.assertIn(self.COMPARISON, source, 'mutation site not found: the control would prove nothing')
         import types
         mutant = types.ModuleType('stargate.projection_check_mutant'); mutant.__package__ = 'stargate'
+        mutant.__file__, mutant.__loader__ = projection_check.__file__, projection_check.__loader__
         exec(compile(source.replace(self.COMPARISON, '        if False:\n'), 'mutant', 'exec'), mutant.__dict__)
         projected, cert, model = evidence_for(two_bit())
         bad = flip(projected, 4, 'a')
