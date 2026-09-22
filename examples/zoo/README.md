@@ -15,7 +15,7 @@ after a run. The one disagreement is named below and in `results.json`.
 
 ## The table
 
-Measured at snapshot `checker-ab72a8025a56` (build 42), checker
+Measured at build 42, machine proof checker
 `ab72a8025a564c067f6d3a8551775733a8153ef696d1942a1f1b80e4afe107cd`. The last column
 declares every goal of the `correct` model live (reachable from every certified
 state) and reports what the checker then says; `interlock` and `railroad-crossing-v1`

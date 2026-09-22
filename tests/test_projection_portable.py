@@ -174,7 +174,7 @@ class Anchors(unittest.TestCase):
 
     def test_a_table_without_the_projection_checker_row_is_refused(self):
         lines = [l for l in (ROOT / 'ANCHORS.md').read_text().splitlines()
-                 if not ('Projection checker' in l and l.startswith('| `checker-'))]
+                 if not ('Projection checker' in l and l.startswith('| `snapshot-'))]
         with tempfile.TemporaryDirectory() as tmp:
             table = Path(tmp) / 'ANCHORS.md'; table.write_text('\n'.join(lines) + '\n')
             code, report = self.gate(table)

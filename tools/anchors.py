@@ -1,4 +1,4 @@
-"""Check that ANCHORS.md describes this source, and name a tag after the checker.
+"""Check that ANCHORS.md describes this source, and name a snapshot after everything it anchors.
 
 Outside every checked closure. It compares a table in this repository with source
 in the same repository, so it catches a table that was not updated, or updated
@@ -8,6 +8,11 @@ only thing that makes an anchor worth anything.
     python tools/anchors.py --check     # 0 matched, 4 refused, 2 invalid input
     python tools/anchors.py --tag       # the tag name this source may carry
     python tools/anchors.py --check-tag NAME
+
+A snapshot is named `snapshot-` plus the first twelve hex of the SHA-256 of the
+canonical JSON object mapping each anchored closure, and "Offline launcher", to its
+digest. A change to any one of them is a new name. Every `snapshot-` label in the
+table must be the composite of its own rows; `build-37` and `build-38` are history.
 
 Exit codes follow the repository: 0 established, 1 error, 2 invalid input,
 4 checked and refused.
@@ -72,12 +77,22 @@ def match(table, digests, launched):
 
 
 def snapshot_label(digests, launched):
-    """RED: the rule the repository has today — the machine checker alone."""
-    return 'checker-' + digests['Machine proof checker'][:12]
+    body = dict(digests, **{'Offline launcher': launched})
+    canonical = json.dumps(body, sort_keys=True, separators=(',', ':'), ensure_ascii=False)
+    return 'snapshot-' + hashlib.sha256(canonical.encode()).hexdigest()[:12]
 
 
-def derived(checker):
-    return 'checker-' + checker[:12]
+def inconsistent(table):
+    """snapshot- labels that are not the composite of their own rows."""
+    wrong = []
+    for label, rows in sorted(table.items()):
+        if not label.startswith('snapshot-'):
+            continue
+        launchers = {launched for _, launched in rows.values()}
+        if set(rows) != set(CLOSURES) or len(launchers) != 1 or snapshot_label(
+                {closure: source for closure, (source, _) in rows.items()}, launchers.pop()) != label:
+            wrong.append(label)
+    return wrong
 
 
 def report(**fields):
@@ -94,8 +109,9 @@ def main(argv=None):
     if not (arguments.check or arguments.tag or arguments.check_tag):
         parser.error('choose --check, --tag or --check-tag')
     digests = current()
+    expected = snapshot_label(digests, launcher())
     if arguments.tag and not (arguments.check or arguments.check_tag):
-        print(derived(digests['Machine proof checker']))
+        print(expected)
         return 0
     try:
         table = snapshots(arguments.anchors.read_text())
@@ -103,10 +119,13 @@ def main(argv=None):
         report(status='invalid', error=str(exc)); return 2
     except ValueError as exc:
         report(status='invalid', error=str(exc)); return 2
-    expected = derived(digests['Machine proof checker'])
     if arguments.check_tag is not None and arguments.check_tag != expected:
-        report(status='refused', reason='tag_not_derived_from_checker',
+        report(status='refused', reason='tag_not_derived_from_snapshot',
                tag=arguments.check_tag, expected=expected); return 4
+    wrong = inconsistent(table)
+    if wrong:
+        report(status='refused', reason='snapshot_label_not_derived_from_its_rows',
+               snapshots=wrong); return 4
     matched, reasons = match(table, digests, launcher())
     if not matched:
         report(status='refused', reason='no_snapshot_describes_this_source',
@@ -115,8 +134,8 @@ def main(argv=None):
         report(status='refused', reason='several_snapshots_claim_this_source',
                snapshots=matched); return 4
     label = matched[0]
-    if label.startswith('checker-') and label != expected:
-        report(status='refused', reason='snapshot_label_not_derived_from_checker',
+    if label != expected:
+        report(status='refused', reason='snapshot_label_not_derived_from_digests',
                snapshot=label, expected=expected); return 4
     report(status='established', snapshot=label, tag=expected, rejected=reasons)
     return 0

@@ -2032,7 +2032,7 @@ missing row, a misplaced row and any wrong shape as invalid input.
 
 Nothing here says a projection matches its model: the projector is untrusted, and a
 projection with a wrong cell is structurally as valid as a right one. No checked
-closure changes; the machine proof checker is still `checker-ab72a8025a56`.
+closure changes; the machine proof checker digest is still `ab72a8025a56…`.
 
 ## Build 44: independent projection verification
 
@@ -2088,3 +2088,12 @@ code unchanged. No output is written.
 ProjectionCheckerID is anchored as a fourth closure, **Projection checker**, in
 `ANCHORS.md` and in `tools/anchors.py --check`. The launcher digest changes with the
 new mode. The directory binds bytes; the three identities must come from elsewhere.
+
+A snapshot is named `snapshot-` plus the first twelve hex of the SHA-256 of the
+canonical JSON object mapping each anchored closure (machine proof checker, Boolean
+lab runtime, experiment controller, projection checker) and `Offline launcher` to its
+digest. Changing any one of them is a new name; two snapshots that share a machine
+checker coexist. `tools/anchors.py --check` requires every `snapshot-` label in the
+table to be the composite of its own rows and exactly one snapshot, under its derived
+label, to describe this source; `--check-tag` refuses any other tag. The older
+`checker-` labels (the machine checker alone) are no longer derived for new snapshots.
