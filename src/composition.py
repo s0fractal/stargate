@@ -167,7 +167,7 @@ def verify_change(raw, proposal, expected_parent, *, max_edges=256):
     for role,packet in [('parent',raw),('candidate',candidate)]:
         checked=verify(packet,lab.identity(packet),max_edges=max_edges);report['checks'][role]=checked
         if checked['status']!='established':
-            status='parent_rejected' if role=='parent' and checked['status'] in ('counterexample','goal_unreachable') else checked['status']
+            status='parent_rejected' if role=='parent' and checked['status'] in machine.REFUSED else checked['status']
             return dict(report,status=status,program=role),None
     return dict(report,status='safety_preserved',admitted=True,successor=lab.identity(candidate)),candidate
 

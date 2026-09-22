@@ -10,7 +10,7 @@ from .canonical import canon, decode, exact, record_hash, InvalidRecord
 MODEL_FIELDS = ('state', 'events', 'initial', 'next', 'invariant', 'goals')
 SOURCES = ('__init__.py', 'store.py', 'canonical.py', 'boolean.py', 'certificate.py')
 MAX_BYTES = 1024 * 1024
-MAX_STEPS = 4288  # 64 * 4 closure edges + 64 * 63 path steps.
+MAX_STEPS = 8384  # 64 * 4 closure edges + 64 * 63 path steps + 64 * 64 rank rows.
 
 
 class CheckerError(RuntimeError):
@@ -144,7 +144,7 @@ def verify(raw, expected_model, expected_checker, *, max_steps=MAX_STEPS):
     if identity(doc['model']) != expected_model:
         raise InvalidRecord('model does not match recipient anchor')
     if type(max_steps) is not int or not 0 <= max_steps <= MAX_STEPS:
-        raise InvalidRecord('step quota must be 0..4288')
+        raise InvalidRecord('step quota must be 0..' + str(MAX_STEPS))
     report = describe(raw)
     report.update(checked_states=0, checked_edges=0, checked_path_steps=0, checked_ranks=0,
                   max_steps=max_steps)
@@ -411,7 +411,7 @@ def verify_refutation(raw, expected_model, expected_checker, *, max_steps=MAX_ST
     if identity(doc['model']) != expected_model:
         raise InvalidRecord('model does not match recipient anchor')
     if type(max_steps) is not int or not 0 <= max_steps <= MAX_STEPS:
-        raise InvalidRecord('step quota must be 0..4288')
+        raise InvalidRecord('step quota must be 0..' + str(MAX_STEPS))
     report = dict(describe_refutation(raw), checked_steps=0, max_steps=max_steps)
     if doc['checker'] != expected_checker or checker_id() != expected_checker:
         return dict(report, status='checker_unavailable')

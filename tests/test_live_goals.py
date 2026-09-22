@@ -352,6 +352,27 @@ class StepQuota(unittest.TestCase):
             self.fail('a quota below the ceiling was refused as input: ' + str(exc))
         self.assertEqual((report['status'], report.get('reason')), ('incomplete', 'step_quota'))
 
+    def test_the_offline_launcher_finishes_it_at_its_default_quota(self):
+        import json, subprocess, tempfile
+        from stargate import transport
+        raw, model = maximal_certificate()
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / 'cert.json').write_bytes(raw)
+            transport.unpack_certificate(raw, root / 'offline', license_text=lab.LICENSE)
+            offline = subprocess.run([sys.executable, '-I', '-S', str(root / 'offline' / 'replay.py'),
+                                      str(root / 'cert.json'), '--expect-model', model,
+                                      '--expect-checker', certificate.checker_id()],
+                                     capture_output=True, text=True, cwd='/')
+        self.assertEqual((offline.returncode, json.loads(offline.stdout)['status']), (0, 'verified_certificate'))
+
+    def test_control_the_old_ceiling_cannot_finish_it(self):
+        """Registered control: at 4 288 the same certificate is incomplete again."""
+        raw, model = maximal_certificate()
+        report = certificate.verify(raw, model, certificate.checker_id(), max_steps=4288)
+        self.assertEqual((report['status'], report.get('reason')), ('incomplete', 'step_quota'))
+        self.assertEqual(report['checked_ranks'], 0)
+
     def test_a_quota_above_the_ceiling_is_invalid_input(self):
         """Guard: passes before and after the fix; the new ceiling is still a ceiling."""
         raw, model = maximal_certificate()
@@ -392,6 +413,27 @@ class Consumers(unittest.TestCase):
         report, successor = machine.verify_change(raw, proposal, lab.identity(raw))
         self.assertEqual((report['status'], report['program']), ('parent_rejected', 'parent'))
         self.assertIsNone(successor)
+
+    def test_sg_machine_change_exits_4_on_a_parent_that_is_not_live(self):
+        import contextlib, io, json, tempfile
+        from stargate import cli
+        raw = self.philosophers()
+        with tempfile.TemporaryDirectory() as tmp:
+            path, change = Path(tmp) / 'parent.machine', Path(tmp) / 'change.json'
+            path.write_bytes(raw)
+            change.write_text(json.dumps(dict(parent=lab.identity(raw), next=decode(raw)['next'])))
+            out = io.StringIO()
+            with contextlib.redirect_stdout(out):
+                code = cli.main(['machine-change', str(path), str(change), '--expect-machine', lab.identity(raw)])
+        self.assertEqual((code, json.loads(out.getvalue())['status']), (4, 'parent_rejected'))
+
+    def test_control_without_goal_not_live_in_the_refusals_search_is_unfinished(self):
+        from unittest import mock
+        from stargate import search
+        raw = self.philosophers()
+        with mock.patch.object(machine, 'REFUSED', ('counterexample', 'goal_unreachable')):
+            report, _ = search.search_machine(raw, lab.identity(raw), max_candidates=4)
+        self.assertEqual(report['status'], 'goal_not_live')
 
     def test_a_composition_cannot_carry_live_goals(self):
         """Guard, not a prediction: composition has no live_goals, so no goal_not_live."""

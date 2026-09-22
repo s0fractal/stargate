@@ -270,6 +270,10 @@ def verify(raw, expected_machine, *, max_edges=256):
 
 
 MAX_CHANGE = 64 * 1024
+# A machine that fails its own contract: unsafe, a goal it never reaches, or a live
+# goal some reachable state can no longer reach. Every consumer reads a parent's
+# failure through this one tuple, so a new verdict cannot be threaded through half.
+REFUSED = ('counterexample', 'goal_unreachable', 'goal_not_live')
 
 
 def read_change(path):
@@ -310,7 +314,7 @@ def verify_change(raw, proposal, expected_parent, *, max_edges=256):
         result = verify(packet, lab.identity(packet), max_edges=max_edges)
         report['checks'][role] = result
         if result['status'] != 'established':
-            status = 'parent_rejected' if role == 'parent' and result['status'] in ('counterexample', 'goal_unreachable') else result['status']
+            status = 'parent_rejected' if role == 'parent' and result['status'] in REFUSED else result['status']
             report.update(status=status, program=role)
             return report, None
     report.update(status='safety_preserved', admitted=True, successor=lab.identity(candidate))

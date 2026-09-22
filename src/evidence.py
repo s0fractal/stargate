@@ -30,7 +30,7 @@ def produce(raw, expected_machine, *, max_edges=256, max_steps=certificate.MAX_S
     if hashlib.sha256(raw).hexdigest() != expected_machine:
         raise InvalidRecord('machine does not match recipient anchor')
     if type(max_steps) is not int or not 0 <= max_steps <= certificate.MAX_STEPS:
-        raise InvalidRecord('step quota must be 0..4288')
+        raise InvalidRecord('step quota must be 0..' + str(certificate.MAX_STEPS))
     model = certificate.model_from_machine(machine.inspect(raw))
     model_id = certificate.identity(model)
     producer = machine.verify(raw, expected_machine, max_edges=max_edges)
