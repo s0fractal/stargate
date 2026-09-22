@@ -2017,7 +2017,11 @@ of the full Boolean domain, 2^(|state|+|events|) rows, in canonical order: state
 outer, events inner, each enumerated as `itertools.product((False, True))` over the
 names in order. Unreachable and invariant-violating states are rows like any other.
 Fields are exact; there is no verdict and no checker ID. The projection ID is the
-SHA-256 of the canonical bytes.
+SHA-256 of the canonical bytes. A projection is at most 4 193 586 bytes: machine
+names are bounded only by the 8192-byte WPL source limit, and every `next` rule
+declares all names, so the name lengths sum to at most 8185 - 11k for k names; the
+ceiling is the largest canonical table that bound admits (6 state bits, 2 events),
+derived in code from `compiler.MAX_SOURCE_BYTES`. Every valid machine projects within it.
 
 `sg model-project MACHINE --expect-machine ID --output PATH` is a producer. It
 evaluates every row with the machine's compiled rules and the independent Boolean

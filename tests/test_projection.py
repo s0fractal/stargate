@@ -268,7 +268,6 @@ class Ceiling(unittest.TestCase):
         self.assertEqual((report['status'], report['rows']), ('projected', 256))
         self.assertLessEqual(len(packet), projection.MAX_PROJECTION)
         projection.inspect(packet)
-        print('\ncorner projection:', len(packet), 'bytes of', projection.MAX_PROJECTION, file=sys.stderr)
 
     def test_one_byte_over_the_ceiling_is_refused_for_size(self):
         with self.assertRaisesRegex(InvalidRecord, 'within'):

@@ -12,7 +12,36 @@ import itertools
 from . import boolean, certificate, compiler, kernel, lab, machine
 from .canonical import canon, decode, exact, record_hash, InvalidRecord
 
-MAX_PROJECTION = 1024 * 1024
+
+
+def _ceiling():
+    """The largest canonical projection any valid machine can have, in bytes.
+
+    Names are bounded only by the WPL source limit: every next rule declares all
+    k = |state| + |events| names, the shortest declaration is `fact N:bool ` (len + 11
+    bytes) and the shortest tail `check!b` (7), so the name lengths sum to at most
+    MAX_SOURCE_BYTES - 7 - 11k. Bytes are linear in name lengths — a state name occurs
+    2R + 1 times, an event name R + 1 — so one long state name with every value
+    `false` bounds each shape. Derived, never tightened: see vertical/projection_REGISTRY.md.
+    """
+    def assignment(lengths):
+        return 2 if not lengths else 1 + sum(n + 9 for n in lengths)    # {"n":false,...}
+    def names(lengths):
+        return 2 + sum(n + 2 for n in lengths) + max(len(lengths) - 1, 0)  # ["n",...]
+    best = 0
+    for s in range(1, 7):
+        for e in range(3):
+            spare = compiler.MAX_SOURCE_BYTES - 7 - 11 * (s + e)
+            events, state = [1] * e, [spare - e - (s - 1)] + [1] * (s - 1)
+            rows = 2 ** (s + e)
+            row = len('{"event":,"next":,"state":}') + assignment(events) + 2 * assignment(state)
+            total = (len('{"events":,"model":"","projection":1,"rows":[],"state":}') + 64
+                     + names(events) + names(state) + rows * row + rows - 1)
+            best = max(best, total)
+    return best
+
+
+MAX_PROJECTION = _ceiling()
 FIELDS = ('projection', 'model', 'state', 'events', 'rows')
 
 
@@ -61,7 +90,7 @@ def _assignment(value, names, what):
 def inspect(raw):
     """Structure only: a projection that passes says nothing about any model."""
     if not isinstance(raw, bytes) or len(raw) > MAX_PROJECTION:
-        raise InvalidRecord('projection must be bytes within 1 MiB')
+        raise InvalidRecord('projection must be bytes within ' + str(MAX_PROJECTION))
     doc = decode(raw)
     exact(doc, FIELDS)
     if type(doc['projection']) is not int or doc['projection'] != 1:
