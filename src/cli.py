@@ -16,7 +16,7 @@ from .store import Store, StoreError, hex_hash
 from .bundle import export_bundle, verify_bundle, read_bundle, write_bundle, require_bundle
 from .policy import author_policy, CompilerBug, DEFAULT_MAX_ATP
 from .case import pack_case, inspect_case, read_case, unpack_case
-from . import lab, search, invariants, lineage, labtask, machine, composition, experiment, certificate, evidence
+from . import lab, search, invariants, lineage, labtask, machine, composition, experiment, certificate, evidence, projection
 from .artifact import subject_hash, admit_bundle, admit_all, measure_subject
 
 
@@ -266,6 +266,10 @@ def parser():
         if name in ('machine-check', 'machine-change', 'machine-search', 'machine-discover', 'machine-claim', 'machine-evidence'):
             q.add_argument('--expect-machine', required=True)
             q.add_argument('--max-edges', type=int, default=256)
+    q = cmd('model-project', "write a machine's full transition table as a canonical projection, unchecked")
+    q.add_argument('path', type=Path)
+    q.add_argument('--expect-machine', required=True)
+    q.add_argument('--output', type=Path, required=True)
     for name in ('lab-task-start', 'lab-task-resume'):
         q = cmd(name, 'transfer lab work; imported progress is always recomputed')
         q.add_argument('path', type=Path)
@@ -433,6 +437,14 @@ def execute(args):
             if output is not None and args.output is not None: write_bundle(args.output,output)
             return report
         return composition.verify(raw,args.expect_composition,max_edges=args.max_edges)
+    if args.command == 'model-project':
+        try:
+            raw = machine.read(args.path)
+        except OSError as exc:
+            raise StoreError('cannot read machine input: ' + str(exc)) from exc
+        report, output = projection.project(raw, args.expect_machine)
+        write_bundle(args.output, output)
+        return report
     if args.command.startswith('machine-'):
         try:
             raw = machine.read(args.path)
