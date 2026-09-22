@@ -443,7 +443,7 @@ def execute(args):
         except OSError as exc:
             raise StoreError('cannot read machine input: ' + str(exc)) from exc
         report, output = projection.project(raw, args.expect_machine)
-        write_bundle(args.output, output)
+        if output is not None: write_bundle(args.output, output)
         return report
     if args.command.startswith('machine-'):
         try:
@@ -724,6 +724,7 @@ def main(argv=None):
     if args.command in ('refutation-create', 'refutation-check'): return certificate.exit_code(result)
     if args.command in ('certificate-check', 'certificate-repair-check', 'certificate-change-check', 'certificate-history-check', 'certificate-history-append'): return certificate.exit_code(result)
     if args.command == 'experiment-check': return experiment.exit_code(result)
+    if args.command == 'model-project': return 0 if result['status'] == 'projected' else 3
     if args.command in ('lineage-check', 'lineage-append'):
         if result['status'] == 'verified_lineage': return 0
         if result['status'] == 'incomplete': return 3

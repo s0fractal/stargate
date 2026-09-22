@@ -24,10 +24,10 @@ def rule(names, expression):
     return ''.join('fact ' + n + ': bool\n' for n in sorted(names)) + 'check ' + expression + '\n'
 
 
-def two_bit():
+def two_bit(max_atp=1000):
     names = ['a', 'b', 'e']
     return machine.create(dict(
-        state=['a', 'b'], events=['e'], initial=[dict(a=F, b=F)], max_atp=1000, goals=[],
+        state=['a', 'b'], events=['e'], initial=[dict(a=F, b=F)], max_atp=max_atp, goals=[],
         invariant=rule(['a', 'b'], 'a || !a'),
         next={'a': rule(names, 'a || e'), 'b': rule(names, 'a && !b')}))
 
@@ -170,6 +170,17 @@ class Command(unittest.TestCase):
             self.assertNotEqual(again, 0)
             self.assertEqual(output.read_bytes(), written)
 
+    def test_a_budget_that_runs_out_is_exit_3_and_writes_nothing(self):
+        """Not registered in advance; added with the SPEC sentence that claims it."""
+        raw = two_bit(max_atp=10)
+        with tempfile.TemporaryDirectory() as tmp:
+            path, output = Path(tmp) / 'machine.json', Path(tmp) / 'p.json'
+            path.write_bytes(raw)
+            code, out = self.run_cli('model-project', str(path), '--expect-machine', lab.identity(raw),
+                                     '--output', str(output))
+            self.assertEqual((code, json.loads(out)['status']), (3, 'incomplete'))
+            self.assertFalse(output.exists())
+
     def test_the_wrong_expected_machine_is_exit_2(self):
         raw = two_bit()
         with tempfile.TemporaryDirectory() as tmp:
@@ -205,3 +216,23 @@ class Closure(unittest.TestCase):
         result = subprocess.run([sys.executable, str(ROOT / 'tools' / 'vertical_baseline.py'), '--check'],
                                 capture_output=True, text=True)
         self.assertEqual(result.returncode, 0, result.stdout)
+
+
+ORDER_CHECK = """    if keys != expected:
+        raise InvalidRecord('rows are not in canonical order')
+"""
+
+
+class Control(unittest.TestCase):
+    def test_without_the_order_check_swapped_rows_pass(self):
+        source = (ROOT / 'src' / 'projection.py').read_text()
+        self.assertIn(ORDER_CHECK, source, 'mutation site not found: the control would prove nothing')
+        import types
+        mutant = types.ModuleType('stargate.projection_mutant')
+        mutant.__package__ = 'stargate'
+        exec(compile(source.replace(ORDER_CHECK, ''), 'projection_mutant', 'exec'), mutant.__dict__)
+        rows = hand_made()['rows']; rows[0], rows[1] = rows[1], rows[0]
+        swapped = with_rows(rows)
+        with self.assertRaises(InvalidRecord):
+            projection.inspect(swapped)
+        self.assertEqual(mutant.inspect(swapped)['rows'], rows)

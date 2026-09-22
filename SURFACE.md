@@ -60,6 +60,7 @@ fail on a stale table.
 | `machine-evidence` | produce a certificate or a refutation for a machine and write it | 3 | 3 | 0 | 0 |
 | `machine-search` | search one-rule edits for a candidate that passes the change check | 3 | 1 | 0 | 0 |
 | `model-apply` | apply a certified change or repair to a bare Git branch | 2 | 3 | 0 | 0 |
+| `model-project` | write a machine's full transition table as a canonical projection, unchecked | 4 | 1 | 0 | 0 |
 | `policy` | compile a boolean WPL file and sign its decision | 25 | 0 | 1 | 0 |
 | `put` | store object bytes | 0 | 1 | 0 | 0 |
 | `record` | execute a check and store its signed decision | 10 | 3 | 0 | 0 |
@@ -72,7 +73,7 @@ fail on a stale table.
 | `verify` | verify a stored signed record by independent re-execution | 35 | 4 | 0 | 0 |
 | `verify-bundle` | verify a file without any local object store | 1 | 0 | 0 | 0 |
 
-55 commands. `tests`, `examples` and `integration` count the quoted command name in those files; `docs` counts `sg NAME` or `NAME` in backticks across README, VISION, SPEC and ANCHORS. These are mentions, not coverage.
+56 commands. `tests`, `examples` and `integration` count the quoted command name in those files; `docs` counts `sg NAME` or `NAME` in backticks across README, VISION, SPEC and ANCHORS. These are mentions, not coverage.
 
 <!-- inventory: end -->
 
