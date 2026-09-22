@@ -101,3 +101,55 @@ That the recipient's three identities are the right ones: they must come from
 somewhere other than this directory (a trusted checkout, a tag). That Python,
 its standard library or the host are honest. That the directory is complete: a
 recipient given only part of it gets an error, not a verdict.
+
+---
+
+# Second registration: composite snapshot identity (after review of #62)
+
+Written after the review chose the rule and before it is implemented; the first
+registration above is left as written, including its "open decision" paragraph, which
+this section answers.
+
+## The rule
+
+A snapshot's name is derived from **everything it anchors**:
+
+    composite = SHA-256 of the canonical JSON object
+                {"Machine proof checker": …, "Boolean lab runtime": …,
+                 "Experiment controller": …, "Projection checker": …,
+                 "Offline launcher": …}
+    label     = "snapshot-" + composite[:12]
+
+* `tools/anchors.py --tag` prints the label of this source; `--check-tag NAME`
+  refuses any other name (`tag_not_derived_from_snapshot`).
+* `--check` still requires exactly one snapshot to describe this source, and that
+  snapshot's label must be the derived one; any other label for it — including the
+  legacy `checker-ab72a8025a56` — is refused (`snapshot_label_not_derived_from_digests`).
+* Every `snapshot-…` label anywhere in the table must equal the composite of its own
+  rows (all five closures present, one launcher digest). A label that does not is
+  refused (`snapshot_label_not_derived_from_its_rows`), whether or not it matches
+  this source. Two snapshots that share a machine checker therefore coexist under
+  different names.
+* `build-37`, `build-38` keep their names as history; they never match this source.
+  No `checker-…` row remains: `checker-ab72a8025a56` was never tagged, so its rows
+  are relabelled rather than kept as a second name for the same bytes.
+
+## Expected outcomes
+
+1. `--tag` = `snapshot-` + the first 12 hex of a composite the test computes itself.
+2. Changing only one of the five digests — each of the four closures, and the
+   launcher alone — changes the label. Five of five.
+3. The committed table plus a second, self-consistent snapshot with the **same machine
+   checker** and a different projection checker: `established`, and the snapshot
+   reported is this source's derived label. Exactly one snapshot matches.
+4. The current rows relabelled `checker-ab72a8025a56`: refused, exit 4.
+5. An extra row set labelled `snapshot-000000000000` whose rows do not hash to it:
+   refused, exit 4, even though it does not describe this source.
+6. `--check-tag checker-ab72a8025a56`: refused.
+7. Every earlier anchor-gate test that named the `checker-` rule is moved to the new
+   rule, and says so in its name.
+
+## Control
+
+The red commit exposes `snapshot_label(digests, launcher)` answering with the old rule
+(`checker-` + machine checker). Outcomes 1–6 must fail against it on their assertions.
