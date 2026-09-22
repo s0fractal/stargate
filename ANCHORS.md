@@ -7,14 +7,18 @@ checkpoints, not frozen temperatures, signed approvals or package releases.
 `build-37` points to reviewed merge `4ff8ba6502e02e95f1d49c1d36dd14e3e4375be3`.
 `build-38` points to reviewed merge `5b1f2ef6c15f45705bb8da062b2aaf4930e130e2`.
 Builds 39–41 add a local executor and repair producer outside these closures; all
-four anchors remain identical to build-38. Build 41 is an untagged PR candidate,
-not a published checkpoint.
-`checker-b4eee031f709` adds the optional `live_goals` obligation, which changes the
-proof checker and the lab runtime on purpose; the controller and the launcher are
-untouched. Its name is derived from its own checker digest, so it cannot claim a
-snapshot whose checker differs; `build-37` and `build-38` predate that rule. The row
-below is computed from the branch that introduces it, and the tag is published
-against the reviewed merge commit, after review, never before.
+four anchors remain identical to build-38.
+`checker-ab72a8025a56` (build 42) adds the optional `live_goals` obligation, which
+changes the proof checker and the lab runtime on purpose, and raises the step
+ceiling to 8384 so the largest certificate the schema admits can be checked; the
+offline launcher changes with it, because it now takes its default quota from the
+checker it loads instead of a literal. The controller is untouched. Build 42 is an
+untagged PR candidate, not a published checkpoint, until that tag exists. The snapshot name is
+derived from its own checker digest, so it cannot claim a snapshot whose checker
+differs; `build-37` and `build-38` predate that rule. The row below is computed from
+the branch that introduces it, and the tag is published against the reviewed merge
+commit, after review, never before. It replaces `checker-b4eee031f709`, a row of the
+same branch that was never tagged.
 
 | Snapshot | Closure | Source SHA-256 | Launcher SHA-256 |
 | --- | --- | --- | --- |
@@ -24,9 +28,9 @@ against the reviewed merge commit, after review, never before.
 | `build-38` | Machine proof checker | `c06c1384f3b0c890ed9105da68a3212183939e8165b56950ff5629d84fabdd05` | `da59473debe6d255a8500527337963620012485101a192a19e94c46da7334a6b` |
 | `build-38` | Boolean lab runtime | `3aa9144d5e786873d9d5578444b8f3dc95cc51f2f62381149fddc69e3c4acd12` | `da59473debe6d255a8500527337963620012485101a192a19e94c46da7334a6b` |
 | `build-38` | Experiment controller | `8acd80175b60ed4e4cc2646cdb95ea2ff245e7fbc0f01208388947ae6cfe89c4` | `da59473debe6d255a8500527337963620012485101a192a19e94c46da7334a6b` |
-| `checker-b4eee031f709` | Machine proof checker | `b4eee031f7097e0a3aad5f81c0877b8a5baae5d48ee637486863dc73c6a8298c` | `da59473debe6d255a8500527337963620012485101a192a19e94c46da7334a6b` |
-| `checker-b4eee031f709` | Boolean lab runtime | `5bb13f5a9500eefe6c2ee24c25477a97159359a6b1e465ba7fd8ea96c30750bd` | `da59473debe6d255a8500527337963620012485101a192a19e94c46da7334a6b` |
-| `checker-b4eee031f709` | Experiment controller | `8acd80175b60ed4e4cc2646cdb95ea2ff245e7fbc0f01208388947ae6cfe89c4` | `da59473debe6d255a8500527337963620012485101a192a19e94c46da7334a6b` |
+| `checker-ab72a8025a56` | Machine proof checker | `ab72a8025a564c067f6d3a8551775733a8153ef696d1942a1f1b80e4afe107cd` | `63217d8f8c65d6b22b3904ef02e2633fd7e5e089a7e08331dd945d855a0b7c38` |
+| `checker-ab72a8025a56` | Boolean lab runtime | `cb9d30cea2b59ca84e96af10aedf0ea81df35fa5eccc22c3f24dd2d313ab4e35` | `63217d8f8c65d6b22b3904ef02e2633fd7e5e089a7e08331dd945d855a0b7c38` |
+| `checker-ab72a8025a56` | Experiment controller | `8acd80175b60ed4e4cc2646cdb95ea2ff245e7fbc0f01208388947ae6cfe89c4` | `63217d8f8c65d6b22b3904ef02e2633fd7e5e089a7e08331dd945d855a0b7c38` |
 
 For a machine proof choose its model ID separately; for histories choose the root,
 for changes/repairs the parent. Runtime or checker identity does not identify the

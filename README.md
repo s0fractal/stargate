@@ -70,7 +70,12 @@ checked by the small checker, with no search and no producer verdict trusted.
 `live_goals` is opt-in. A model without the field keeps its model ID, its
 certificates and its refutations exactly as before; the earlier verdict is not
 retracted, because it answered a different question. A repair or change inherits the
-field like every other protected part of the contract.
+field like every other protected part of the contract. A parent whose live goal is
+lost has failed its own contract, like an unsafe one: `sg machine-change` and
+`sg machine-search` report it as `parent_rejected` and exit 4. The checker's step
+ceiling is 8384, the worst case the schema admits (64×4 edges, 64×63 path steps,
+64×64 rank rows); `StepQuota` in the same test file checks a certificate of exactly
+that size.
 
 This is **not** liveness under fairness. It says a schedule to the goal exists from
 every certified state; it does not say every schedule takes it, and the scheduler may

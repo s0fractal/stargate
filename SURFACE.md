@@ -52,13 +52,13 @@ fail on a stale table.
 | `lineage-append` | extend a world history with the next checked transition | 2 | 0 | 0 | 0 |
 | `lineage-check` | replay a world history against its declared root | 6 | 0 | 0 | 0 |
 | `lineage-start` | begin a world history at a root world | 1 | 0 | 0 | 0 |
-| `machine-change` | check a next-only change, exploring parent and candidate again | 2 | 0 | 0 | 0 |
+| `machine-change` | check a next-only change, exploring parent and candidate again | 3 | 1 | 0 | 0 |
 | `machine-check` | explore every reachable state and check the invariant and the goals | 2 | 0 | 0 | 0 |
 | `machine-claim` | check one claimed property at every reached state | 1 | 0 | 0 | 0 |
 | `machine-create` | build a machine from a specification and write its bytes | 2 | 2 | 0 | 0 |
 | `machine-discover` | report the bit properties that hold at every reached state | 1 | 0 | 0 | 0 |
 | `machine-evidence` | produce a certificate or a refutation for a machine and write it | 3 | 3 | 0 | 0 |
-| `machine-search` | search one-rule edits for a candidate that passes the change check | 2 | 0 | 0 | 0 |
+| `machine-search` | search one-rule edits for a candidate that passes the change check | 3 | 1 | 0 | 0 |
 | `model-apply` | apply a certified change or repair to a bare Git branch | 2 | 3 | 0 | 0 |
 | `policy` | compile a boolean WPL file and sign its decision | 25 | 0 | 1 | 0 |
 | `put` | store object bytes | 0 | 1 | 0 | 0 |
