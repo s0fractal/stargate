@@ -71,6 +71,11 @@ def match(table, digests, launched):
     return matched, reasons
 
 
+def snapshot_label(digests, launched):
+    """RED: the rule the repository has today — the machine checker alone."""
+    return 'checker-' + digests['Machine proof checker'][:12]
+
+
 def derived(checker):
     return 'checker-' + checker[:12]
 

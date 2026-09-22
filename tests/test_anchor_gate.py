@@ -124,3 +124,80 @@ class Refusals(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+def tool():
+    import importlib.util
+    spec = importlib.util.spec_from_file_location('anchors_tool', GATE)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def own_composite(digests, launched):
+    """The test's own derivation, not the gate's."""
+    import hashlib, json
+    body = dict(digests, **{'Offline launcher': launched})
+    return 'snapshot-' + hashlib.sha256(json.dumps(body, sort_keys=True, separators=(',', ':'))
+                                         .encode()).hexdigest()[:12]
+
+
+def rows(label, digests, launched):
+    return ''.join('| `{}` | {} | `{}` | `{}` |\n'.format(label, closure, digest, launched)
+                   for closure, digest in digests.items())
+
+
+class Composite(unittest.TestCase):
+    """Second registration in vertical/projection_portable_REGISTRY.md."""
+
+    def setUp(self):
+        self.gate = tool()
+        self.current, self.launched = self.gate.current(), self.gate.launcher()
+        self.directory = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, self.directory)
+        self.table = self.directory / 'ANCHORS.md'
+        self.text = (ROOT / 'ANCHORS.md').read_text()
+
+    def test_the_tag_is_the_composite_of_every_anchored_digest(self):
+        expected = own_composite(self.current, self.launched)
+        self.assertEqual(self.gate.snapshot_label(self.current, self.launched), expected)
+        self.assertEqual(output('--tag'), expected)
+
+    def test_changing_any_one_digest_alone_changes_the_tag(self):
+        base = self.gate.snapshot_label(self.current, self.launched)
+        unchanged = []
+        for closure in self.current:
+            changed = dict(self.current, **{closure: 'f' * 64})
+            if self.gate.snapshot_label(changed, self.launched) == base:
+                unchanged.append(closure)
+        if self.gate.snapshot_label(self.current, 'f' * 64) == base:
+            unchanged.append('Offline launcher')
+        self.assertEqual(unchanged, [])
+
+    def test_two_snapshots_sharing_a_machine_checker_coexist(self):
+        other = dict(self.current, **{'Projection checker': '1' * 64})
+        extra = rows(own_composite(other, self.launched), other, self.launched)
+        self.table.write_text(self.text.replace('\nFor a machine proof', extra + '\nFor a machine proof', 1))
+        code, out = gate(self.table, '--check')
+        self.assertEqual(code, 0, out)
+        self.assertIn('"snapshot": "{}"'.format(own_composite(self.current, self.launched)), out)
+
+    def test_the_legacy_checker_label_is_refused_for_this_source(self):
+        label = self.gate.snapshot_label(self.current, self.launched)
+        self.table.write_text(self.text.replace('`' + label + '`', '`checker-ab72a8025a56`'))
+        code, out = gate(self.table, '--check')
+        self.assertEqual(code, 4, out)
+        self.assertIn('snapshot_label_not_derived_from_digests', out)
+
+    def test_a_snapshot_label_its_own_rows_do_not_hash_to_is_refused(self):
+        other = dict(self.current, **{'Projection checker': '1' * 64})
+        extra = rows('snapshot-000000000000', other, self.launched)
+        self.table.write_text(self.text.replace('\nFor a machine proof', extra + '\nFor a machine proof', 1))
+        code, out = gate(self.table, '--check')
+        self.assertEqual(code, 4, out)
+        self.assertIn('snapshot_label_not_derived_from_its_rows', out)
+
+    def test_a_legacy_tag_is_refused(self):
+        code, out = gate(ROOT / 'ANCHORS.md', '--check-tag', 'checker-ab72a8025a56')
+        self.assertEqual(code, 4, out)
+        self.assertIn('tag_not_derived_from_snapshot', out)
