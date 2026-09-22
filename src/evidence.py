@@ -30,7 +30,7 @@ def produce(raw, expected_machine, *, max_edges=256, max_steps=certificate.MAX_S
     if hashlib.sha256(raw).hexdigest() != expected_machine:
         raise InvalidRecord('machine does not match recipient anchor')
     if type(max_steps) is not int or not 0 <= max_steps <= certificate.MAX_STEPS:
-        raise InvalidRecord('step quota must be 0..4288')
+        raise InvalidRecord('step quota must be 0..' + str(certificate.MAX_STEPS))
     model = certificate.model_from_machine(machine.inspect(raw))
     model_id = certificate.identity(model)
     producer = machine.verify(raw, expected_machine, max_edges=max_edges)
@@ -40,16 +40,21 @@ def produce(raw, expected_machine, *, max_edges=256, max_steps=certificate.MAX_S
     status = producer.get('status')
     if status in ('incomplete', 'checker_error'):
         return dict(report, status=status, phase='producer'), None
-    if status not in ('established', 'counterexample', 'goal_unreachable'):
+    if status not in ('established', 'counterexample', 'goal_unreachable', 'goal_not_live'):
         return dict(report, status='checker_error', phase='producer', reason='unknown producer status'), None
     try:
         checker = certificate.checker_id()
         if status == 'established':
-            packet = canon(dict(certificate=1, checker=checker, model=model,
-                                states=producer['reachable'], paths=producer['goal_witnesses']))
+            body = dict(certificate=1, checker=checker, model=model,
+                        states=producer['reachable'], paths=producer['goal_witnesses'])
+            if model.get('live_goals'):
+                body['ranks'] = producer['live_ranks']
+            packet = canon(body)
             expected = 'verified_certificate'
         else:
             claim = (dict(kind='unsafe', trace=producer['trace']) if status == 'counterexample' else
+                     dict(kind='trap', goal=producer['live_goal'], states=producer['trap'],
+                          trace=producer['trace']) if status == 'goal_not_live' else
                      dict(kind='unreachable_goal', goal=producer['unreached_goals'][0], states=producer['reachable']))
             packet = canon(dict(refutation=1, checker=checker, model=model, claim=claim))
             expected = 'verified_refutation'

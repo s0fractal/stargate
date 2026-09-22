@@ -1573,6 +1573,16 @@ and P the invariant. A certificate must establish:
 2. P(s) for EVERY s in S.
 3. T(s,e) is in S for EVERY s in S and EVERY event valuation e.
 4. Each named goal has a concrete valid event path from a member of I.
+5. If the model declares `live_goals` (a nonempty, duplicate-free subset of its
+   goals), then for each live goal g the certificate's `ranks` entry assigns every
+   s in S an integer rank in 0..|S|-1, rank zero only at g, and every s other than g
+   has some event e with rank(T(s,e)) < rank(s).
+
+Obligation 5 proves that g is reachable under SOME event sequence from EVERY state of
+S; it says nothing about fairness or about states outside S. A model without
+`live_goals` has no `ranks` field and keeps its identity and verdicts. A live goal is
+refuted by a `trap` refutation: a trace from an initial state into a set closed under
+T that excludes g.
 
 The checker recomputes transitions from the same old state for all bits and checks
 coverage independently of the event iterator. A state set may safely overapproximate
@@ -1590,8 +1600,9 @@ There is no exit4 verdict in certificate-check. A well-formed certificate select
 another checker is checker_unavailable/3, before interpreting its rule text. Input
 structure remains checked first. A trusted checker coverage failure is checker_error/1.
 
-Local max_steps is 0..4288 (default4288), counting closure edges plus goal path steps.
-It covers the maximum 64*4 + 64*63 obligations. Quota exhaustion is incomplete/3,
+Local max_steps is 0..8384 (default 8384), counting closure edges, goal path steps and
+rank rows. It covers the maximum 64*4 + 64*63 + 64*64 obligations; build 41 and
+earlier used 0..4288, which covers no rank rows. Quota exhaustion is incomplete/3,
 including exhaustion after graph closure but before checking a goal path. Invariant
 and grammar checks are outside this counter; it is not a CPU or memory budget.
 Success is verified_certificate/0, with certificate/model/checker identities, local
@@ -1657,7 +1668,7 @@ change. This is source identity, not inferred equivalence of protected predicate
 No inferred defaults, merging of partial transitions, or implicit policy changes.
 
 `verify_change` checks parent then candidate with `verify`, using the recipient's
-checker ID for each. Each has its own max_steps allowance (0..4288); total paid
+checker ID for each. Each has its own max_steps allowance (0..8384); total paid
 edge/path work is at most twice the allowance. Parsing and invariant checks retain
 the certificate checker's existing uncharged resource limits. A parent proof must
 be valid even if the candidate is valid. Any certificate failure produces no
@@ -1703,7 +1714,7 @@ status with failed certificate index, accumulated checks, and no tip bytes or
 identity. Invalid proof, link, anchor or protected-field replacement raises
 InvalidRecord/2; this does not imply the model is unsafe. All positive conclusions
 require the complete supplied path. The maximum paid work is (N+1)*max_steps, with
-existing uncharged parsing and invariant checks. Quota range stays0..4288 per proof.
+existing uncharged parsing and invariant checks. Quota range is 0..8384 per proof.
 
 start_history packages a structurally valid root without checking it. append_history
 adds the candidate linked to the previous tip and checks the entire proposed path,
@@ -1748,7 +1759,7 @@ step. Finite BFS incompleteness by itself is NEVER an exclusion proof.
 verify_refutation returns verified_refutation/4 only after these obligations hold,
 with model/proof/checker identities, claim kind, checked_steps, max_steps and either
 computed unsafe endpoint or excluded goal. Quota exhaustion returns incomplete/3,
-coverage inconsistency checker_error/1. Bound is max_steps0..4288 as for existing
+coverage inconsistency checker_error/1. Bound is max_steps 0..8384 as for existing
 certificates. Bad evidence is not a proof of model safety or unsafety. No admission,
 successor or branch selection is produced. These are finite Boolean-model claims,
 not SKI/ATP/runtime/physical-world claims.
@@ -1784,7 +1795,7 @@ or error emits no packet. The report includes producer observations separately
 from the independent check; top status is the independent outcome when available.
 The nested producer statistics and IDs are not independently certified facts.
 
-max_edges is existing0..256 producer quota; max_steps is0..4288 independent-check
+max_edges is existing0..256 producer quota; max_steps is 0..8384 independent-check
 quota. Reports identify phase for incomplete outcomes. Success may be positive0
 or negative4; both produce bytes. Those bytes are precisely an existing certificate
 or refutation, not a new wrapper. No signature, change admission or successor is
@@ -1807,7 +1818,7 @@ existing format inspection. pack_repair checks structure only, returning an
 unchecked packet, without producing a verdict. No claimed result fields are allowed.
 
 verify_repair takes a recipient-selected parent ModelID, checker ID and a per-proof
-max_steps quota (0..4288). The model in the refutation MUST match the parent anchor.
+max_steps quota (0..8384). The model in the refutation MUST match the parent anchor.
 Language, state names, event names, initial states, invariant source and goal list
 MUST be structurally identical between parent and candidate; only next may differ.
 These checks precede semantic checking. The existing _preserves_contract predicate

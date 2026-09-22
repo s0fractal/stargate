@@ -9,6 +9,10 @@
         "states": 5
       },
       "event_bits": 1,
+      "live": {
+        "status": "verified_certificate",
+        "trap": null
+      },
       "measured": {
         "evidence": {
           "broken": "verified_refutation",
@@ -48,6 +52,10 @@
         "states": 3
       },
       "event_bits": 1,
+      "live": {
+        "status": "verified_certificate",
+        "trap": null
+      },
       "measured": {
         "evidence": {
           "broken": "verified_refutation",
@@ -96,6 +104,10 @@
         "states": 3
       },
       "event_bits": 2,
+      "live": {
+        "status": "verified_certificate",
+        "trap": null
+      },
       "measured": {
         "evidence": {
           "broken": "verified_refutation",
@@ -132,6 +144,10 @@
     {
       "certificate": null,
       "event_bits": 1,
+      "live": {
+        "status": "verified_refutation",
+        "trap": null
+      },
       "measured": {
         "evidence": {
           "broken": "verified_refutation",
@@ -171,6 +187,10 @@
         "states": 5
       },
       "event_bits": 1,
+      "live": {
+        "status": "verified_certificate",
+        "trap": null
+      },
       "measured": {
         "evidence": {
           "broken": "verified_refutation",
@@ -219,6 +239,10 @@
         "states": 20
       },
       "event_bits": 1,
+      "live": {
+        "status": "verified_certificate",
+        "trap": null
+      },
       "measured": {
         "evidence": {
           "broken": "verified_refutation",
@@ -258,6 +282,10 @@
         "states": 10
       },
       "event_bits": 1,
+      "live": {
+        "status": "verified_refutation",
+        "trap": 1
+      },
       "measured": {
         "evidence": {
           "broken": "verified_refutation",
@@ -294,6 +322,10 @@
     {
       "certificate": null,
       "event_bits": 1,
+      "live": {
+        "status": "verified_refutation",
+        "trap": null
+      },
       "measured": {
         "evidence": {
           "broken": "verified_refutation",
@@ -333,6 +365,10 @@
         "states": 6
       },
       "event_bits": 1,
+      "live": {
+        "status": "verified_certificate",
+        "trap": null
+      },
       "measured": {
         "evidence": {
           "broken": "verified_certificate",
@@ -376,6 +412,10 @@
         "states": 6
       },
       "event_bits": 2,
+      "live": {
+        "status": "verified_certificate",
+        "trap": null
+      },
       "measured": {
         "evidence": {
           "broken": "verified_refutation",
@@ -415,6 +455,10 @@
         "states": 3
       },
       "event_bits": 1,
+      "live": {
+        "status": "verified_certificate",
+        "trap": null
+      },
       "measured": {
         "evidence": {
           "broken": "verified_refutation",
@@ -463,6 +507,10 @@
         "states": 3
       },
       "event_bits": 1,
+      "live": {
+        "status": "verified_certificate",
+        "trap": null
+      },
       "measured": {
         "evidence": {
           "broken": "verified_refutation",
@@ -511,6 +559,10 @@
         "states": 5
       },
       "event_bits": 1,
+      "live": {
+        "status": "verified_certificate",
+        "trap": null
+      },
       "measured": {
         "evidence": {
           "broken": "verified_refutation",

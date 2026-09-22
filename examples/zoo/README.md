@@ -15,24 +15,28 @@ after a run. The one disagreement is named below and in `results.json`.
 
 ## The table
 
-Measured at build 41 (`16eb087`), checker
-`c06c1384f3b0c890ed9105da68a3212183939e8165b56950ff5629d84fabdd05`.
+Measured at snapshot `checker-ab72a8025a56` (build 42), checker
+`ab72a8025a564c067f6d3a8551775733a8153ef696d1942a1f1b80e4afe107cd`. The last column
+declares every goal of the `correct` model live (reachable from every certified
+state) and reports what the checker then says; `interlock` and `railroad-crossing-v1`
+have no certificate to extend, because their `correct` models are refuted for safety
+first.
 
-| system | bits (state/event) | refutation | trace | certificate | one-edit | trace search |
-| --- | --- | --- | --- | --- | --- | --- |
-| `alternating-bit` | 4/1 | unsafe | 1 steps | 5 states, 1913 B | found at 25 | found at 42 |
-| `bounded-buffer-gemini` | 2/1 | unsafe | 3 steps | 3 states, 896 B | found at 7 | found at 9 |
-| `bounded-buffer` | 2/2 | unsafe | 3 steps | 3 states, 1114 B | found at 102 | found at 11 |
-| `interlock` | 2/1 | unsafe | 2 steps | — | neighborhood_exhausted at 11 | neighborhood_exhausted at 11 |
-| `lift-doors` | 3/1 | unsafe | 4 steps | 5 states, 1220 B | found at 19 | found at 21 |
-| `peterson` | 5/1 | unsafe | 6 steps | 20 states, 3216 B | neighborhood_exhausted at 178 | found at 1 |
-| `philosophers` | 4/1 | unsafe | 4 steps | 10 states, 2112 B | found at 24 | found at 28 |
-| `railroad-crossing-v1` | 3/1 | unsafe | 4 steps | — | found at 4 | found at 6 |
-| `railroad-crossing` | 3/1 | — | — | 6 states, 1280 B | not_needed at 0 | not_needed at 0 |
-| `readers-writer` | 3/2 | unsafe | 2 steps | 6 states, 1415 B | found at 42 | found at 46 |
-| `token-ring-natural` | 3/1 | unsafe | 1 steps | 3 states, 1258 B | neighborhood_exhausted at 37 | neighborhood_exhausted at 39 |
-| `token-ring-onestep` | 3/1 | unsafe | 1 steps | 3 states, 1258 B | found at 12 | found at 15 |
-| `traffic-lights` | 3/1 | unsafe | 1 steps | 5 states, 1321 B | found at 11 | found at 13 |
+| system | bits (state/event) | refutation | trace | certificate | one-edit | trace search | goals live |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| `alternating-bit` | 4/1 | unsafe | 1 steps | 5 states, 1913 B | found at 25 | found at 42 | yes |
+| `bounded-buffer-gemini` | 2/1 | unsafe | 3 steps | 3 states, 896 B | found at 7 | found at 9 | yes |
+| `bounded-buffer` | 2/2 | unsafe | 3 steps | 3 states, 1114 B | found at 102 | found at 11 | yes |
+| `interlock` | 2/1 | unsafe | 2 steps | — | neighborhood_exhausted at 11 | neighborhood_exhausted at 11 | verified_refutation |
+| `lift-doors` | 3/1 | unsafe | 4 steps | 5 states, 1220 B | found at 19 | found at 21 | yes |
+| `peterson` | 5/1 | unsafe | 6 steps | 20 states, 3216 B | neighborhood_exhausted at 178 | found at 1 | yes |
+| `philosophers` | 4/1 | unsafe | 4 steps | 10 states, 2112 B | found at 24 | found at 28 | no, trap of 1 |
+| `railroad-crossing-v1` | 3/1 | unsafe | 4 steps | — | found at 4 | found at 6 | verified_refutation |
+| `railroad-crossing` | 3/1 | — | — | 6 states, 1280 B | not_needed at 0 | not_needed at 0 | yes |
+| `readers-writer` | 3/2 | unsafe | 2 steps | 6 states, 1415 B | found at 42 | found at 46 | yes |
+| `token-ring-natural` | 3/1 | unsafe | 1 steps | 3 states, 1258 B | neighborhood_exhausted at 37 | neighborhood_exhausted at 39 | yes |
+| `token-ring-onestep` | 3/1 | unsafe | 1 steps | 3 states, 1258 B | found at 12 | found at 15 | yes |
+| `traffic-lights` | 3/1 | unsafe | 1 steps | 5 states, 1321 B | found at 11 | found at 13 | yes |
 
 "trace" is the length of the refuting counterexample for the broken model;
 "certificate" is the inductive set proved for the correct one. The `interlock`
@@ -73,6 +77,32 @@ therefore pairs two defects, and the row records that instead of hiding it. The
 pre-registered cell is kept as written; `results.json` lists `interlock` in
 `mismatches`.
 
+## The live-goal column
+
+Of the eight systems registered first, seven `correct` models keep every goal
+reachable from every state they can reach. `philosophers` does not: one state,
+`h0 && h1 && !e0 && !e1`, can reach neither eating goal, and the checker names
+exactly that set. This was predicted in the second registration of
+[examples/live_goals_REGISTRY.md](../live_goals_REGISTRY.md) before it was run,
+and every row came out as predicted.
+
+The five systems carried over from the earlier session (`bounded-buffer-gemini`,
+`lift-doors`, `railroad-crossing`, `railroad-crossing-v1`, `traffic-lights`)
+reached this branch only when it was synchronised with `main`, after that
+registration. Their live-goal cells are **measured, not predicted**: four say
+`yes`, and `railroad-crossing-v1` has no certificate to extend because its
+`correct` model is refuted for safety. The registry was not edited to include them.
+
+The column says nothing about fairness: a live goal is reachable under *some*
+event sequence from every certified state, never under every sequence.
+
+It is not an extra, either. Every system here is measured with its goals live, and a
+new system is added with that column filled, because safety plus reachability from
+the initial state is a contract a machine can satisfy while parked: a repair that
+freezes a model in one state forever satisfies both and is refused only by this
+column. The repair search found exactly such a repair for a three-colour traffic
+light in `tools/` work, and nothing but a live goal saw it.
+
 ## What this table does not establish
 
 * Nothing about the systems as engineering artifacts. These are synchronous
@@ -85,20 +115,18 @@ pre-registered cell is kept as written; `results.json` lists `interlock` in
 * Nothing about absent goals or liveness. Today the checker proves safety and the
   existence of goal paths; see the philosophers limit below.
 
-## The limit the zoo makes visible
+## The limit this zoo made visible, and what closed it
 
-`philosophers` in its honest form **certifies today** although the deadlock state
-`h0 && h1 && !e0 && !e1` is reachable and has no way out. Deadlock is not a safety
-violation, and both goals are reachable from the initial state, so every command in
-the repository accepts the model:
+`philosophers` in its honest form **certifies** as long as its goals are ordinary
+goals, although the deadlock state `h0 && h1 && !e0 && !e1` is reachable and has no
+way out: deadlock is not a safety violation, and both goals are reachable from the
+initial state. That is the row that motivated `live_goals`.
 
-```sh
-python examples/zoo/harness.py --print   # philosophers: correct = verified_certificate
-```
-
-That is the red example for a goal-reachability obligation: a certificate would
-have to prove the goals reachable from *every* state of the certified set, not only
-from the initial one. Nothing in this pull request adds that obligation.
+The same model, with the same rules and one added field, is now refuted, and the
+trap the checker names is exactly that one state — see the last column above and
+`tests/test_live_goals.py`. The model without the field still certifies: the
+obligation is opt-in, and the old verdict is not retracted, it is a different
+question.
 
 ## The five systems from the earlier session
 

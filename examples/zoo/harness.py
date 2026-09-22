@@ -89,6 +89,13 @@ def measure(systems):
                                      trace_steps=len(claim['trace']['steps']) if claim['kind'] == 'unsafe' else None,
                                      excluded_states=len(claim['states']) if claim['kind'] == 'unreachable_goal' else None,
                                      bytes=len(packet))
+        live_spec = model(system, 'correct')
+        live_spec['live_goals'] = live_spec['goals']
+        live_raw = machine.create(live_spec)
+        live_report, live_packet = evidence.produce(live_raw, lab.identity(live_raw))
+        row['live'] = dict(status=live_report['status'], trap=None)
+        if live_packet is not None and decode(live_packet).get('claim', {}).get('kind') == 'trap':
+            row['live']['trap'] = len(decode(live_packet)['claim']['states'])
         certificate = proofs['correct'][2]
         row['certificate'] = (None if certificate is None or 'certificate' not in decode(certificate)
                               else dict(states=len(decode(certificate)['states']), bytes=len(certificate)))
@@ -124,12 +131,13 @@ def disagrees(row):
 
 def table(rows):
     header = ('| system | bits (state/event) | refutation | trace | certificate | '
-              'one-edit | trace search |\n| --- | --- | --- | --- | --- | --- | --- |')
+              'one-edit | trace search | goals live |\n'
+              '| --- | --- | --- | --- | --- | --- | --- | --- |')
     lines = [header]
     for row in rows:
         refutation = row['refutation']
         search = row['measured']['search']
-        lines.append('| `{name}` | {s}/{e} | {kind} | {trace} | {cert} | {one} | {tr} |'.format(
+        lines.append('| `{name}` | {s}/{e} | {kind} | {trace} | {cert} | {one} | {tr} | {live} |'.format(
             name=row['name'], s=row['state_bits'], e=row['event_bits'],
             kind='—' if refutation is None else refutation['kind'],
             trace=('—' if refutation is None else
@@ -138,7 +146,10 @@ def table(rows):
             cert=('—' if row['certificate'] is None else
                   '{} states, {} B'.format(row['certificate']['states'], row['certificate']['bytes'])),
             one='{status} at {attempted}'.format(**search['one-edit']),
-            tr='{status} at {attempted}'.format(**search['trace'])))
+            tr='{status} at {attempted}'.format(**search['trace']),
+            live=('yes' if row['live']['status'] == 'verified_certificate' else
+                  'no, trap of {}'.format(row['live']['trap']) if row['live']['trap'] else
+                  row['live']['status'])))
     return '\n'.join(lines)
 
 

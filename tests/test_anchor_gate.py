@@ -56,6 +56,11 @@ def membership(text):
     return all('`' + pin + '`' in text for pin in digests())
 
 
+def current():
+    """The label the committed table must give the snapshot of this source."""
+    return 'checker-' + certificate.checker_id()[:12]
+
+
 class Refusals(unittest.TestCase):
     def setUp(self):
         self.directory = Path(tempfile.mkdtemp())
@@ -67,7 +72,7 @@ class Refusals(unittest.TestCase):
         self.assertEqual(gate(self.table)[0], 2)      # no mode chosen is invalid input
         code, out = gate(self.table, '--check')
         self.assertEqual(code, 0)
-        self.assertIn('"snapshot": "build-38"', out)
+        self.assertIn('"snapshot": "{}"'.format(current()), out)
 
     def test_one_changed_digit_is_refused(self):
         checker = certificate.checker_id()
@@ -99,7 +104,7 @@ class Refusals(unittest.TestCase):
                               'checker-' + certificate.checker_id()[:12])[0], 0)
 
     def test_a_snapshot_label_claiming_a_different_checker_is_refused(self):
-        self.table.write_text(self.table.read_text().replace('`build-38`', '`checker-000000000000`'))
+        self.table.write_text(self.table.read_text().replace('`' + current() + '`', '`checker-000000000000`'))
         code, out = gate(self.table, '--check')
         self.assertEqual(code, 4)
         self.assertIn('snapshot_label_not_derived_from_checker', out)

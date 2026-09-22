@@ -175,7 +175,7 @@ def search_machine(raw, expected_parent, *, max_candidates=32, max_edges=256, ex
                   attempted=0, full_checks=0, trace_checks=0, screened=0,
                   incomplete_candidates=0, attempts=[], experience=memory)
     if checked['status'] != 'established':
-        report['status'] = 'parent_rejected' if checked['status'] in ('counterexample', 'goal_unreachable') else checked['status']
+        report['status'] = 'parent_rejected' if checked['status'] in machine.REFUSED else checked['status']
         return report, None
     if experience is not None:
         incoming = decode(canon(experience))

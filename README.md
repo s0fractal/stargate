@@ -42,6 +42,46 @@ For received artifacts obtain the checker and launcher IDs independently, using
 [ANCHORS.md](ANCHORS.md) and a selected source snapshot. A packet cannot authenticate
 its own judge merely by containing that judge's digest.
 
+## Ask for a goal that cannot be lost
+
+A goal is existential: some event sequence reaches it from an initial state. A model
+that reaches its goal once and then deadlocks still certifies, because nothing in the
+contract says the goal must survive. The optional model field `live_goals` — a subset
+of the declared `goals` — says it must: every state of the certified inductive set
+needs an event sequence back to that goal.
+
+```sh
+python -I -m unittest discover -s tests -p 'test_live_goals.py'
+python examples/zoo/harness.py --print       # last column: which zoo models keep their goals
+```
+
+The two dining philosophers of [examples/zoo](examples/zoo/README.md) are the
+example. Their honest model certifies: mutual exclusion holds and both eating goals
+are reachable from the initial state. Declaring the same two goals live refutes the
+same rules, and the refutation names the state that causes it — `h0 && h1`, both
+forks held, neither philosopher able to eat.
+
+A certificate for a model with live goals carries one rank map per live goal: zero at
+the goal, and every other certified state has at least one event whose successor
+ranks strictly lower. A refutation carries a trap — a set of states closed under all
+events, not containing the goal — and a trace from an initial state into it. Both are
+checked by the small checker, with no search and no producer verdict trusted.
+
+`live_goals` is opt-in. A model without the field keeps its model ID, its
+certificates and its refutations exactly as before; the earlier verdict is not
+retracted, because it answered a different question. A repair or change inherits the
+field like every other protected part of the contract. A parent whose live goal is
+lost has failed its own contract, like an unsafe one: `sg machine-change` and
+`sg machine-search` report it as `parent_rejected` and exit 4. The checker's step
+ceiling is 8384, the worst case the schema admits (64×4 edges, 64×63 path steps,
+64×64 rank rows); `StepQuota` in the same test file checks a certificate of exactly
+that size.
+
+This is **not** liveness under fairness. It says a schedule to the goal exists from
+every certified state; it does not say every schedule takes it, and the scheduler may
+refuse forever. It says nothing about time, probability or progress of an
+implementation, and nothing about states outside the certified set.
+
 ## Find a repair instead of supplying one
 
 The two-sample interlock in `examples/interlock.json` remembers the previous

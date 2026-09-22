@@ -10,7 +10,7 @@ from .canonical import canon, decode, exact, record_hash, InvalidRecord
 MODEL_FIELDS = ('state', 'events', 'initial', 'next', 'invariant', 'goals')
 SOURCES = ('__init__.py', 'store.py', 'canonical.py', 'boolean.py', 'certificate.py')
 MAX_BYTES = 1024 * 1024
-MAX_STEPS = 4288  # 64 * 4 closure edges + 64 * 63 path steps.
+MAX_STEPS = 8384  # 64 * 4 closure edges + 64 * 63 path steps + 64 * 64 rank rows.
 
 
 class CheckerError(RuntimeError):
@@ -33,6 +33,7 @@ def checker_id():
 def model_from_machine(doc):
     """An explicit projection: no claim about the discarded ATP/runtime fields."""
     result = dict(language='boolean-machine-1', **{k: doc[k] for k in MODEL_FIELDS})
+    if 'live_goals' in doc: result['live_goals'] = doc['live_goals']
     return decode(canon(result))
 
 
@@ -58,13 +59,19 @@ def _assignments(values, names, *, nonempty=False):
 
 
 def _model(doc, *, programs):
-    exact(doc, ('language',) + MODEL_FIELDS)
+    fields = ('language',) + MODEL_FIELDS
+    exact(doc, fields + ('live_goals',) if 'live_goals' in doc else fields)
     if doc['language'] != 'boolean-machine-1': raise InvalidRecord('unsupported model language')
     _names(doc['state'], 6); _names(doc['events'], 2)
     if not doc['state'] or set(doc['state']) & set(doc['events']):
         raise InvalidRecord('state must be nonempty and disjoint from events')
     _assignments(doc['initial'], doc['state'], nonempty=True)
-    _assignments(doc['goals'], doc['state'])
+    goals = _assignments(doc['goals'], doc['state'])
+    if 'live_goals' in doc:
+        # A live goal is a declared goal with a stronger obligation, never a new target.
+        # An empty list would be a field that demands nothing while changing identity.
+        if any(key not in goals for key in _assignments(doc['live_goals'], doc['state'], nonempty=True)):
+            raise InvalidRecord('every live goal must also be a declared goal')
     exact(doc['next'], doc['state'])
     for source in [doc['invariant'], *doc['next'].values()]:
         if type(source) is not str or len(source.encode('utf-8')) > 8192:
@@ -90,7 +97,8 @@ def inspect(raw):
     if not isinstance(raw, bytes) or len(raw) > MAX_BYTES:
         raise InvalidRecord('certificate must be bytes within 1 MiB')
     doc = decode(raw)
-    exact(doc, ('certificate', 'checker', 'model', 'states', 'paths'))
+    fields = ('certificate', 'checker', 'model', 'states', 'paths')
+    exact(doc, fields + ('ranks',) if 'ranks' in doc else fields)
     if type(doc['certificate']) is not int or doc['certificate'] != 1:
         raise InvalidRecord('unsupported certificate')
     record_hash(doc['checker'])
@@ -103,6 +111,23 @@ def inspect(raw):
         _assignment(entry['goal'], model['state'])
         if entry['goal'] != goal: raise InvalidRecord('goal path order mismatch')
         _trace(entry['trace'], model)
+    live = model.get('live_goals') or []
+    if bool(live) != ('ranks' in doc):
+        raise InvalidRecord('a model with live goals needs exactly one rank map per live goal')
+    if live:
+        if type(doc['ranks']) is not list or len(doc['ranks']) != len(live):
+            raise InvalidRecord('exactly one rank map is required per live goal, in order')
+        for entry, goal in zip(doc['ranks'], live):
+            exact(entry, ('goal', 'ranks'))
+            _assignment(entry['goal'], model['state'])
+            if entry['goal'] != goal: raise InvalidRecord('rank map order mismatch')
+            if type(entry['ranks']) is not list or len(entry['ranks']) != len(doc['states']):
+                raise InvalidRecord('a rank map covers exactly the certified states')
+            for row in entry['ranks']:
+                exact(row, ('state', 'rank'))
+                _assignment(row['state'], model['state'])
+                if type(row['rank']) is not int or not 0 <= row['rank'] < len(doc['states']):
+                    raise InvalidRecord('rank must be a bounded non-negative integer')
     return doc
 
 
@@ -119,9 +144,10 @@ def verify(raw, expected_model, expected_checker, *, max_steps=MAX_STEPS):
     if identity(doc['model']) != expected_model:
         raise InvalidRecord('model does not match recipient anchor')
     if type(max_steps) is not int or not 0 <= max_steps <= MAX_STEPS:
-        raise InvalidRecord('step quota must be 0..4288')
+        raise InvalidRecord('step quota must be 0..' + str(MAX_STEPS))
     report = describe(raw)
-    report.update(checked_states=0, checked_edges=0, checked_path_steps=0, max_steps=max_steps)
+    report.update(checked_states=0, checked_edges=0, checked_path_steps=0, checked_ranks=0,
+                  max_steps=max_steps)
     if doc['checker'] != expected_checker or checker_id() != expected_checker:
         return dict(report, status='checker_unavailable')
     model = doc['model']
@@ -141,7 +167,7 @@ def verify(raw, expected_model, expected_checker, *, max_steps=MAX_STEPS):
     for state in doc['states']:
         old_key = _assignment(state, state_names)
         for bits in events:
-            if report['checked_edges'] + report['checked_path_steps'] >= max_steps:
+            if report['checked_edges'] + report['checked_path_steps'] + report['checked_ranks'] >= max_steps:
                 return dict(report, status='incomplete', reason='step_quota')
             facts = dict(state, **dict(zip(event_names, bits)))
             target = {n: boolean.evaluate(codes[n], facts) for n in state_names}
@@ -159,7 +185,7 @@ def verify(raw, expected_model, expected_checker, *, max_steps=MAX_STEPS):
             raise InvalidRecord('goal path does not start in an initial state')
         current = _assignment(trace['initial'], state_names)
         for step in trace['steps']:
-            if report['checked_edges'] + report['checked_path_steps'] >= max_steps:
+            if report['checked_edges'] + report['checked_path_steps'] + report['checked_ranks'] >= max_steps:
                 return dict(report, status='incomplete', reason='step_quota')
             event = _assignment(step['event'], event_names)
             target = _assignment(step['state'], state_names)
@@ -169,12 +195,35 @@ def verify(raw, expected_model, expected_checker, *, max_steps=MAX_STEPS):
             report['checked_path_steps'] += 1
         if current != _assignment(entry['goal'], state_names):
             raise InvalidRecord('path does not reach its goal')
+    # A live goal must stay reachable from EVERY certified state. The rank map is the
+    # proof: zero only at the goal, and one event out of every other state lowers it.
+    for entry in doc.get('ranks', ()):
+        ranks = {}
+        for row in entry['ranks']:
+            state_key = _assignment(row['state'], state_names)
+            if state_key not in keys:
+                raise InvalidRecord('rank map names a state outside the certificate')
+            if state_key in ranks: raise InvalidRecord('duplicate rank for a state')
+            ranks[state_key] = row['rank']
+        if len(ranks) != len(keys):
+            raise InvalidRecord('rank map does not cover the certified set')
+        goal_key = _assignment(entry['goal'], state_names)
+        if ranks.get(goal_key) != 0: raise InvalidRecord('the live goal must have rank zero')
+        for state_key, rank in ranks.items():
+            if report['checked_edges'] + report['checked_path_steps'] + report['checked_ranks'] >= max_steps:
+                return dict(report, status='incomplete', reason='step_quota')
+            report['checked_ranks'] += 1
+            if state_key == goal_key: continue
+            if rank == 0: raise InvalidRecord('only the live goal may have rank zero')
+            if not any(ranks[transitions[(state_key, bits)]] < rank for bits in events):
+                raise InvalidRecord('no event lowers the rank of a certified state')
     return dict(report, status='verified_certificate')
 
 
-def create(model, states, paths):
+def create(model, states, paths, ranks=None):
     """Construct data, then independently check it before returning any bytes."""
-    raw = canon(dict(certificate=1, checker=checker_id(), model=model, states=states, paths=paths))
+    body = dict(certificate=1, checker=checker_id(), model=model, states=states, paths=paths)
+    raw = canon(dict(body, ranks=ranks) if ranks is not None else body)
     report = verify(raw, identity(model), checker_id())
     if report['status'] != 'verified_certificate':
         raise CheckerError('certificate did not complete independent checking: ' + report['status'])
@@ -202,8 +251,9 @@ def pack_change(parent, candidate):
 
 def _preserves_contract(parent, candidate):
     # Structural identity is meaningful without executing either grammar.
-    for field in ('language', 'state', 'events', 'initial', 'invariant', 'goals'):
-        if parent[field] != candidate[field]:
+    for field in ('language', 'state', 'events', 'initial', 'invariant', 'goals', 'live_goals'):
+        # live_goals is absent in most models; dropping or adding it is still a change.
+        if parent.get(field) != candidate.get(field):
             raise InvalidRecord('certified change alters protected field: ' + field)
 
 
@@ -299,6 +349,11 @@ def inspect_refutation(raw):
     if type(claim) is not dict: raise InvalidRecord('claim must be an object')
     if claim.get('kind') == 'unsafe':
         exact(claim, ('kind', 'trace')); _trace(claim['trace'], model)
+    elif claim.get('kind') == 'trap':
+        exact(claim, ('kind', 'goal', 'states', 'trace'))
+        _assignment(claim['goal'], model['state'])
+        _assignments(claim['states'], model['state'], nonempty=True)
+        _trace(claim['trace'], model)
     elif claim.get('kind') == 'unreachable_goal':
         exact(claim, ('kind', 'goal', 'states'))
         _assignment(claim['goal'], model['state'])
@@ -314,48 +369,28 @@ def describe_refutation(raw):
                 model_id=identity(doc['model']), checker=doc['checker'], claim=doc['claim']['kind'])
 
 
-def verify_refutation(raw, expected_model, expected_checker, *, max_steps=MAX_STEPS):
-    doc = inspect_refutation(raw)
-    record_hash(expected_model); record_hash(expected_checker)
-    if identity(doc['model']) != expected_model:
-        raise InvalidRecord('model does not match recipient anchor')
-    if type(max_steps) is not int or not 0 <= max_steps <= MAX_STEPS:
-        raise InvalidRecord('step quota must be 0..4288')
-    report = dict(describe_refutation(raw), checked_steps=0, max_steps=max_steps)
-    if doc['checker'] != expected_checker or checker_id() != expected_checker:
-        return dict(report, status='checker_unavailable')
-    model, claim = doc['model'], doc['claim']
-    invariant, codes = _model(model, programs=True)
-    names = model['state']
-    if claim['kind'] == 'unsafe':
-        trace = claim['trace']
-        if trace['initial'] not in model['initial']:
-            raise InvalidRecord('unsafe path does not start in an initial state')
-        current = trace['initial']
-        for step in trace['steps']:
-            if report['checked_steps'] >= max_steps:
-                return dict(report, status='incomplete', reason='step_quota')
-            facts = dict(current, **step['event'])
-            target = {n: boolean.evaluate(codes[n], facts) for n in names}
-            if target != step['state']:
-                raise InvalidRecord('unsafe path transition does not reproduce')
-            current = target
-            report['checked_steps'] += 1
-        if boolean.evaluate(invariant, current):
-            raise InvalidRecord('path endpoint does not violate invariant')
-        return dict(report, status='verified_refutation', endpoint=current)
-    # A closed set containing all initials and excluding the goal proves absence.
-    # Its states need not satisfy the safety invariant.
-    if claim['goal'] not in model['goals']:
-        raise InvalidRecord('target is not a required goal')
-    keys = {_assignment(state, names) for state in claim['states']}
-    if any(_assignment(state, names) not in keys for state in model['initial']):
-        raise InvalidRecord('refutation omits an initial state')
-    if _assignment(claim['goal'], names) in keys:
-        raise InvalidRecord('refutation set contains the goal')
+def _replay(trace, codes, names, model, report, max_steps, what):
+    """Re-derive every state of a claimed path; the claim's own states prove nothing."""
+    if trace['initial'] not in model['initial']:
+        raise InvalidRecord(what + ' does not start in an initial state')
+    current = trace['initial']
+    for step in trace['steps']:
+        if report['checked_steps'] >= max_steps:
+            return None, dict(report, status='incomplete', reason='step_quota')
+        target = {n: boolean.evaluate(codes[n], dict(current, **step['event'])) for n in names}
+        if target != step['state']:
+            raise InvalidRecord(what + ' transition does not reproduce')
+        current = target
+        report['checked_steps'] += 1
+    return current, None
+
+
+def _closed_set(states, keys, codes, names, model, report, max_steps):
+    """Every event out of every listed state lands back inside the set."""
+    base = report['checked_steps']
     events = list(itertools.product((False, True), repeat=len(model['events'])))
     covered = set()
-    for state in claim['states']:
+    for state in states:
         for bits in events:
             if report['checked_steps'] >= max_steps:
                 return dict(report, status='incomplete', reason='step_quota')
@@ -365,8 +400,55 @@ def verify_refutation(raw, expected_model, expected_checker, *, max_steps=MAX_ST
                 raise InvalidRecord('refutation set is not closed under transitions')
             report['checked_steps'] += 1
             covered.add((_assignment(state, names), bits))
-    if len(covered) != len(keys) * (2 ** len(model['events'])) or report['checked_steps'] != len(covered):
+    if len(covered) != len(keys) * (2 ** len(model['events'])) or report['checked_steps'] - base != len(covered):
         return dict(report, status='checker_error', reason='closure coverage mismatch')
+    return None
+
+
+def verify_refutation(raw, expected_model, expected_checker, *, max_steps=MAX_STEPS):
+    doc = inspect_refutation(raw)
+    record_hash(expected_model); record_hash(expected_checker)
+    if identity(doc['model']) != expected_model:
+        raise InvalidRecord('model does not match recipient anchor')
+    if type(max_steps) is not int or not 0 <= max_steps <= MAX_STEPS:
+        raise InvalidRecord('step quota must be 0..' + str(MAX_STEPS))
+    report = dict(describe_refutation(raw), checked_steps=0, max_steps=max_steps)
+    if doc['checker'] != expected_checker or checker_id() != expected_checker:
+        return dict(report, status='checker_unavailable')
+    model, claim = doc['model'], doc['claim']
+    invariant, codes = _model(model, programs=True)
+    names = model['state']
+    if claim['kind'] == 'unsafe':
+        current, incomplete = _replay(claim['trace'], codes, names, model, report, max_steps, 'unsafe path')
+        if incomplete is not None: return incomplete
+        if boolean.evaluate(invariant, current):
+            raise InvalidRecord('path endpoint does not violate invariant')
+        return dict(report, status='verified_refutation', endpoint=current)
+    if claim['kind'] == 'trap':
+        # A live goal is refuted by a reachable set that is closed and excludes it.
+        if claim['goal'] not in (model.get('live_goals') or []):
+            raise InvalidRecord('target is not a live goal')
+        keys = {_assignment(state, names) for state in claim['states']}
+        if _assignment(claim['goal'], names) in keys:
+            raise InvalidRecord('trap contains the goal')
+        current, incomplete = _replay(claim['trace'], codes, names, model, report, max_steps, 'trap path')
+        if incomplete is not None: return incomplete
+        if _assignment(current, names) not in keys:
+            raise InvalidRecord('trap path does not end inside the trap')
+        refused = _closed_set(claim['states'], keys, codes, names, model, report, max_steps)
+        if refused is not None: return refused
+        return dict(report, status='verified_refutation', goal=claim['goal'], trap=len(keys))
+    # A closed set containing all initials and excluding the goal proves absence.
+    # Its states need not satisfy the safety invariant.
+    if claim['goal'] not in model['goals']:
+        raise InvalidRecord('target is not a required goal')
+    keys = {_assignment(state, names) for state in claim['states']}
+    if any(_assignment(state, names) not in keys for state in model['initial']):
+        raise InvalidRecord('refutation omits an initial state')
+    if _assignment(claim['goal'], names) in keys:
+        raise InvalidRecord('refutation set contains the goal')
+    refused = _closed_set(claim['states'], keys, codes, names, model, report, max_steps)
+    if refused is not None: return refused
     return dict(report, status='verified_refutation', goal=claim['goal'])
 
 

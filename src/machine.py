@@ -40,6 +40,13 @@ state. machine-claim takes {"parent":"COPY_MACHINE_ID","property":PROPERTY}.
 PROPERTY is {"kind":"bit","name":NAME,"value":BOOL} or
 {"kind":"equal"|"implies","left":NAME,"right":OTHER_NAME}.
 These observations do not check, replace or strengthen the declared invariant or goals.
+Optional live_goals is a subset of goals that must stay reachable from EVERY state
+of the checked reachable set, not only from an initial state. Omit the field and
+nothing changes. A model with it is established only when every live goal carries a
+rank for every reached state; otherwise goal_not_live names one live goal, a closed
+trap of states that cannot reach it and a shortest trace into that trap. This is
+still existential: some event sequence reaches the goal, never every sequence, and
+never under a fairness assumption.
 Incomplete observation establishes nothing. Offline --machine-discover takes the
 machine file; --machine-claim takes a claim and uses adjacent machine.json.
 Neither mode admits a successor. Every refutation includes a shortest trace.
@@ -62,8 +69,9 @@ def inspect(raw):
     doc = decode(raw)
     if not isinstance(doc, dict): raise InvalidRecord('machine must be an object')
     lab._runtime(doc.get('sources'))  # foreign schemas are unavailable, not invalid
-    exact(doc, ('stargate_machine', 'state', 'events', 'initial', 'next', 'invariant',
-                'max_atp', 'sources', 'guide', 'license', 'goals'))
+    fields = ('stargate_machine', 'state', 'events', 'initial', 'next', 'invariant',
+              'max_atp', 'sources', 'guide', 'license', 'goals')
+    exact(doc, fields + ('live_goals',) if 'live_goals' in doc else fields)
     if type(doc['stargate_machine']) is not int or doc['stargate_machine'] != 32:
         raise InvalidRecord('unsupported machine contract')
     lab._inputs(doc['state']); lab._inputs(doc['events'])
@@ -86,6 +94,15 @@ def inspect(raw):
         if not isinstance(goal, dict) or set(goal) != set(doc['state']) or any(type(v) is not bool for v in goal.values()):
             raise InvalidRecord('goal must give every state bit as a boolean')
     if len({canon(g) for g in goals}) != len(goals): raise InvalidRecord('duplicate reachability goal')
+    live = doc.get('live_goals')
+    if live is not None:
+        if not isinstance(live, list) or not 1 <= len(live) <= len(goals):
+            raise InvalidRecord('live_goals must be a nonempty bounded list of declared goals')
+        if len({canon(g) for g in live}) != len(live):
+            raise InvalidRecord('duplicate live goal')
+        declared = {canon(g) for g in goals}
+        if any(canon(g) not in declared for g in live):
+            raise InvalidRecord('every live goal must also be a declared goal')
     if not isinstance(doc['next'], dict) or set(doc['next']) != set(doc['state']):
         raise InvalidRecord('next must define exactly every state bit')
     names = sorted(doc['state'] + doc['events'])
@@ -96,7 +113,8 @@ def inspect(raw):
 def create(spec):
     spec = decode(canon(spec))
     if isinstance(spec, dict): spec.setdefault('goals', [])
-    exact(spec, ('state', 'events', 'initial', 'next', 'invariant', 'max_atp', 'goals'))
+    fields = ('state', 'events', 'initial', 'next', 'invariant', 'max_atp', 'goals')
+    exact(spec, fields + ('live_goals',) if isinstance(spec, dict) and 'live_goals' in spec else fields)
     raw = canon(dict(spec, stargate_machine=32, sources=lab.runtime_sources(), guide=GUIDE, license=lab.LICENSE))
     inspect(raw)
     return raw
@@ -136,6 +154,25 @@ def _witness(target, states, parents):
         steps.append(dict(event=event, state=states[target]))
         target = previous
     raise compiler.CompilerBug('witness ancestry exceeds reachable states')
+
+
+def _ranks(goal_key, states, successors):
+    """Shortest backward distance to the goal; an absent key cannot reach it at all."""
+    predecessors = {}
+    for source, targets in successors.items():
+        for target in targets:
+            predecessors.setdefault(target, set()).add(source)
+    ranks = {goal_key: 0}
+    frontier = [goal_key]
+    while frontier:
+        following = []
+        for node in frontier:
+            for previous in predecessors.get(node, ()):
+                if previous not in ranks:
+                    ranks[previous] = ranks[node] + 1
+                    following.append(previous)
+        frontier = following
+    return ranks
 
 
 def verify(raw, expected_machine, *, max_edges=256):
@@ -209,10 +246,34 @@ def verify(raw, expected_machine, *, max_edges=256):
         return dict(report, status='checker_error', reason=str(exc))
     missing = [goal for goal in doc['goals'] if key(goal) not in states]
     if missing: return dict(report, status='goal_unreachable', unreached_goals=missing)
+    live = doc.get('live_goals') or []
+    if live:
+        # Reaching a live goal from an initial state is not enough: every state the
+        # machine can be in must still have an event sequence that reaches it.
+        successors = {}
+        for edge in report['edges']:
+            successors.setdefault(key(edge['state']), []).append(key(edge['next']))
+        report['live_ranks'] = []
+        for goal in live:
+            ranks = _ranks(key(goal), states, successors)
+            stuck = [k for k in states if k not in ranks]
+            if stuck:
+                try:
+                    trace = _witness(stuck[0], states, parents)
+                except compiler.CompilerBug as exc:
+                    return dict(report, status='checker_error', reason=str(exc))
+                return dict(report, status='goal_not_live', live_goal=goal, trace=trace,
+                            trap=[states[k] for k in stuck])
+            report['live_ranks'].append(dict(
+                goal=goal, ranks=[dict(state=states[k], rank=ranks[k]) for k in states]))
     return dict(report, status='established')
 
 
 MAX_CHANGE = 64 * 1024
+# A machine that fails its own contract: unsafe, a goal it never reaches, or a live
+# goal some reachable state can no longer reach. Every consumer reads a parent's
+# failure through this one tuple, so a new verdict cannot be threaded through half.
+REFUSED = ('counterexample', 'goal_unreachable', 'goal_not_live')
 
 
 def read_change(path):
@@ -253,7 +314,7 @@ def verify_change(raw, proposal, expected_parent, *, max_edges=256):
         result = verify(packet, lab.identity(packet), max_edges=max_edges)
         report['checks'][role] = result
         if result['status'] != 'established':
-            status = 'parent_rejected' if role == 'parent' and result['status'] in ('counterexample', 'goal_unreachable') else result['status']
+            status = 'parent_rejected' if role == 'parent' and result['status'] in REFUSED else result['status']
             report.update(status=status, program=role)
             return report, None
     report.update(status='safety_preserved', admitted=True, successor=lab.identity(candidate))

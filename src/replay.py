@@ -24,7 +24,7 @@ def parser():
                  'machine-change','composition','composition-change','change','history','refutation','repair'):
         mode.add_argument('--'+name, action='store_true')
     for name in ('model','root','task','machine','composition'): p.add_argument('--expect-'+name)
-    p.add_argument('--max-steps', type=int, default=4288)
+    p.add_argument('--max-steps', type=int)  # default: the loaded checker's own ceiling
     p.add_argument('--max-edges', type=int, default=256)
     p.add_argument('--rows', type=int)
     p.add_argument('--execute-runtimes', action='store_true')
@@ -60,7 +60,7 @@ def dispatch(a, root):
     if a.expect_checker:
         from stargate import certificate as c
         check = c.verify_repair if a.repair else c.verify_history if a.history else c.verify_change if a.change else c.verify_refutation if a.refutation else c.verify
-        result = check(c.read(a.proposal), a.expect_model, a.expect_checker, max_steps=a.max_steps)
+        result = check(c.read(a.proposal), a.expect_model, a.expect_checker, max_steps=c.MAX_STEPS if a.max_steps is None else a.max_steps)
         report, output = result if isinstance(result, tuple) else (result, None)
         return report, output, c.exit_code(report)
     if a.expect_controller:
