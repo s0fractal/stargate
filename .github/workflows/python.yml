@@ -27,7 +27,7 @@ jobs:
         run: python tools/anchors.py --check
       - name: Machine checker is still the vertical baseline
         run: python tools/vertical_baseline.py --check
-      - name: Tag name follows the checker digest
+      - name: Tag name follows the snapshot digest
         if: github.ref_type == 'tag'
         env:
           TAG: ${{ github.ref_name }}

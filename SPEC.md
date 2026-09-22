@@ -2032,7 +2032,7 @@ missing row, a misplaced row and any wrong shape as invalid input.
 
 Nothing here says a projection matches its model: the projector is untrusted, and a
 projection with a wrong cell is structurally as valid as a right one. No checked
-closure changes; the machine proof checker is still `checker-ab72a8025a56`.
+closure changes; the machine proof checker digest is still `ab72a8025a56…`.
 
 ## Build 44: independent projection verification
 
@@ -2065,3 +2065,35 @@ projection-checked; that is a build-42 limit, not changed here.
 Conformance is to the model's rules over the full Boolean domain. It does not say
 the model is the intended one, that a runtime executing the table behaves like it,
 or anything about rows outside the certificate's inductive set beyond equality.
+
+## Build 45: portable projection verification
+
+`sg unpack --expect-kind projection PROJECTION --certificate CERTIFICATE --output DIR`
+writes `projection.json`, `certificate.json`, `projection-checker.json` (the six-file
+verifier closure as a canonical source map), `replay.py`, `LICENSE` and `README.txt`
+into a new directory. The kind is the caller's; `--certificate` is required for it and
+refused for every other kind. Unpacking checks structure, refuses a certificate that
+names another machine checker, never overwrites, and decides nothing.
+
+Offline: `python -I -S replay.py projection.json --projection --expect-model MODEL
+--expect-checker MACHINE_CHECKER --expect-projection-checker PROJECTION_CHECKER`.
+`--projection` and `--expect-projection-checker` come together. The launcher reads
+`projection-checker.json` (at most 1 MiB), requires exactly the six closure names,
+hashes the map and compares it with the recipient's ProjectionCheckerID before loading
+anything; a difference is `projection_checker_unavailable`/3. It loads only those six
+sources from the map, reads `certificate.json` from its own directory and the
+projection from the given path, and returns `projection_check.check`'s report and exit
+code unchanged. No output is written.
+
+ProjectionCheckerID is anchored as a fourth closure, **Projection checker**, in
+`ANCHORS.md` and in `tools/anchors.py --check`. The launcher digest changes with the
+new mode. The directory binds bytes; the three identities must come from elsewhere.
+
+A snapshot is named `snapshot-` plus the first twelve hex of the SHA-256 of the
+canonical JSON object mapping each anchored closure (machine proof checker, Boolean
+lab runtime, experiment controller, projection checker) and `Offline launcher` to its
+digest. Changing any one of them is a new name; two snapshots that share a machine
+checker coexist. `tools/anchors.py --check` requires every `snapshot-` label in the
+table to be the composite of its own rows and exactly one snapshot, under its derived
+label, to describe this source; `--check-tag` refuses any other tag. The older
+`checker-` labels (the machine checker alone) are no longer derived for new snapshots.

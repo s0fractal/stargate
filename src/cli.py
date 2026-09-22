@@ -23,7 +23,7 @@ from .artifact import subject_hash, admit_bundle, admit_all, measure_subject
 INSPECT_KINDS = ('case', 'certificate', 'composition', 'experiment', 'lab', 'lab-task',
                  'machine', 'refutation')
 UNPACK_KINDS = ('case', 'composition', 'evidence', 'experiment', 'lab', 'lab-task',
-                'lineage', 'machine')
+                'lineage', 'machine', 'projection')
 
 HELP = {
     # One sentence per command: the families below are built in loops, and a loop
@@ -146,6 +146,7 @@ def parser():
     q.add_argument('path', type=Path)
     q.add_argument('--output', required=True, type=Path)
     q.add_argument('--expect-kind', required=True, choices=UNPACK_KINDS)
+    q.add_argument('--certificate', type=Path, help='the certificate a projection is checked against (kind projection only)')
     q = cmd('repair-search', 'search a bounded neighborhood for a certified model repair')
     q.add_argument('--strategy', choices=('one-edit','trace'), default='one-edit')
     q.add_argument('path', type=Path)
@@ -444,6 +445,13 @@ def execute(args):
             if output is not None and args.output is not None: write_bundle(args.output,output)
             return report
         return composition.verify(raw,args.expect_composition,max_edges=args.max_edges)
+    if args.command == 'projection-unpack':
+        try:
+            with args.path.open('rb') as stream: packet = stream.read(projection_check.MAX_PROJECTION + 1)
+            cert = certificate.read(args.certificate)
+        except OSError as exc:
+            raise StoreError('cannot read projection input: ' + str(exc)) from exc
+        return transport.unpack_projection(packet, cert, args.output)
     if args.command == 'projection-checker':
         return dict(projection_checker=projection_check.projection_checker_id())
     if args.command == 'projection-check':
@@ -710,6 +718,8 @@ def main(argv=None):
     if args.command in ('inspect', 'unpack'):
         # The caller's stated kind picks the handler; the packet never picks its reader.
         args.command = args.expect_kind + '-' + args.command
+        if args.command.endswith('-unpack') and (args.certificate is None) != (args.expect_kind != 'projection'):
+            p.error('--certificate is required for --expect-kind projection and refused for every other kind')
     if args.command is None:
         p.print_help()
         return 0

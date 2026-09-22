@@ -4,7 +4,7 @@ import os
 from pathlib import Path
 import shutil
 
-from . import certificate as c, lab, experiment, machine, composition, lineage, labtask
+from . import certificate as c, lab, experiment, machine, composition, lineage, labtask, projection_check
 from .canonical import canon, decode, InvalidRecord
 
 
@@ -96,6 +96,34 @@ def unpack_experiment(raw, destination):
     _write(destination, {'experiment.json':raw, 'controller.json':canon(experiment.sources(experiment.CONTROLLER)),
         'replay.py':replay_source().encode(), 'LICENSE':experiment.LICENSE.encode(), 'README.md':experiment.GUIDE.encode()})
     return dict(report, replay_digest=replay_digest())
+
+
+def unpack_projection(projection_raw, certificate_raw, destination):
+    """Write a projection, its certificate and the verifier closure; decide nothing."""
+    doc = projection_check.inspect(projection_raw)
+    cert = c.inspect(certificate_raw)
+    if cert['checker'] != c.checker_id(): raise InvalidRecord('cannot export another checker')
+    _write(destination, {'projection.json': projection_raw, 'certificate.json': certificate_raw,
+        'projection-checker.json': canon(projection_check.sources()), 'replay.py': replay_source().encode(),
+        'LICENSE': lab.LICENSE.encode(), 'README.txt': PROJECTION_GUIDE.encode()})
+    return dict(status='unpacked_projection', model=doc['model'],
+                projection=hashlib.sha256(projection_raw).hexdigest(), checker=c.checker_id(),
+                projection_checker=projection_check.projection_checker_id(), replay_digest=replay_digest())
+
+
+PROJECTION_GUIDE = '''A projection-1 table, the certificate it is checked against, and the projection
+checker closure (projection-checker.json). No projector is included.
+Choose all three identities independently of this directory, then run:
+python -I -S replay.py projection.json --projection --expect-model MODEL
+  --expect-checker MACHINE_CHECKER --expect-projection-checker PROJECTION_CHECKER
+The launcher hashes projection-checker.json and loads nothing unless it equals
+PROJECTION_CHECKER; it reads certificate.json from this directory. Exit 0 conforms:
+every row equals the certified model's rules. 4 mismatch, with a witness row. 3 a
+checker is unavailable or the certificate incomplete. 2 invalid input. 1 checker error.
+Conformance is to the model's rules; it says nothing about a runtime executing the
+table, nor that the model is the intended one. Python, its standard library and the
+host remain trusted.
+'''
 
 
 PROOF_GUIDE = '''Finite Boolean machine certificate. No producer implementation is included.
