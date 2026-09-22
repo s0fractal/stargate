@@ -32,7 +32,7 @@ fail on a stale table.
 | `composition-change` | check a next-only change to one component of a composition | 1 | 0 | 0 | 0 |
 | `composition-check` | explore a composition and check the joint contract | 2 | 0 | 0 | 0 |
 | `composition-create` | build a composition of two components under a joint contract | 1 | 0 | 0 | 0 |
-| `eval` | evaluate a term, reporting result, exit and cost | 6 | 4 | 0 | 0 |
+| `eval` | evaluate a term, reporting result, exit and cost | 7 | 5 | 0 | 0 |
 | `evidence-check` | check a certificate or refutation against an expected model and checker | 1 | 2 | 0 | 0 |
 | `experiment-check` | compare two capsules over a corpus, executing them only with --execute-runtimes | 2 | 0 | 0 | 0 |
 | `experiment-controller` | show the local experiment controller and replay identities | 0 | 2 | 0 | 0 |
@@ -64,6 +64,7 @@ fail on a stale table.
 | `policy` | compile a boolean WPL file and sign its decision | 25 | 0 | 1 | 0 |
 | `projection-check` | check a projection row by row against a verified certificate of its model | 2 | 1 | 0 | 0 |
 | `projection-checker` | identify the independent projection checker | 1 | 3 | 0 | 0 |
+| `projection-materialize` | write a projection next to the fixed table runtime; verify nothing | 3 | 1 | 0 | 0 |
 | `put` | store object bytes | 0 | 1 | 0 | 0 |
 | `record` | execute a check and store its signed decision | 10 | 3 | 0 | 0 |
 | `refutation-check` | check a refutation claim against an expected model and checker | 1 | 0 | 0 | 0 |
@@ -75,7 +76,7 @@ fail on a stale table.
 | `verify` | verify a stored signed record by independent re-execution | 35 | 4 | 0 | 0 |
 | `verify-bundle` | verify a file without any local object store | 1 | 0 | 0 | 0 |
 
-58 commands. `tests`, `examples` and `integration` count the quoted command name in those files; `docs` counts `sg NAME` or `NAME` in backticks across README, VISION, SPEC and ANCHORS. These are mentions, not coverage.
+59 commands. `tests`, `examples` and `integration` count the quoted command name in those files; `docs` counts `sg NAME` or `NAME` in backticks across README, VISION, SPEC and ANCHORS. These are mentions, not coverage.
 
 <!-- inventory: end -->
 

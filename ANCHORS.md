@@ -15,6 +15,9 @@ loads. Build 43 adds the `projection-1` producer and build 44 the projection ver
 a separate closure (the machine checker closure plus `projection_check.py`) whose
 identity `sg projection-checker` prints. Build 45 anchors that verifier as a fourth
 closure, **Projection checker**, and gives the launcher a `--projection` mode.
+Build 46 adds the fixed Python table runtime outside every anchored closure; the
+snapshot and all five digests are unchanged, and the runtime carries its own digest in
+`RUNTIME.json`.
 
 `snapshot-a4b5fdb9b8fe` describes build 45. It is an untagged PR candidate, not a
 published checkpoint, until that tag exists; the tag is published against the reviewed

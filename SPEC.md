@@ -2097,3 +2097,26 @@ checker coexist. `tools/anchors.py --check` requires every `snapshot-` label in 
 table to be the composite of its own rows and exactly one snapshot, under its derived
 label, to describe this source; `--check-tag` refuses any other tag. The older
 `checker-` labels (the machine checker alone) are no longer derived for new snapshots.
+
+## Build 46: fixed Python table runtime
+
+`projection_runtime.py` executes a `projection-1` table by lookup and nothing else. It
+imports only `json`, `hashlib`, `itertools` and `pathlib`, nothing from Stargate; it
+contains no `eval`, `exec`, `compile`, dynamic import or attribute hooks, and none of its
+functions calls a parameter. `ProjectionMachine.load(path)` / `.from_bytes(raw)` read at
+most 4 193 586 bytes, refuse non-canonical or duplicate-key JSON and any projection-1
+structure error — duplicate, missing or misplaced rows included — before any step.
+`step(state, event)` requires exactly the table's names as Booleans (`unknown state` /
+`unknown event` otherwise) and returns the matching row's `next` as a new dict. It
+exposes `state_names`, `event_names`, `model`, `projection_id` and
+`RUNTIME_ID = "python-table-1"`.
+
+`sg projection-materialize PROJECTION --lang python --output DIR` writes
+`projection.json` (the same bytes), `runtime.py` (the runtime's bytes) and
+`RUNTIME.json` = `{runtime, runtime_digest, projection, model}`; it loads the table with
+the runtime itself, never overwrites, and verifies nothing. The copy runs under
+`python -I -S` with no Stargate installed.
+
+The projection verifier checks the table, not this code: a runtime executes a wrong cell
+as faithfully as a right one. No anchored closure or launcher changes; the runtime is
+identified by its own digest in `RUNTIME.json`, not in `ANCHORS.md`.

@@ -129,12 +129,19 @@ class NoInterpreter(unittest.TestCase):
                 {n.attr for n in ast.walk(tree) if isinstance(n, ast.Attribute)}
         self.assertEqual(names & forbidden, set())
 
-    def test_every_parameter_is_one_of_the_documented_data_inputs(self):
-        """A name whitelist: the proxy for 'no callable is accepted', stated as what it is."""
+    def test_no_parameter_is_ever_called_and_the_public_inputs_are_data(self):
+        """Changed after the first run: the whitelist it replaced also caught private
+        helpers' parameters, which is narrower than the registered predicate."""
         tree = ast.parse(SOURCE.read_text())
-        parameters = {a.arg for f in ast.walk(tree) if isinstance(f, (ast.FunctionDef, ast.Lambda))
-                      for a in f.args.args + f.args.kwonlyargs}
-        self.assertLessEqual(parameters, {'self', 'cls', 'raw', 'path', 'state', 'event'})
+        called = []
+        for function in [n for n in ast.walk(tree) if isinstance(n, (ast.FunctionDef, ast.Lambda))]:
+            params = {a.arg for a in function.args.args + function.args.kwonlyargs}
+            called += [c.func.id for c in ast.walk(function)
+                       if isinstance(c, ast.Call) and isinstance(c.func, ast.Name) and c.func.id in params]
+        self.assertEqual(called, [])
+        machine_class = next(n for n in tree.body if isinstance(n, ast.ClassDef) and n.name == 'ProjectionMachine')
+        public = {a.arg for f in machine_class.body if isinstance(f, ast.FunctionDef) for a in f.args.args}
+        self.assertLessEqual(public, {'self', 'cls', 'raw', 'path', 'state', 'event'})
 
 
 class Materialize(unittest.TestCase):
