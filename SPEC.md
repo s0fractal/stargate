@@ -2000,3 +2000,36 @@ and forces search_incomplete on exhaustion; checker error stops. All other budge
 and exit semantics from build40 remain unchanged. trace_checks counts replay calls;
 screened counts independently validated negative replay witnesses; producer_calls
 counts full analyses including the parent. These are not CPU or proof-step bounds.
+
+## Build 43: canonical projection (producer only)
+
+`projection-1` writes a machine's transition function as data:
+
+```json
+{"projection":1,"model":MODEL_ID,"state":[...],"events":[...],
+ "rows":[{"state":{...},"event":{...},"next":{...}},...]}
+```
+
+`model` is the certificate ModelID of the machine (`model_from_machine`), so a
+projection and a certificate name the same question. `state` (1..6) and `events`
+(0..2) are the machine's sorted, disjoint names. `rows` has exactly one row per pair
+of the full Boolean domain, 2^(|state|+|events|) rows, in canonical order: states
+outer, events inner, each enumerated as `itertools.product((False, True))` over the
+names in order. Unreachable and invariant-violating states are rows like any other.
+Fields are exact; there is no verdict and no checker ID. The projection ID is the
+SHA-256 of the canonical bytes. A projection is at most 4 193 586 bytes: machine
+names are bounded only by the 8192-byte WPL source limit, and every `next` rule
+declares all names, so the name lengths sum to at most 8185 - 11k for k names; the
+ceiling is the largest canonical table that bound admits (6 state bits, 2 events),
+derived in code from `compiler.MAX_SOURCE_BYTES`. Every valid machine projects within it.
+
+`sg model-project MACHINE --expect-machine ID --output PATH` is a producer. It
+evaluates every row with the machine's compiled rules and the independent Boolean
+oracle, and reports `projected`/0 with model, row count and projection ID, or
+`incomplete`/3 with no output; a wrong machine anchor is invalid/2; an existing
+output path is never replaced. Structural inspection refuses a duplicate row, a
+missing row, a misplaced row and any wrong shape as invalid input.
+
+Nothing here says a projection matches its model: the projector is untrusted, and a
+projection with a wrong cell is structurally as valid as a right one. No checked
+closure changes; the machine proof checker is still `checker-ab72a8025a56`.

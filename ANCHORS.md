@@ -19,6 +19,8 @@ differs; `build-37` and `build-38` predate that rule. The row below is computed 
 the branch that introduces it, and the tag is published against the reviewed merge
 commit, after review, never before. It replaces `checker-b4eee031f709`, a row of the
 same branch that was never tagged.
+Build 43 adds the `projection-1` producer outside these closures; all four anchors
+remain identical to `checker-ab72a8025a56`.
 
 | Snapshot | Closure | Source SHA-256 | Launcher SHA-256 |
 | --- | --- | --- | --- |
