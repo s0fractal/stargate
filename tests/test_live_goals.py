@@ -306,3 +306,99 @@ class Attacks(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+def maximal_certificate(*, checker=None):
+    """The largest certificate the schema admits: six state bits, two events, 64 goals
+    all live, every goal path 63 steps long, every rank map full. A six-bit counter
+    that steps on `i` and stays otherwise, so rank(s) toward g is (g - s) mod 64."""
+    bits, events = ['a', 'b', 'c', 'd', 'e', 'f'], ['i', 'j']
+    declared = ''.join('fact ' + n + ': bool\n' for n in sorted(bits + events))
+    rules = {name: declared + 'check ({0} && !({1})) || (!{0} && ({1}))\n'.format(
+                 name, ' && '.join(['i'] + bits[:k])) for k, name in enumerate(bits)}
+    def state(value): return {n: bool(value >> k & 1) for k, n in enumerate(bits)}
+    goals = [state(v) for v in range(64)]
+    model = dict(language='boolean-machine-1', state=bits, events=events, initial=[state(0)],
+                 invariant=''.join('fact ' + n + ': bool\n' for n in bits) + 'check a || !a\n',
+                 next=rules, goals=goals, live_goals=goals)
+    paths = [dict(goal=state(g), trace=dict(initial=state(0), steps=[
+                 dict(event=dict(i=t < g, j=False), state=state(min(t + 1, g))) for t in range(63)]))
+             for g in range(64)]
+    ranks = [dict(goal=state(g), ranks=[dict(state=state(s), rank=(g - s) % 64) for s in range(64)])
+             for g in range(64)]
+    raw = canon(dict(certificate=1, checker=checker or certificate.checker_id(), model=model,
+                     states=[state(v) for v in range(64)], paths=paths, ranks=ranks))
+    return raw, certificate.identity(model)
+
+
+class StepQuota(unittest.TestCase):
+    """Third registration: the quota must cover the largest certificate the schema admits."""
+
+    def test_the_ceiling_is_the_derived_worst_case(self):
+        self.assertEqual(certificate.MAX_STEPS, 64 * 4 + 64 * 63 + 64 * 64)
+
+    def test_the_largest_valid_certificate_completes_at_the_default_quota(self):
+        raw, model = maximal_certificate()
+        self.assertLessEqual(len(raw), certificate.MAX_BYTES)
+        report = certificate.verify(raw, model, certificate.checker_id())
+        self.assertEqual(report['status'], 'verified_certificate')
+        self.assertEqual(report['checked_edges'] + report['checked_path_steps'] + report['checked_ranks'], 8384)
+
+    def test_one_step_short_is_incomplete(self):
+        raw, model = maximal_certificate()
+        try:
+            report = certificate.verify(raw, model, certificate.checker_id(), max_steps=8383)
+        except InvalidRecord as exc:
+            self.fail('a quota below the ceiling was refused as input: ' + str(exc))
+        self.assertEqual((report['status'], report.get('reason')), ('incomplete', 'step_quota'))
+
+    def test_a_quota_above_the_ceiling_is_invalid_input(self):
+        """Guard: passes before and after the fix; the new ceiling is still a ceiling."""
+        raw, model = maximal_certificate()
+        with self.assertRaises(InvalidRecord):
+            certificate.verify(raw, model, certificate.checker_id(), max_steps=8385)
+
+
+class Consumers(unittest.TestCase):
+    """A parent that is not live has failed its own contract, like an unsafe one."""
+
+    def philosophers(self):
+        base = build('philosophers', live=None)
+        return build('philosophers', live=decode(base)['goals'])
+
+    def test_machine_search_rejects_a_parent_that_is_not_live(self):
+        from stargate import search
+        raw = self.philosophers()
+        report, successor = search.search_machine(raw, lab.identity(raw), max_candidates=4)
+        self.assertEqual(report['parent_check']['status'], 'goal_not_live')
+        self.assertEqual(report['status'], 'parent_rejected')
+        self.assertIsNone(successor)
+
+    def test_sg_machine_search_exits_4_on_a_parent_that_is_not_live(self):
+        import contextlib, io, tempfile
+        from stargate import cli
+        raw = self.philosophers()
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / 'parent.machine'
+            path.write_bytes(raw)
+            with contextlib.redirect_stdout(io.StringIO()):
+                code = cli.main(['machine-search', str(path), '--expect-machine', lab.identity(raw),
+                                 '--max-candidates', '4'])
+        self.assertEqual(code, 4)
+
+    def test_machine_change_names_a_parent_that_is_not_live_as_rejected(self):
+        raw = self.philosophers()
+        proposal = dict(parent=lab.identity(raw), next=decode(raw)['next'])
+        report, successor = machine.verify_change(raw, proposal, lab.identity(raw))
+        self.assertEqual((report['status'], report['program']), ('parent_rejected', 'parent'))
+        self.assertIsNone(successor)
+
+    def test_a_composition_cannot_carry_live_goals(self):
+        """Guard, not a prediction: composition has no live_goals, so no goal_not_live."""
+        from stargate import composition
+        sys.path.insert(0, str(ROOT / 'tests'))
+        from test_composition import delivery
+        spec = delivery()
+        spec['live_goals'] = spec['goals']
+        with self.assertRaises(InvalidRecord):
+            composition.create(spec)
