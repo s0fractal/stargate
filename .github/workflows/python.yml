@@ -25,6 +25,8 @@ jobs:
         run: python architecture.py
       - name: Anchors describe this source
         run: python tools/anchors.py --check
+      - name: Machine checker is still the vertical baseline
+        run: python tools/vertical_baseline.py --check
       - name: Tag name follows the checker digest
         if: github.ref_type == 'tag'
         env:
