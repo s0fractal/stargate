@@ -98,6 +98,10 @@ def unpack_experiment(raw, destination):
     return dict(report, replay_digest=replay_digest())
 
 
+def unpack_projection(projection_raw, certificate_raw, destination):
+    return dict(status='unpacked')  # RED STUB: writes nothing
+
+
 PROOF_GUIDE = '''Finite Boolean machine certificate. No producer implementation is included.
 The claimed state set must contain all initials, preserve the invariant, and be
 closed under every event. Every goal needs a valid path from an initial state.
