@@ -26,6 +26,21 @@ def tool():
     return module
 
 
+COMPARISON = """    if current['machine_checker'] != baseline['machine_checker']:
+        return 4, dict(report, status='refused', reason='machine_checker_changed')
+"""
+
+
+def mutant():
+    """The gate with exactly the checker comparison removed."""
+    source = TOOL.read_text()
+    if COMPARISON not in source:
+        raise AssertionError('mutation site not found: the control would prove nothing')
+    namespace = {'__file__': str(TOOL), '__name__': 'vertical_baseline_mutant'}
+    exec(compile(source.replace(COMPARISON, ''), str(TOOL), 'exec'), namespace)
+    return namespace
+
+
 def committed():
     return json.loads((ROOT / 'vertical' / 'baseline.json').read_text())
 
@@ -94,3 +109,11 @@ class Baseline(unittest.TestCase):
     def test_the_gate_is_outside_every_closure(self):
         self.assertNotIn('vertical_baseline.py', certificate.SOURCES)
         self.assertFalse(str(TOOL).startswith(str(ROOT / 'src')))
+
+
+class Control(unittest.TestCase):
+    def test_without_the_comparison_a_changed_checker_passes(self):
+        sources = certificate.sources()
+        sources['certificate.py'] += '# one byte more\n'
+        self.assertEqual(tool().check(committed(), sources)[0], 4)
+        self.assertEqual(mutant()['check'](committed(), sources)[0], 0)
