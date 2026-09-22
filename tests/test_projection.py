@@ -236,3 +236,43 @@ class Control(unittest.TestCase):
         with self.assertRaises(InvalidRecord):
             projection.inspect(swapped)
         self.assertEqual(mutant.inspect(swapped)['rows'], rows)
+
+
+def corner(extra=0):
+    """Second registration: the largest projection the machine schema admits."""
+    events = ['x', 'y']
+    state = sorted(['a' * (8185 - 11 * 8 - 2 - 5 + extra)] + list('bcdef'))
+    declare = lambda names: ''.join('fact ' + n + ':bool ' for n in sorted(names))
+    rule = declare(state + events) + 'check!b'
+    return machine.create(dict(state=state, events=events, initial=[{n: F for n in state}],
+                               max_atp=1000, goals=[], invariant=declare(state) + 'check!b',
+                               next={n: rule for n in state}))
+
+
+class Ceiling(unittest.TestCase):
+    def test_the_ceiling_is_the_registered_derivation(self):
+        self.assertEqual(projection.MAX_PROJECTION, 4193586)
+
+    def test_the_corner_machine_is_exactly_at_the_schema_limit(self):
+        raw = corner()
+        self.assertEqual(max(len(s.encode()) for s in decode(raw)['next'].values()), 8192)
+        with self.assertRaisesRegex(Exception, 'source exceeds 8192 bytes'):
+            corner(extra=1)
+
+    def test_the_corner_machine_projects_within_the_ceiling(self):
+        raw = corner()
+        try:
+            report, packet = projection.project(raw, lab.identity(raw))
+        except InvalidRecord as exc:
+            self.fail('a valid machine could not be projected: ' + str(exc))
+        self.assertEqual((report['status'], report['rows']), ('projected', 256))
+        self.assertLessEqual(len(packet), projection.MAX_PROJECTION)
+        projection.inspect(packet)
+        print('\ncorner projection:', len(packet), 'bytes of', projection.MAX_PROJECTION, file=sys.stderr)
+
+    def test_one_byte_over_the_ceiling_is_refused_for_size(self):
+        with self.assertRaisesRegex(InvalidRecord, 'within'):
+            projection.inspect(b' ' * (projection.MAX_PROJECTION + 1))
+        with self.assertRaises(InvalidRecord) as caught:
+            projection.inspect(b' ' * projection.MAX_PROJECTION)
+        self.assertNotIn('within', str(caught.exception))

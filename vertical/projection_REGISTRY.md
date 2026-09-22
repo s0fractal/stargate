@@ -89,3 +89,52 @@ That any projection is the machine's transition function. That the machine is
 safe, live or certified. That a runtime executing the table behaves like the
 model. A projection is inert data produced by untrusted code until PR-03's
 verifier compares it with a checked certificate.
+
+---
+
+# Second registration: the size ceiling (after review of `53f7ddf`)
+
+Written after the review found the defect and before the fix; the first
+registration above is left as written. The defect was reproduced once in a scratch
+script before this text: a valid 197 594-byte machine (six state bits, two events,
+one 8 081-byte state name) whose projection `project` builds and then refuses
+itself with `projection must be bytes within 1 MiB`.
+
+## The bound, derived from the machine schema
+
+Nothing in the machine limits a name's length except the WPL source limit
+(`compiler.MAX_SOURCE_BYTES = 8192`), and `compiler.parse` requires every `next` rule
+to declare **all** k = |state| + |events| names. The shortest declaration is
+`fact N:bool` plus one separator — `len(N) + 11` bytes — and the shortest tail is
+`check!b` (7 bytes). So in every valid machine
+
+    sum of name lengths  <=  8192 - 7 - 11k  =  8185 - 11k.
+
+A projection's canonical bytes are linear in the name lengths: a state name appears
+2R + 1 times (twice per row, once in `state`), an event name R + 1 times, R =
+2^(|state|+|events|). Taking every value as `false` (the longer literal) and giving
+all spare bytes to one state name gives an upper bound for each (|state|, |events|);
+the largest is at 6 state bits and 2 events:
+
+    MAX_PROJECTION = 4 193 586 bytes
+
+computed from `compiler.MAX_SOURCE_BYTES`, not written as a literal in `projection.py`.
+Machine semantics and the machine checker do not change.
+
+## Expected outcomes
+
+1. `projection.MAX_PROJECTION == 4193586`.
+2. The corner machine — states `a…a` (8 081 bytes), `b, c, d, e, f`; events `x, y`;
+   every rule exactly 8 192 bytes — is accepted by `machine.create`, and one more
+   byte in its long name is refused (`source exceeds 8192 bytes`).
+3. `model-project` on the corner machine: `projected`, 256 rows, the packet within
+   `MAX_PROJECTION` and accepted by `inspect`. Its measured size is recorded, not
+   predicted; it must be below the bound because some values are `true`.
+4. `inspect` on `MAX_PROJECTION + 1` bytes: refused for size. On exactly
+   `MAX_PROJECTION` bytes of non-projection content: refused, but not for size.
+5. The closure digests and the vertical baseline are unchanged.
+
+## What this will not establish
+
+That 4 193 586 bytes is small. It is the price of names the schema already allows;
+narrowing names would be a machine-contract change and is not made here.
