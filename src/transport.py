@@ -111,6 +111,10 @@ def unpack_projection(projection_raw, certificate_raw, destination):
                 projection_checker=projection_check.projection_checker_id(), replay_digest=replay_digest())
 
 
+def materialize_python(projection_raw, destination):
+    return dict(status='materialized')  # RED STUB: writes nothing
+
+
 PROJECTION_GUIDE = '''A projection-1 table, the certificate it is checked against, and the projection
 checker closure (projection-checker.json). No projector is included.
 Choose all three identities independently of this directory, then run:

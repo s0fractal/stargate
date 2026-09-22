@@ -278,6 +278,10 @@ def parser():
     q.add_argument('--expect-checker', required=True)
     q.add_argument('--expect-projection-checker', required=True)
     cmd('projection-checker', 'identify the independent projection checker')
+    q = cmd('projection-materialize', 'write a projection next to the fixed table runtime; verify nothing')
+    q.add_argument('path', type=Path)
+    q.add_argument('--lang', required=True, choices=('python',))
+    q.add_argument('--output', required=True, type=Path)
     for name in ('lab-task-start', 'lab-task-resume'):
         q = cmd(name, 'transfer lab work; imported progress is always recomputed')
         q.add_argument('path', type=Path)
@@ -452,6 +456,12 @@ def execute(args):
         except OSError as exc:
             raise StoreError('cannot read projection input: ' + str(exc)) from exc
         return transport.unpack_projection(packet, cert, args.output)
+    if args.command == 'projection-materialize':
+        try:
+            with args.path.open('rb') as stream: packet = stream.read(projection_check.MAX_PROJECTION + 1)
+        except OSError as exc:
+            raise StoreError('cannot read projection input: ' + str(exc)) from exc
+        return transport.materialize_python(packet, args.output)
     if args.command == 'projection-checker':
         return dict(projection_checker=projection_check.projection_checker_id())
     if args.command == 'projection-check':
