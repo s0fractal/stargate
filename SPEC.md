@@ -2033,3 +2033,35 @@ missing row, a misplaced row and any wrong shape as invalid input.
 Nothing here says a projection matches its model: the projector is untrusted, and a
 projection with a wrong cell is structurally as valid as a right one. No checked
 closure changes; the machine proof checker is still `checker-ab72a8025a56`.
+
+## Build 44: independent projection verification
+
+`sg projection-check PROJECTION CERTIFICATE --expect-model MODEL_ID
+--expect-checker MACHINE_CHECKER_ID --expect-projection-checker PROJECTION_CHECKER_ID`
+decides whether a `projection-1` table is the transition function of a certified
+model. All three identities are the recipient's; a projection names no checker.
+
+The verifier is its own trust domain: its closure is the machine proof checker
+closure plus `projection_check.py`, and ProjectionCheckerID (printed by
+`sg projection-checker`) is the identity of those six sources. It does not import
+the compiler, kernel, lab, machine, search or the projector, and reads projection
+structure with its own reader. A change to the machine checker changes it too.
+
+Order: structural inspection (invalid/2); local ProjectionCheckerID differs from the
+expected one: `projection_checker_unavailable`/3; projection model differs from the
+anchor: invalid/2; `certificate.verify` with the recipient's model and machine
+checker (invalid/2, `checker_unavailable`/`incomplete`/3, `checker_error`/1; only
+`verified_certificate` continues); projection names differ from the certified model:
+invalid/2; then every row, in order, recomputed with the certified rules through the
+Boolean evaluator. The first difference is `mismatch`/4 with witness
+`{state, event, expected, actual}`; all rows equal is `conforms`/0 with model,
+projection SHA-256 and `checked_rows` = 2^(|state|+|events|).
+
+Ceilings: projections up to 4 193 586 bytes, derived inside the closure from the
+8192-byte rule limit, equal to the producer's; certificates as the machine checker
+accepts them (1 MiB). A machine whose certificate would not fit in 1 MiB cannot be
+projection-checked; that is a build-42 limit, not changed here.
+
+Conformance is to the model's rules over the full Boolean domain. It does not say
+the model is the intended one, that a runtime executing the table behaves like it,
+or anything about rows outside the certificate's inductive set beyond equality.

@@ -16,7 +16,7 @@ from .store import Store, StoreError, hex_hash
 from .bundle import export_bundle, verify_bundle, read_bundle, write_bundle, require_bundle
 from .policy import author_policy, CompilerBug, DEFAULT_MAX_ATP
 from .case import pack_case, inspect_case, read_case, unpack_case
-from . import lab, search, invariants, lineage, labtask, machine, composition, experiment, certificate, evidence, projection
+from . import lab, search, invariants, lineage, labtask, machine, composition, experiment, certificate, evidence, projection, projection_check
 from .artifact import subject_hash, admit_bundle, admit_all, measure_subject
 
 
@@ -270,6 +270,13 @@ def parser():
     q.add_argument('path', type=Path)
     q.add_argument('--expect-machine', required=True)
     q.add_argument('--output', type=Path, required=True)
+    q = cmd('projection-check', 'check a projection row by row against a verified certificate of its model')
+    q.add_argument('path', type=Path)
+    q.add_argument('certificate', type=Path)
+    q.add_argument('--expect-model', required=True)
+    q.add_argument('--expect-checker', required=True)
+    q.add_argument('--expect-projection-checker', required=True)
+    cmd('projection-checker', 'identify the independent projection checker')
     for name in ('lab-task-start', 'lab-task-resume'):
         q = cmd(name, 'transfer lab work; imported progress is always recomputed')
         q.add_argument('path', type=Path)
@@ -437,6 +444,16 @@ def execute(args):
             if output is not None and args.output is not None: write_bundle(args.output,output)
             return report
         return composition.verify(raw,args.expect_composition,max_edges=args.max_edges)
+    if args.command == 'projection-checker':
+        return dict(projection_checker=projection_check.projection_checker_id())
+    if args.command == 'projection-check':
+        try:
+            with args.path.open('rb') as stream: packet = stream.read(projection_check.MAX_PROJECTION + 1)
+            cert = certificate.read(args.certificate)
+        except OSError as exc:
+            raise StoreError('cannot read projection input: ' + str(exc)) from exc
+        return projection_check.check(packet, cert, args.expect_model, args.expect_checker,
+                                      args.expect_projection_checker)
     if args.command == 'model-project':
         try:
             raw = machine.read(args.path)
@@ -725,6 +742,7 @@ def main(argv=None):
     if args.command in ('certificate-check', 'certificate-repair-check', 'certificate-change-check', 'certificate-history-check', 'certificate-history-append'): return certificate.exit_code(result)
     if args.command == 'experiment-check': return experiment.exit_code(result)
     if args.command == 'model-project': return 0 if result['status'] == 'projected' else 3
+    if args.command == 'projection-check': return projection_check.exit_code(result)
     if args.command in ('lineage-check', 'lineage-append'):
         if result['status'] == 'verified_lineage': return 0
         if result['status'] == 'incomplete': return 3

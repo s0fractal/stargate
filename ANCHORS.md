@@ -21,6 +21,9 @@ commit, after review, never before. It replaces `checker-b4eee031f709`, a row of
 same branch that was never tagged.
 Build 43 adds the `projection-1` producer outside these closures; all four anchors
 remain identical to `checker-ab72a8025a56`.
+Build 44 adds the projection verifier, a separate closure (the machine checker
+closure plus `projection_check.py`) whose identity `sg projection-checker` prints;
+it is not anchored in this table yet, and none of the four anchors above changes.
 
 | Snapshot | Closure | Source SHA-256 | Launcher SHA-256 |
 | --- | --- | --- | --- |
