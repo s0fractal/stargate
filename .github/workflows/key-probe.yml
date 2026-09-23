@@ -1,0 +1,26 @@
+name: Key probe (acceptance step 2, never merged)
+# A pull request's own workflow asks for the environment that holds the App's key.
+# It never prints the key: only whether it is present, and whether a token can be minted.
+on:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    environment: model-gate-publisher
+    steps:
+      - env:
+          KEY: ${{ secrets.MODEL_GATE_APP_PRIVATE_KEY }}
+          CLIENT_ID: ${{ vars.MODEL_GATE_APP_CLIENT_ID }}
+        run: |
+          if [ -n "$KEY" ]; then echo "KEY PRESENT"; else echo "key absent"; fi
+          if [ -n "$CLIENT_ID" ]; then echo "client id present"; else echo "client id absent"; fi
+      - id: app
+        continue-on-error: true
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1   # v3.2.0
+        with:
+          client-id: ${{ vars.MODEL_GATE_APP_CLIENT_ID }}
+          private-key: ${{ secrets.MODEL_GATE_APP_PRIVATE_KEY }}
+          permission-statuses: write
+      - run: echo "token minted: ${{ steps.app.outcome }}"
