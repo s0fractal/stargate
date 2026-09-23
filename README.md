@@ -15,7 +15,8 @@ that a fixed runtime executes by lookup.
 into an evidence pack. [examples/mcp-proxy](examples/mcp-proxy/REGISTRY.md) models how it
 tracks one request id: what the server still owes, whether the proxy holds a record,
 whether the id is marked ambiguous. The invariant says the proxy never loses track of a
-call it forwarded. Install with `python -m pip install -e .`; then, from this directory:
+call it forwarded. Local setup, not run by the README check (CI installs the wheel
+itself): `python -m pip install -e .`. Then, from this directory:
 
 ```sh
 W=$(mktemp -d); S=examples/mcp-proxy/specs
@@ -69,14 +70,17 @@ first = m.step(idle, {"host": True, "reply": False}); print(first)
 print(m.step(first, {"host": True, "reply": False}))')
 ```
 
-warrant runs this table, pinned by digest in its own source ([warrant PRs, split for
-review](examples/mcp-proxy/RESULTS.md#the-warrant-side)).
+Running this table inside warrant is a **proposed integration, not adopted**: the
+change that pins it by digest in warrant's own source is under review there, split into
+three pull requests ([state](examples/mcp-proxy/RESULTS.md#the-warrant-side)); warrant's
+`master` still runs its old bookkeeping.
 
 **Where the proof ends.** Two places, both found by this case:
 
 * The model is one request id. The review of the warrant change found a `tools/call`
   with **no** id — the server may run it, nothing can be paired with it — and the model
-  had no bit that could see it. The fix exists in warrant; the model did not change.
+  had no bit that could see it. A fix is proposed in warrant, not adopted; the model
+  did not change.
 * A repair may edit every rule, including the server's. The bounded search "repairs"
   today's model by making the server owe nothing, and the checker accepts it:
 

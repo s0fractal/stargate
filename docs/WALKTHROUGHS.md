@@ -1,7 +1,7 @@
 # Walkthroughs
 
 Moved here from README.md in build 46, unchanged in substance. **These commands are not
-run by CI** (README.md's are, by `tools/readme_walkthrough.py`); several of them write
+run by CI** (README.md's fenced `sh` blocks are, by `tools/readme_walkthrough.py`); several of them write
 into the current directory. SPEC.md is the contract; this file shows paths through it.
 
 ## Start with a real model: Peterson mutual exclusion

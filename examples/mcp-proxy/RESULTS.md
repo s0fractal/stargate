@@ -72,6 +72,18 @@ vendored runtime and table are most of it). Green CI there is not acceptance.
 * `a062427` red and `a67c2c9` fix for the review finding below, plus the reviewer's
   hardening: `run_proxy` loads the table before it spawns a server.
 
+#81 is kept unchanged as the audit trail. Its content is being proposed again as three
+sequential pull requests of at most 270 added lines each, each based on `master` after
+the previous one merges and each pushed with its own authorization:
+
+1. [#82](https://github.com/s0fractal/warrant/pull/82) — `warrant_mcp_table.py`, byte for
+   byte, shipped and unused (+178). Agent gate ACCEPT; independent review PASS; not merged.
+2. The pinned table and `load_table()`, not wired into `run_proxy` (+209). Local.
+3. `run_proxy` under the table: the reused id (G), the id-less call (I), the table loaded
+   before any server (+242). Local; its `warrant_mcp.py` is byte-identical to `a67c2c9`.
+
+Until 3 merges, warrant's `master` runs its old bookkeeping and the live bug stands.
+
 ## Found by the integration, not by the model
 
 The model is one request id. Codex's review of #81 found a call that has **no id**: a
