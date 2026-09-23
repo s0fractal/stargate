@@ -57,24 +57,44 @@ the test that reproduces today's lost call.
 
 ## The warrant side
 
-Branch `fix/mcp-proxy-duplicate-id` in warrant, on `origin/master` `b273b9e`, **local and
-not pushed**: warrant's rules require an explicit human authorization for pushing.
+warrant PR [#81](https://github.com/s0fractal/warrant/pull/81), branch
+`fix/mcp-proxy-duplicate-id` on `origin/master` `b273b9e`, pushed with the owner's
+authorization. **Review state: AMEND** (Codex, adversarial), and warrant's own agent gate
+**REJECT** on size (+500 lines against `agent_ceiling` 300 at the first head; the
+vendored runtime and table are most of it). Green CI there is not acceptance.
 
-* `604709e` red: `tests/mcp_seal.py` G — two `tools/call` with id 5 held open, then a
-  release. Today: `unreturned_calls` empty, 2 seals (the second call sealed with the
-  first call's result), `observation_complete: true`, exit 0.
-* `f5ae01c` the fix: `run_proxy` keeps one table state per id and decides with it;
-  `warrant_mcp_table.py` is `src/projection_runtime.py` byte for byte; the runtime
-  digest `4ab9224fac36…` and the projection digest `6235a212057f…` are pinned in
-  `warrant_mcp.py` (not read from `RUNTIME.json`), hashed before anything runs, and a
-  difference refuses to start (exit 2). G passes: both calls unreturned and
-  `ambiguous`, both responses in `unpaired_responses`, one seal, incomplete, exit 3.
-  A–F unchanged and green; new H: a runtime one line longer is refused before the
-  server is spawned, and a changed projection is refused by `load_table`.
-* The built wheel ships `warrant_mcp_table`, and the installed `warrant_mcp.load_table()`
-  answers from the pinned table.
+* `604709e` red: G — two `tools/call` with id 5 held open. On `master`: no unreturned
+  call, the second call sealed with the first call's result, complete, exit 0.
+* `f5ae01c` the table fix: per-id decisions from the pinned table (runtime
+  `4ab9224fac36…`, projection `6235a212057f…`, pinned in `warrant_mcp.py`, not read
+  from `RUNTIME.json`; a difference refuses to start, exit 2). G passes; A–F unchanged;
+  H: a changed runtime or projection is refused.
+* `a062427` red and `a67c2c9` fix for the review finding below, plus the reviewer's
+  hardening: `run_proxy` loads the table before it spawns a server.
+
+## Found by the integration, not by the model
+
+The model is one request id. Codex's review of #81 found a call that has **no id**: a
+`tools/call` notification (no `id`, or `id: null`). The downstream server may execute
+it; the proxy ignored it on the host side (`"id" in msg` false) and the server's
+`id: null` answer on the other (`mid is None`). Result on #81's first head: a
+consequential effect with `sealed_calls: 0`, `unreturned_calls: []`,
+`observation_complete: true`, exit 0 — a false green.
+
+No bit of the model could see it: the model's first step is "a call with this id", and
+there was no id. The table was not wrong; the model's world was too small. The fix
+(`a67c2c9`) records such a call unreturned with `"reason": "no request id"` and keeps a
+null-id response unpaired; it does not go through the table, because the table is about
+calls that can be paired at all.
+
+Two lessons from one vertical, kept apart on purpose:
+
+| from | found | why the other could not |
+| --- | --- | --- |
+| the formal model | a reused id loses a call and misattributes a result (live on warrant `master`) | a test has to guess the interleaving; the refutation names it (call, call) |
+| the real integration and its review | an id-less call leaves a clean pack | the model only describes calls that have an id |
 
 What the warrant tests do not show: that every path through `run_proxy` is the model.
-They exercise the paths the model has — a reused id, a server request on a held id
-(F), an unanswered call at EOF (E) — and nothing about threads or more than two
-outstanding calls per id.
+They exercise the paths the model has — a reused id, a server request on a held id (F),
+an unanswered call at EOF (E) — plus the id-less call the model lacks (I), and nothing
+about threads or more than two outstanding calls per id.
