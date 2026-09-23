@@ -16,7 +16,7 @@ SURFACE = ROOT / 'SURFACE.md'
 BEGIN, END = '<!-- inventory: generated -->', '<!-- inventory: end -->'
 SOURCES = {'tests': ROOT / 'tests', 'docs': None, 'examples': ROOT / 'examples',
            'integration': ROOT / 'integration'}
-DOCS = ('README.md', 'VISION.md', 'SPEC.md', 'ANCHORS.md')
+DOCS = ('README.md', 'VISION.md', 'SPEC.md', 'ANCHORS.md', 'docs/WALKTHROUGHS.md')
 
 
 def commands():
@@ -69,7 +69,7 @@ def table(rows):
     lines.append('')
     lines.append('{} commands. `tests`, `examples` and `integration` count the quoted '
                  'command name in those files; `docs` counts `sg NAME` or `NAME` in '
-                 'backticks across README, VISION, SPEC and ANCHORS. These are mentions, '
+                 'backticks across README, VISION, SPEC, ANCHORS and docs/WALKTHROUGHS. These are mentions, '
                  'not coverage.'.format(len(rows)))
     return '\n'.join(lines)
 

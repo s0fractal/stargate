@@ -40,3 +40,5 @@ jobs:
         run: python integration/test_release_gate.py --with-install
       - name: MCP proxy vertical (registered outcomes, results.json byte-for-byte)
         run: python integration/mcp_proxy_vertical.py
+      - name: README walkthrough (every sh block runs; the checkout stays clean)
+        run: python tools/readme_walkthrough.py
