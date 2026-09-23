@@ -23,4 +23,4 @@ jobs:
           client-id: ${{ vars.MODEL_GATE_APP_CLIENT_ID }}
           private-key: ${{ secrets.MODEL_GATE_APP_PRIVATE_KEY }}
           permission-statuses: write
-      - run: echo "token minted: ${{ steps.app.outcome }}"
+      - run: 'echo "token minted = ${{ steps.app.outcome }}"'
