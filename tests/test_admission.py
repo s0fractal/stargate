@@ -120,3 +120,25 @@ class Record(unittest.TestCase):
         text = (ROOT / '.github' / 'workflows' / 'model-gate.yml').read_text()
         self.assertNotIn('EXPECT_CHECKER', text)
         self.assertIn('ADMISSION_PATH: guarded/admission.json', text)
+
+
+class Exclusive(unittest.TestCase):
+    """Codex's review of #80: a record and pins are strictly exclusive, in every combination."""
+
+    def test_every_mixed_or_partial_combination_is_invalid(self):
+        repo, base = repo_with(record())
+        head = head_with(repo, GOOD)
+        combos = {'record + machine pin': dict(admission_path='admission.json', expect_checker=C1),
+                  'record + projection pin': dict(admission_path='admission.json', expect_projection_checker=P1),
+                  'record + both pins': dict(admission_path='admission.json', expect_checker=C1, expect_projection_checker=P1),
+                  'machine pin only': dict(expect_checker=C1),
+                  'projection pin only': dict(expect_projection_checker=P1),
+                  'nothing': dict()}
+        accepted = []
+        for name, options in combos.items():
+            try:
+                tool().gate(str(repo.path), base, head, **PATHS, **options)
+            except ValueError:
+                continue
+            accepted.append(name)
+        self.assertEqual(accepted, [])
