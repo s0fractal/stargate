@@ -2,8 +2,10 @@
 
 Outside every checked closure. Run by .github/workflows/model-gate.yml on
 `workflow_run` (from the default branch, so its pins cannot come from a pull request).
-The head is the event's `workflow_run.head_sha`; the pull request is the one open pull
-request whose head is that commit; the base is the current tip of its base branch. The
+The head is the event's `workflow_run.head_sha` — for a pull_request source run, the pull
+request's head commit (GITHUB_SHA, the merge ref, is a different field and is not read).
+Nothing is written until exactly one open pull request whose API head equals that commit
+is found; the base is the current tip of its base branch. The
 verdict is tools/pr_gate.py's gate and finish, run in-process. The only write is
 `POST /repos/{repo}/statuses/{head}` with context `stargate/model-gate`: pending, then
 success (exit 0), failure (2, 3, 4) or error (1 or anything unexpected).
@@ -65,12 +67,15 @@ def pull_request(api, head, event_pulls):
 def publish(*, api, token, repository, head, event_pulls, clone, model_path, projection_path,
             evidence_path, expect_checker, expect_projection_checker, target_url=None):
     github = Api(api, token, repository)
+    # Bind first: exactly one open pull request whose head, as the API reports it now, is
+    # the run's head. Only then is anything written. An unbound run writes nothing and is
+    # red; a pull request that has moved on is left to the run of its new head.
+    pr = pull_request(github, head, event_pulls)
+    if pr is None:
+        print(json.dumps(dict(status='unbound', head=head, event_pulls=event_pulls)), file=sys.stderr)
+        return 1
     github.status(head, 'pending', 'stargate: checking', target_url)
     try:
-        pr = pull_request(github, head, event_pulls)
-        if pr is None:
-            github.status(head, 'error', 'stargate: not exactly one open pull request has this head', target_url)
-            return 1
         base = github.call('GET', f'git/ref/heads/{pr["base"]["ref"]}')['object']['sha']
         subprocess.run(['git', '-C', clone, 'fetch', '--quiet', '--no-tags', 'origin', head, base],
                        check=True, capture_output=True)

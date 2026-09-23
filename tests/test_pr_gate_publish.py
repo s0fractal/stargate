@@ -188,8 +188,12 @@ class Entry(Base):
         """What model-gate.yml runs: python3 -I -S tools/pr_gate_publish.py, from the event file."""
         import os
         fake = FakeGitHub([self.pull(1, self.v['good'])], {'main': self.v['base']}); self.addCleanup(fake.close)
+        run = json.loads((ROOT / 'tests' / 'github_workflow_run_pull_request.json').read_text())
+        run['head_sha'] = self.v['good']                       # the recorded shape, with the fixture's commits
+        run['pull_requests'][0].update(number=1)
+        run['pull_requests'][0]['head']['sha'] = self.v['good']
         event = self.tmp / 'event.json'
-        event.write_text(json.dumps({'workflow_run': {'head_sha': self.v['good'], 'pull_requests': [{'number': 1}]}}))
+        event.write_text(json.dumps({'action': 'completed', 'workflow_run': run}))
         env = dict(os.environ, GITHUB_EVENT_PATH=str(event), GITHUB_API_URL=fake.api, GITHUB_TOKEN='t',
                    GITHUB_REPOSITORY=REPO, GITHUB_WORKSPACE=str(self.tmp / 'clone'), GITHUB_RUN_ID='1',
                    GITHUB_SERVER_URL='https://github.example', MODEL_PATH='model.json',
