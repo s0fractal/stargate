@@ -42,3 +42,48 @@ jobs:
         run: python integration/mcp_proxy_vertical.py
       - name: README walkthrough (every sh block runs; the checkout stays clean)
         run: python tools/readme_walkthrough.py
+  pr-gate-action:
+    # The composite action (action.yml) run end to end against a fixture repository:
+    # outcome 13 of docs/PR_GATE_REGISTRY.md. The fixture's heads are local commits,
+    # so nothing is fetched; everything else is the action a consumer runs.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install --quiet .
+      - id: fixture
+        run: python tools/pr_gate_fixture.py "$RUNNER_TEMP/fixture" >> "$GITHUB_OUTPUT"
+      - id: good
+        uses: ./
+        with:
+          repository: ${{ runner.temp }}/fixture
+          base: ${{ steps.fixture.outputs.base }}
+          head: ${{ steps.fixture.outputs.good }}
+          fetch-head: 'false'
+          model-path: model.json
+          projection-path: projection.json
+          evidence-path: .stargate/evidence.json
+          expect-checker: ${{ steps.fixture.outputs.checker }}
+          expect-projection-checker: ${{ steps.fixture.outputs.projection_checker }}
+      - id: bad
+        uses: ./
+        continue-on-error: true
+        with:
+          repository: ${{ runner.temp }}/fixture
+          base: ${{ steps.fixture.outputs.base }}
+          head: ${{ steps.fixture.outputs.bad }}
+          fetch-head: 'false'
+          model-path: model.json
+          projection-path: projection.json
+          evidence-path: .stargate/evidence.json
+          expect-checker: ${{ steps.fixture.outputs.checker }}
+          expect-projection-checker: ${{ steps.fixture.outputs.projection_checker }}
+      - name: The good head is verified and the flipped cell is refused
+        env:
+          GOOD: ${{ steps.good.outputs.status }}/${{ steps.good.outputs.exit-code }}
+          BAD: ${{ steps.bad.outputs.status }}/${{ steps.bad.outputs.exit-code }}/${{ steps.bad.outcome }}
+        run: |
+          test "$GOOD" = "verified/0"
+          test "$BAD" = "projection_mismatch/4/failure"
