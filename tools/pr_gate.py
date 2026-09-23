@@ -1,11 +1,13 @@
 """A read-only pull-request gate: one verdict about one base commit and one head commit.
 
 Outside every checked closure. The workflow owner pins the paths and the two checker
-IDs (run it from the base branch, e.g. pull_request_target); the event supplies the
+IDs; the event supplies the
 base and head commit IDs; the pull request supplies only bytes at those paths in its
 head commit. Nothing from the head is executed: blobs are read by commit ID through
 Git with hooks, replacement objects, inherited GIT_* variables and global/system
-configuration disabled (stargate.apply._Git). Nothing is written to the repository.
+configuration disabled (stargate.apply._Git). Refs, the index and the working tree are
+never changed and no byte from the head is executed; a caller's `git fetch` does add
+objects and FETCH_HEAD, the gate itself only reads.
 
     python tools/pr_gate.py --repository . --base SHA --head SHA \\
         --model-path model.json --projection-path projection.json \\
@@ -18,14 +20,37 @@ not the verified successor, a projection that does not match). Registered in
 docs/PR_GATE_REGISTRY.md.
 """
 import argparse
+import importlib.util
 import json
+import os
 from pathlib import Path
 import re
 import sys
 
-from stargate import certificate, projection_check
-from stargate.apply import _Git, GitError
-from stargate.canonical import decode, InvalidRecord
+
+def _bootstrap():
+    """Use an installed stargate if there is one; otherwise the source next to this file.
+
+    The action runs `python3 -I -S` with nothing installed, so the code that decides is
+    exactly the action's own pinned source: no pip, no network, no site-packages.
+    """
+    try:
+        import stargate  # noqa: F401
+        return
+    except ImportError:
+        pass
+    source = Path(__file__).resolve().parent.parent / 'src'
+    spec = importlib.util.spec_from_file_location('stargate', source / '__init__.py',
+                                                  submodule_search_locations=[str(source)])
+    module = importlib.util.module_from_spec(spec)
+    sys.modules['stargate'] = module
+    spec.loader.exec_module(module)
+
+
+_bootstrap()
+from stargate import certificate, projection_check  # noqa: E402
+from stargate.apply import _Git, GitError  # noqa: E402
+from stargate.canonical import decode, InvalidRecord  # noqa: E402
 
 COMMIT = re.compile(r'(?:[0-9a-f]{40}|[0-9a-f]{64})')
 SEGMENT = r'\.?[A-Za-z0-9_][A-Za-z0-9_.-]*'
@@ -118,12 +143,21 @@ def gate(repository, base, head, *, model_path, projection_path, evidence_path,
 
 
 def finish(code, report_text):
-    """RED STUB: what action.yml's shell does today — the gate's exit code, whatever it printed."""
+    """The step's exit code: the gate's, only if its report parses, names a known status,
+    and that status's code is the gate's code. Anything else is 1 — never a pass."""
+    try:
+        status = json.loads(report_text)['status']
+    except (ValueError, TypeError, KeyError):
+        return 1
+    if not isinstance(status, str) or EXIT.get(status) != code:
+        return 1
     return code
 
 
 def main(argv=None):
     p = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    p.add_argument('--github', action='store_true',
+                   help='also write status/exit-code to $GITHUB_OUTPUT and the report to $GITHUB_STEP_SUMMARY')
     for name in ('repository', 'base', 'head', 'model-path', 'projection-path', 'evidence-path',
                  'expect-checker', 'expect-projection-checker'):
         p.add_argument('--' + name, required=True)
@@ -137,8 +171,17 @@ def main(argv=None):
         code, report = 2, dict(status='invalid', error=str(exc), base=a.base, head=a.head)
     except GitError as exc:
         code, report = 1, dict(status='operation_error', error=str(exc), base=a.base, head=a.head)
-    print(json.dumps(report, sort_keys=True))
-    return code
+    text = json.dumps(report, sort_keys=True)
+    print(text)
+    final = finish(code, text)
+    if a.github:
+        status = report.get('status', 'invalid_report') if final == code else 'invalid_report'
+        with open(os.environ['GITHUB_OUTPUT'], 'a') as out:
+            out.write('status=' + status + '\nexit-code=' + str(final) + '\n')
+        with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as summary:
+            summary.write('### Stargate model gate: `' + status + '` (exit ' + str(final) + ')\n\n```json\n'
+                          + json.dumps(report, indent=2, sort_keys=True) + '\n```\n')
+    return final
 
 
 if __name__ == '__main__':

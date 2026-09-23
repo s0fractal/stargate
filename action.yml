@@ -2,8 +2,10 @@ name: Stargate model gate
 description: >-
   Read-only pull-request gate. One verdict about one base commit and one head commit:
   the guarded model changed only through verified Stargate evidence, and its projection
-  conforms. Never merges, pushes, writes to the repository or runs pull-request code.
-  Run it from the base branch (pull_request_target) so a pull request cannot change the pins.
+  conforms. Never merges, pushes, changes refs/index/worktree or runs pull-request code.
+  Computes a verdict; it does not by itself enforce anything on a pull request's head
+  commit (see docs/PR_GATE.md). Runs the action's own source with python3 -I -S: no pip,
+  no network beyond fetching the head, no other action.
 inputs:
   model-path: {description: 'guarded model file (canonical certificate model)', required: true}
   projection-path: {description: 'its projection-1 table', required: true}
@@ -20,10 +22,8 @@ outputs:
 runs:
   using: composite
   steps:
-    - uses: actions/setup-python@v5
-      with: {python-version: '3.12'}
     - shell: bash
-      run: python -m pip install --quiet "$GITHUB_ACTION_PATH"
+      run: python3 -I -S -c 'import sys; sys.exit(0 if sys.version_info >= (3, 11) else "the gate needs python3 >= 3.11 on the runner")'
     - if: inputs.fetch-head == 'true'
       shell: bash
       env: {REPO: '${{ inputs.repository }}', HEAD_SHA: '${{ inputs.head }}'}
@@ -39,14 +39,7 @@ runs:
         EVIDENCE: '${{ inputs.evidence-path }}'
         CHECKER: '${{ inputs.expect-checker }}'
         PCHECKER: '${{ inputs.expect-projection-checker }}'
-      run: |
-        set +e
-        python -I "$GITHUB_ACTION_PATH/tools/pr_gate.py" --repository "$REPO" --base "$BASE" --head "$HEAD_SHA" \
-          --model-path "$MODEL" --projection-path "$PROJECTION" --evidence-path "$EVIDENCE" \
-          --expect-checker "$CHECKER" --expect-projection-checker "$PCHECKER" > "$RUNNER_TEMP/stargate-gate.json"
-        code=$?
-        status=$(python -c 'import json,sys; print(json.load(open(sys.argv[1]))["status"])' "$RUNNER_TEMP/stargate-gate.json")
-        echo "status=$status" >> "$GITHUB_OUTPUT"; echo "exit-code=$code" >> "$GITHUB_OUTPUT"
-        { echo "### Stargate model gate: \`$status\` (exit $code)"; echo '```json';
-          cat "$RUNNER_TEMP/stargate-gate.json"; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
-        exit $code
+      run: >-
+        python3 -I -S "$GITHUB_ACTION_PATH/tools/pr_gate.py" --github --repository "$REPO"
+        --base "$BASE" --head "$HEAD_SHA" --model-path "$MODEL" --projection-path "$PROJECTION"
+        --evidence-path "$EVIDENCE" --expect-checker "$CHECKER" --expect-projection-checker "$PCHECKER"
