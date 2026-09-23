@@ -1,0 +1,35 @@
+{
+  "conclusion": "success",
+  "event": "pull_request",
+  "head_branch": "feat/model-gate-publisher",
+  "head_sha": "b9a9177e0cb4a3b959f3e01e1f888658dd84043f",
+  "html_url": "https://github.com/s0fractal/stargate/actions/runs/35812474250",
+  "id": 35812474250,
+  "name": "Model gate request",
+  "pull_requests": [
+    {
+      "base": {
+        "ref": "main",
+        "repo": {
+          "id": 1375157777,
+          "name": "stargate",
+          "url": "https://api.github.com/repos/s0fractal/stargate"
+        },
+        "sha": "b7ae5cdea8c0dde24e137427826aebc21c6d5c7d"
+      },
+      "head": {
+        "ref": "feat/model-gate-publisher",
+        "repo": {
+          "id": 1375157777,
+          "name": "stargate",
+          "url": "https://api.github.com/repos/s0fractal/stargate"
+        },
+        "sha": "b9a9177e0cb4a3b959f3e01e1f888658dd84043f"
+      },
+      "id": 4609206015,
+      "number": 67,
+      "url": "https://api.github.com/repos/s0fractal/stargate/pulls/67"
+    }
+  ],
+  "status": "completed"
+}

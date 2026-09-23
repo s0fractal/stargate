@@ -78,6 +78,18 @@ def spec_texts(model):
     return {name: json.dumps(spec(model, name), indent=2, sort_keys=True) + '\n' for name in SPECS}
 
 
+GUARDED = ROOT / 'guarded'                   # Stargate's own guarded model (the model gate, PR-09)
+
+
+def guarded_bytes(model):
+    """The certificate model of `fixed` and its projection, as the gate reads them."""
+    from stargate import certificate, lab, machine, projection
+    from stargate.canonical import canon
+    raw = machine.create(spec(model, 'fixed'))
+    _, table = projection.project(raw, lab.identity(raw))
+    return {'model.json': canon(certificate.model_from_machine(machine.inspect(raw))), 'projection.json': table}
+
+
 def run(vendor=None):
     model = json.loads((HERE / 'proxy.json').read_text())
     with tempfile.TemporaryDirectory() as tmp:
@@ -200,11 +212,15 @@ def main(argv=None):
     results = HERE / 'results.json'
     text = json.dumps(out, indent=2, sort_keys=True) + '\n'
     specs = spec_texts(json.loads((HERE / 'proxy.json').read_text()))
+    guarded = guarded_bytes(json.loads((HERE / 'proxy.json').read_text()))
     if arguments.write:
         results.write_text(text)
         (HERE / 'specs').mkdir(exist_ok=True)
         for name, body in specs.items():
             (HERE / 'specs' / (name + '.json')).write_text(body)
+        GUARDED.mkdir(exist_ok=True)
+        for name, data in guarded.items():
+            (GUARDED / name).write_bytes(data)
     else:
         if not results.exists() or results.read_text() != text:
             failures.append(dict(outcome='results.json is current', expected='committed bytes', actual='differs'))
@@ -212,6 +228,10 @@ def main(argv=None):
             path = HERE / 'specs' / (name + '.json')
             if not path.exists() or path.read_text() != body:
                 failures.append(dict(outcome='specs/' + name + '.json is current', expected='committed bytes', actual='differs'))
+        for name, data in guarded.items():
+            path = GUARDED / name
+            if not path.exists() or path.read_bytes() != data:
+                failures.append(dict(outcome='guarded/' + name + ' is current', expected='committed bytes', actual='differs'))
     print(text, end='')
     for failure in failures:
         print('MISMATCH', json.dumps(failure, sort_keys=True), file=sys.stderr)
