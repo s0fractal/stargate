@@ -39,7 +39,7 @@ fail on a stale table.
 | `experiment-create` | bind two source capsules and a runtime-independent corpus | 0 | 0 | 0 | 0 |
 | `export` | verify and export one portable signed check | 2 | 0 | 0 | 0 |
 | `genesis` | show intrinsic I/K/S hashes | 1 | 1 | 0 | 0 |
-| `init` | create the object directory | 4 | 1 | 1 | 0 |
+| `init` | create the object directory | 5 | 1 | 1 | 0 |
 | `inspect` | describe a packet of a stated kind and check its shape; never run it | 18 | 2 | 0 | 0 |
 | `keygen` | write a new private seed (never overwrite) | 4 | 1 | 0 | 0 |
 | `lab-check` | exhaustively check a text proposal without trusted keys | 9 | 3 | 0 | 0 |

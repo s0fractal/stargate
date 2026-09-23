@@ -154,18 +154,46 @@ class Verdicts(unittest.TestCase):
 
 
 class Control(unittest.TestCase):
+    """Registered control: removing step 7 alone lets outcome 8 pass. Measured: it does
+    not — step 8 checks the projection against the HEAD model's ID, which also binds the
+    head model, so the mutant refuses at step 8 (invalid). The registration is left as
+    written. The planted pull request passes only when step 7 is removed AND step 8 is
+    anchored to the successor's model instead of the head's; both mutants run below."""
     SITE = "    if successor_model != head_model:\n"
+    ANCHOR = "certificate.identity(head_model),"
 
-    def test_without_the_successor_check_a_different_head_model_passes(self):
+    def mutant(self, *replacements):
         source = GATE.read_text()
-        self.assertIn(self.SITE, source, 'mutation site not found: the control would prove nothing')
+        for old, new in replacements:
+            self.assertIn(old, source, 'mutation site not found: the control would prove nothing')
+            source = source.replace(old, new)
         namespace = {'__name__': 'pr_gate_mutant', '__file__': str(GATE)}
-        exec(compile(source.replace(self.SITE, '    if False:\n'), 'pr_gate_mutant', 'exec'), namespace)
+        exec(compile(source, 'pr_gate_mutant', 'exec'), namespace)
+        return namespace['gate']
+
+    def planted(self):
         repo, base = base_repo()
         head = head_with(repo, dict(GOOD, **{'model.json': ART['historic']['model']}))
-        options = dict(PATHS, expect_checker=CHECKER, expect_projection_checker=PCHECKER)
-        self.assertEqual(tool().gate(str(repo.path), base, head, **options)[0], 4)
-        # the historic model's projection is not the head projection either, so give it its own
-        head2 = repo.commit({'projection.json': ART['fixed']['projection']}, 'same projection')
-        code, report = namespace['gate'](str(repo.path), base, head2, **options)
-        self.assertEqual((code, report['status']), (0, 'verified'))
+        return repo, base, head, dict(PATHS, expect_checker=CHECKER, expect_projection_checker=PCHECKER)
+
+    def outcome(self, gate, *args, **kwargs):
+        try:
+            code, report = gate(*args, **kwargs)
+            return code, report['status']
+        except ValueError:
+            return 2, 'invalid'
+
+    def test_the_real_gate_refuses_the_planted_pull_request(self):
+        repo, base, head, options = self.planted()
+        self.assertEqual(self.outcome(tool().gate, str(repo.path), base, head, **options), (4, 'model_not_successor'))
+
+    def test_without_step_7_alone_step_8_still_refuses(self):
+        repo, base, head, options = self.planted()
+        gate = self.mutant((self.SITE, '    if False:\n'))
+        self.assertEqual(self.outcome(gate, str(repo.path), base, head, **options), (2, 'invalid'))
+
+    def test_without_both_bindings_the_planted_pull_request_passes(self):
+        repo, base, head, options = self.planted()
+        gate = self.mutant((self.SITE, '    if False:\n'),
+                           (self.ANCHOR, "certificate.identity(successor_model),"))
+        self.assertEqual(self.outcome(gate, str(repo.path), base, head, **options), (0, 'verified'))

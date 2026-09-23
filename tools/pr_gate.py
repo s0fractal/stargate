@@ -1,23 +1,137 @@
-"""RED STUB: the pull-request gate does not exist; everything passes."""
+"""A read-only pull-request gate: one verdict about one base commit and one head commit.
+
+Outside every checked closure. The workflow owner pins the paths and the two checker
+IDs (run it from the base branch, e.g. pull_request_target); the event supplies the
+base and head commit IDs; the pull request supplies only bytes at those paths in its
+head commit. Nothing from the head is executed: blobs are read by commit ID through
+Git with hooks, replacement objects, inherited GIT_* variables and global/system
+configuration disabled (stargate.apply._Git). Nothing is written to the repository.
+
+    python tools/pr_gate.py --repository . --base SHA --head SHA \\
+        --model-path model.json --projection-path projection.json \\
+        --evidence-path .stargate/evidence.json \\
+        --expect-checker ID --expect-projection-checker ID
+
+Exit codes: 0 verified or untouched; 1 checker or operation error; 2 invalid input;
+3 unverified, incomplete or unavailable; 4 refused (stale base, a head model that is
+not the verified successor, a projection that does not match). Registered in
+docs/PR_GATE_REGISTRY.md.
+"""
 import argparse
 import json
+from pathlib import Path
+import re
 import sys
+
+from stargate import certificate, projection_check
+from stargate.apply import _Git, GitError
+from stargate.canonical import decode, InvalidRecord
+
+COMMIT = re.compile(r'(?:[0-9a-f]{40}|[0-9a-f]{64})')
+SEGMENT = r'\.?[A-Za-z0-9_][A-Za-z0-9_.-]*'
+PATH = re.compile(SEGMENT + '(?:/' + SEGMENT + ')*')
+EXIT = {'verified': 0, 'untouched': 0, 'checker_error': 1, 'invalid': 2, 'unverified': 3,
+        'incomplete': 3, 'checker_unavailable': 3, 'projection_checker_unavailable': 3,
+        'stale_base': 4, 'model_not_successor': 4, 'projection_mismatch': 4}
+
+
+class Repository:
+    def __init__(self, path):
+        top = Path(path).resolve()
+        self.git = _Git(top / '.git' if (top / '.git').is_dir() else top)
+
+    def commit(self, sha):
+        if not isinstance(sha, str) or not COMMIT.fullmatch(sha):
+            raise InvalidRecord('expected a full commit ID')
+        if self.git.run('cat-file', '-e', sha + '^{commit}', optional=True).returncode:
+            raise InvalidRecord('commit not in the repository: ' + sha)
+        return sha
+
+    def ancestor(self, base, head):
+        return self.git.run('merge-base', '--is-ancestor', base, head, optional=True).returncode == 0
+
+    def blob(self, sha, path, limit):
+        """The regular file at path in commit sha, or None when it is absent."""
+        listed = self.git.read('ls-tree', '-z', sha, '--', path).split(b'\0')[0]
+        if not listed:
+            return None
+        meta, _, name = listed.partition(b'\t')
+        mode, kind, obj = meta.split(b' ')
+        if name.decode() != path or mode != b'100644' or kind != b'blob':
+            raise InvalidRecord(path + ' is not a regular file in ' + sha)
+        if int(self.git.read('cat-file', '-s', obj.decode())) > limit:
+            raise InvalidRecord(path + ' exceeds its size limit')
+        return self.git.read('cat-file', 'blob', obj.decode())
 
 
 def gate(repository, base, head, *, model_path, projection_path, evidence_path,
          expect_checker, expect_projection_checker):
-    return 0, dict(status='verified', base=base, head=head)
+    """(exit code, report). Raises InvalidRecord for invalid input (exit 2)."""
+    for path in (model_path, projection_path, evidence_path):
+        if not isinstance(path, str) or not PATH.fullmatch(path) or '..' in path.split('/'):
+            raise InvalidRecord('paths must be relative and ..-free')
+    repo = Repository(repository)
+    base, head = repo.commit(base), repo.commit(head)
+    report = dict(base=base, head=head, model_path=model_path, projection_path=projection_path,
+                  evidence_path=evidence_path, checker=expect_checker,
+                  projection_checker=expect_projection_checker)
+    def done(status, **fields):
+        return EXIT[status], dict(report, status=status, **fields)
+    if not repo.ancestor(base, head):
+        return done('stale_base')
+    base_model = repo.blob(base, model_path, certificate.MAX_BYTES)
+    if base_model is None:
+        raise InvalidRecord('no guarded model at the base commit')
+    parent = decode(base_model)
+    certificate._model(parent, programs=True)
+    parent_id = certificate.identity(parent)
+    head_model = repo.blob(head, model_path, certificate.MAX_BYTES)
+    base_projection = repo.blob(base, projection_path, projection_check.MAX_PROJECTION)
+    head_projection = repo.blob(head, projection_path, projection_check.MAX_PROJECTION)
+    if head_model == base_model and head_projection == base_projection:
+        return done('untouched', model=parent_id)
+    packet = repo.blob(head, evidence_path, certificate.MAX_BYTES)
+    if packet is None:
+        return done('unverified', reason='the guarded files changed and there is no evidence')
+    doc = decode(packet)
+    tags = [t for t in ('certified_change', 'certified_repair') if type(doc.get(t) if isinstance(doc, dict) else None) is int]
+    if len(tags) != 1:
+        raise InvalidRecord('evidence must be one certified_change or certified_repair')
+    verify = certificate.verify_change if tags[0] == 'certified_change' else certificate.verify_repair
+    proof, successor = verify(packet, parent_id, expect_checker)
+    if successor is None:
+        status = proof['status'] if proof['status'] in EXIT else 'checker_error'
+        return done(status, evidence=proof)
+    successor_model = decode(successor)['model']
+    if head_model is None:
+        return done('unverified', reason='the guarded model is gone at head')
+    head_model = decode(head_model)
+    if successor_model != head_model:
+        return done('model_not_successor', evidence=dict(status=proof['status']))
+    if head_projection is None:
+        return done('unverified', reason='the guarded model changed and there is no projection')
+    checked = projection_check.check(head_projection, successor, certificate.identity(head_model),
+                                     expect_checker, expect_projection_checker)
+    status = {'conforms': 'verified', 'mismatch': 'projection_mismatch'}.get(checked['status'], checked['status'])
+    return done(status if status in EXIT else 'checker_error', evidence=dict(status=proof['status']),
+                projection=checked)
 
 
 def main(argv=None):
-    p = argparse.ArgumentParser()
+    p = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     for name in ('repository', 'base', 'head', 'model-path', 'projection-path', 'evidence-path',
                  'expect-checker', 'expect-projection-checker'):
         p.add_argument('--' + name, required=True)
     a = p.parse_args(argv)
-    code, report = gate(a.repository, a.base, a.head, model_path=a.model_path,
-                        projection_path=a.projection_path, evidence_path=a.evidence_path,
-                        expect_checker=a.expect_checker, expect_projection_checker=a.expect_projection_checker)
+    try:
+        code, report = gate(a.repository, a.base, a.head, model_path=a.model_path,
+                            projection_path=a.projection_path, evidence_path=a.evidence_path,
+                            expect_checker=a.expect_checker,
+                            expect_projection_checker=a.expect_projection_checker)
+    except (InvalidRecord, ValueError, TypeError) as exc:
+        code, report = 2, dict(status='invalid', error=str(exc), base=a.base, head=a.head)
+    except GitError as exc:
+        code, report = 1, dict(status='operation_error', error=str(exc), base=a.base, head=a.head)
     print(json.dumps(report, sort_keys=True))
     return code
 
