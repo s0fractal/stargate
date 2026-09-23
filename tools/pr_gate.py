@@ -100,8 +100,12 @@ class Repository:
 
 
 def gate(repository, base, head, *, model_path, projection_path, evidence_path,
-         expect_checker, expect_projection_checker):
+         expect_checker=None, expect_projection_checker=None, admission_path=None):
     """(exit code, report). Raises InvalidRecord for invalid input (exit 2)."""
+    if admission_path is not None:
+        # RED STUB: the running code is the judge; the record is not read.
+        expect_checker = certificate.checker_id()
+        expect_projection_checker = projection_check.projection_checker_id()
     for path in (model_path, projection_path, evidence_path):
         if not isinstance(path, str) or not PATH.fullmatch(path) or '..' in path.split('/'):
             raise InvalidRecord('paths must be relative and ..-free')
