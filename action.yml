@@ -5,18 +5,18 @@ description: >-
   conforms. Never merges, pushes, writes to the repository or runs pull-request code.
   Run it from the base branch (pull_request_target) so a pull request cannot change the pins.
 inputs:
-  model-path: {description: guarded model file (canonical certificate model), required: true}
-  projection-path: {description: its projection-1 table, required: true}
-  evidence-path: {description: where a pull request puts its certified_change or certified_repair, required: true}
-  expect-checker: {description: pinned machine proof checker ID, required: true}
-  expect-projection-checker: {description: pinned ProjectionCheckerID, required: true}
-  repository: {description: local clone to read, default: '${{ github.workspace }}'}
-  base: {description: base commit ID, default: '${{ github.event.pull_request.base.sha }}'}
-  head: {description: head commit ID, default: '${{ github.event.pull_request.head.sha }}'}
-  fetch-head: {description: fetch the head commit's objects by ID before reading, default: 'true'}
+  model-path: {description: 'guarded model file (canonical certificate model)', required: true}
+  projection-path: {description: 'its projection-1 table', required: true}
+  evidence-path: {description: 'where a pull request puts its certified_change or certified_repair', required: true}
+  expect-checker: {description: 'pinned machine proof checker ID', required: true}
+  expect-projection-checker: {description: 'pinned ProjectionCheckerID', required: true}
+  repository: {description: 'local clone to read', default: '${{ github.workspace }}'}
+  base: {description: 'base commit ID', default: '${{ github.event.pull_request.base.sha }}'}
+  head: {description: 'head commit ID', default: '${{ github.event.pull_request.head.sha }}'}
+  fetch-head: {description: 'fetch the head commit''s objects by ID before reading', default: 'true'}
 outputs:
-  status: {description: the verdict, value: '${{ steps.gate.outputs.status }}'}
-  exit-code: {description: 0 verified/untouched, 1 error, 2 invalid, 3 unverified, 4 refused, value: '${{ steps.gate.outputs.exit-code }}'}
+  status: {description: 'the verdict', value: '${{ steps.gate.outputs.status }}'}
+  exit-code: {description: '0 verified/untouched, 1 error, 2 invalid, 3 unverified, 4 refused', value: '${{ steps.gate.outputs.exit-code }}'}
 runs:
   using: composite
   steps:
