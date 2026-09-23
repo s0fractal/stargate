@@ -1,25 +1,35 @@
 name: Model gate
 # Trusted half: runs from the default branch on workflow_run, so a pull request cannot
 # change these pins. Reads the head as Git objects, executes nothing from it, and writes
-# only a commit status (context stargate/model-gate) on workflow_run.head_sha.
+# only a commit status (context stargate/model-gate) on workflow_run.head_sha — as the
+# GitHub App `stargate-model-gate`, never as GitHub Actions. The App's key lives in the
+# environment model-gate-publisher, whose deployment branches are `main` only, so a pull
+# request's own workflows cannot mint the App's token (docs/MODEL_GATE_LIVE.md, probe 4).
 on:
   workflow_run:
     workflows: [Model gate request]
     types: [completed]
 permissions:
-  contents: read
-  statuses: write
-  pull-requests: read
+  contents: read           # GITHUB_TOKEN: checkout only; it can no longer write any status
 jobs:
   gate:
     runs-on: ubuntu-latest
+    environment: model-gate-publisher
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262   # v4, the default branch
         with:
           fetch-depth: 0
-      - name: Publish the model gate verdict on the head commit
+      - id: app
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1   # v3.2.0
+        with:
+          client-id: ${{ vars.MODEL_GATE_APP_CLIENT_ID }}
+          private-key: ${{ secrets.MODEL_GATE_APP_PRIVATE_KEY }}
+          permission-statuses: write
+          permission-pull-requests: read
+          permission-contents: read
+      - name: Publish the model gate verdict on the head commit, as the App
         env:
-          GITHUB_TOKEN: ${{ github.token }}
+          GITHUB_TOKEN: ${{ steps.app.outputs.token }}
           MODEL_PATH: guarded/model.json
           PROJECTION_PATH: guarded/projection.json
           EVIDENCE_PATH: guarded/evidence.json
