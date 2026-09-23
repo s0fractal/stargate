@@ -235,3 +235,20 @@ class Actuator(unittest.TestCase):
                                 capture_output=True, text=True, cwd='/')
         self.assertEqual(result.returncode, 0, result.stderr[-300:])
         self.assertEqual(json.loads(result.stdout)['status'], 'verified')
+
+
+class Worktree(unittest.TestCase):
+    """Found in PR-09b's local check: in a git worktree `.git` is a file, not a directory,
+    and the gate took the working tree itself as the Git directory."""
+
+    def test_a_worktree_path_reads_the_same_commits(self):
+        repo, base = base_repo()
+        head = head_with(repo, GOOD)
+        tree = Path(tempfile.mkdtemp()) / 'wt'
+        repo.git('worktree', 'add', '-q', str(tree), head)
+        options = dict(PATHS, expect_checker=CHECKER, expect_projection_checker=PCHECKER)
+        try:
+            code, report = tool().gate(str(tree), base, head, **options)
+        except ValueError as exc:
+            code, report = 2, dict(status='invalid', error=str(exc))
+        self.assertEqual((code, report['status']), (0, 'verified'), report.get('error'))
