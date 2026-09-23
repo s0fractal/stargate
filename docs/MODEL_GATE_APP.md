@@ -7,7 +7,11 @@ request under review.
 
 ## The owner's setup (not something an agent may do)
 
-1. **Create a GitHub App** `stargate-model-gate` under `s0fractal` (Settings → Developer
+The App's manifest (name, permissions, no webhook, private) is
+[model-gate-app-manifest.json](model-gate-app-manifest.json); it is created through GitHub's
+manifest flow, which needs one confirmation in the browser by the account owner.
+
+1. **Create a GitHub App** `s0fractal-stargate-model-gate` under `s0fractal` (Settings → Developer
    settings → GitHub Apps → New): webhook off; repository permissions **Commit statuses:
    Read and write**, **Pull requests: Read-only**, **Contents: Read-only** (Metadata is
    implied); installable on this account only. Generate a private key.

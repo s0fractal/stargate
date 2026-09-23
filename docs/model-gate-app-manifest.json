@@ -1,0 +1,17 @@
+{
+  "name": "s0fractal-stargate-model-gate",
+  "url": "https://github.com/s0fractal/stargate",
+  "description": "Publishes the Stargate model gate verdict (commit status stargate/model-gate) on pull request heads of s0fractal/stargate. See docs/MODEL_GATE_APP.md.",
+  "hook_attributes": {"url": "https://github.com/s0fractal/stargate", "active": false},
+  "redirect_url": "http://127.0.0.1:9/stargate-app-created",
+  "public": false,
+  "request_oauth_on_install": false,
+  "setup_on_update": false,
+  "default_permissions": {
+    "statuses": "write",
+    "pull_requests": "read",
+    "contents": "read",
+    "metadata": "read"
+  },
+  "default_events": []
+}

@@ -2,7 +2,7 @@ name: Model gate
 # Trusted half: runs from the default branch on workflow_run, so a pull request cannot
 # change these pins. Reads the head as Git objects, executes nothing from it, and writes
 # only a commit status (context stargate/model-gate) on workflow_run.head_sha — as the
-# GitHub App `stargate-model-gate`, never as GitHub Actions. The App's key lives in the
+# GitHub App `s0fractal-stargate-model-gate`, never as GitHub Actions. The App's key lives in the
 # environment model-gate-publisher, whose deployment branches are `main` only, so a pull
 # request's own workflows cannot mint the App's token (docs/MODEL_GATE_LIVE.md, probe 4).
 on:
