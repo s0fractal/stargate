@@ -1,0 +1,6 @@
+{
+  "defect": "bad-round-closes",
+  "overrides": {
+    "open": "(!open && !half && bad) || (open && !elapsed)"
+  }
+}

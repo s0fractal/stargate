@@ -1,0 +1,7 @@
+{
+  "defect": "open-skips-half-open",
+  "overrides": {
+    "half": "(half && !bad && !elapsed)",
+    "open": "(!open && !half && bad) || (half && bad)"
+  }
+}

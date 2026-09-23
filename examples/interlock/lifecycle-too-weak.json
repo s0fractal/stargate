@@ -1,0 +1,34 @@
+{
+  "events": [
+    "bad",
+    "elapsed"
+  ],
+  "goals": [
+    {
+      "half": false,
+      "open": false
+    }
+  ],
+  "initial": [
+    {
+      "half": false,
+      "open": false
+    }
+  ],
+  "invariant": "!(open && half)",
+  "live_goals": [
+    {
+      "half": false,
+      "open": false
+    }
+  ],
+  "max_atp": 1000,
+  "next": {
+    "half": "(open && elapsed) || (half && !bad && !elapsed)",
+    "open": "(!open && !half && bad) || (open && !elapsed) || (half && bad)"
+  },
+  "state": [
+    "half",
+    "open"
+  ]
+}
