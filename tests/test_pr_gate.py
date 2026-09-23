@@ -197,3 +197,41 @@ class Control(unittest.TestCase):
         gate = self.mutant((self.SITE, '    if False:\n'),
                            (self.ANCHOR, "certificate.identity(successor_model),"))
         self.assertEqual(self.outcome(gate, str(repo.path), base, head, **options), (0, 'verified'))
+
+
+class Actuator(unittest.TestCase):
+    """Codex's review of #66: the GitHub layer around the gate."""
+
+    def test_a_report_that_does_not_parse_or_disagree_is_never_a_pass(self):
+        finish = tool().finish
+        cases = {'empty report, exit 0': ('', 0),
+                 'not JSON, exit 0': ('garbage', 0),
+                 'no status, exit 0': ('{"base": "x"}', 0),
+                 'refusal status, exit 0': ('{"status": "projection_mismatch"}', 0),
+                 'pass status, exit 3': ('{"status": "verified"}', 3)}
+        passed = [name for name, (text, code) in cases.items() if finish(code, text) == 0]
+        self.assertEqual(passed, [])
+        self.assertEqual(finish(0, '{"status": "verified"}'), 0)
+        self.assertEqual(finish(0, '{"status": "untouched"}'), 0)
+        self.assertEqual(finish(4, '{"status": "projection_mismatch"}'), 4)
+
+    def test_the_action_installs_nothing_and_uses_no_other_action(self):
+        text = (ROOT / 'action.yml').read_text()
+        self.assertNotIn('pip install', text)
+        self.assertNotIn('uses:', text)
+        self.assertNotIn('set +e', text)
+
+    def test_the_gate_runs_from_source_without_site_packages(self):
+        """python -I -S: no site-packages, so no installed stargate and no pip dependency."""
+        fixture = Path(tempfile.mkdtemp()) / 'fx'
+        out = subprocess.run([sys.executable, str(ROOT / 'tools' / 'pr_gate_fixture.py'), str(fixture)],
+                             capture_output=True, text=True, check=True).stdout
+        values = dict(line.split('=', 1) for line in out.split())
+        result = subprocess.run([sys.executable, '-I', '-S', str(GATE), '--repository', str(fixture),
+                                 '--base', values['base'], '--head', values['good'], '--model-path', 'model.json',
+                                 '--projection-path', 'projection.json', '--evidence-path', '.stargate/evidence.json',
+                                 '--expect-checker', values['checker'],
+                                 '--expect-projection-checker', values['projection_checker']],
+                                capture_output=True, text=True, cwd='/')
+        self.assertEqual(result.returncode, 0, result.stderr[-300:])
+        self.assertEqual(json.loads(result.stdout)['status'], 'verified')

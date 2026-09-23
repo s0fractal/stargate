@@ -117,6 +117,11 @@ def gate(repository, base, head, *, model_path, projection_path, evidence_path,
                 projection=checked)
 
 
+def finish(code, report_text):
+    """RED STUB: what action.yml's shell does today — the gate's exit code, whatever it printed."""
+    return code
+
+
 def main(argv=None):
     p = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     for name in ('repository', 'base', 'head', 'model-path', 'projection-path', 'evidence-path',
