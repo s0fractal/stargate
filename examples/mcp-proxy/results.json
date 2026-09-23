@@ -1,8 +1,8 @@
 {
   "checker": "ab72a8025a564c067f6d3a8551775733a8153ef696d1942a1f1b80e4afe107cd",
   "chosen": {
-    "model": "14cfbf8c906b36518bf1d7be689aeeaa7032e6fb03beb333d2697568f55b8234",
-    "projection": "6235a212057f2ef360d30cb767f170a363311f20bfa18f00dbf4143c8d7ac321",
+    "model": "33a8fec2a211c69d1c66c15ab7c6abd1e0e076992f594cd651cec663706395ef",
+    "projection": "b02151a044e12008a3cde27480591fda54fae6aa7fe4bf16bd1b691e28f38750",
     "runtime_digest": "4ab9224fac3605bd150cb12764424e9b5c7147c72a0e5259c2d0861f94746b1a",
     "successor": "fixed"
   },
@@ -57,7 +57,7 @@
   },
   "machines": {
     "current": "068d7c49a953136a6086531b2a0d6e2c3b6cb9a7842df289f10daaee87f2c8b8",
-    "fixed": "2ba0911d3738a34924540caef9889421e6c0a33a1c0e420c6a89fd31ee5ebcbc",
+    "fixed": "f2377cc998b27c7e71d7dc188378c2bde38487b64bc157c3664a833a729864c8",
     "historic": "fe36aaa10e2f657e0447a1c25134905ba26df7e4c39952ed8f90e3a7711bef04",
     "naive-fix": "068d7c49a953136a6086531b2a0d6e2c3b6cb9a7842df289f10daaee87f2c8b8"
   },
@@ -88,9 +88,9 @@
   "successors": {
     "fixed": {
       "conforms": "conforms",
-      "machine": "2ba0911d3738a34924540caef9889421e6c0a33a1c0e420c6a89fd31ee5ebcbc",
-      "model": "14cfbf8c906b36518bf1d7be689aeeaa7032e6fb03beb333d2697568f55b8234",
-      "projection": "6235a212057f2ef360d30cb767f170a363311f20bfa18f00dbf4143c8d7ac321"
+      "machine": "f2377cc998b27c7e71d7dc188378c2bde38487b64bc157c3664a833a729864c8",
+      "model": "33a8fec2a211c69d1c66c15ab7c6abd1e0e076992f594cd651cec663706395ef",
+      "projection": "b02151a044e12008a3cde27480591fda54fae6aa7fe4bf16bd1b691e28f38750"
     },
     "search-one-edit": {
       "conforms": "conforms",

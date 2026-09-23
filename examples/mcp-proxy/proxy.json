@@ -16,6 +16,6 @@
     "historic": {"pending": "(host && !reply)", "ambiguous": "ambiguous"},
     "naive-fix": {"pending": "(host && !reply) || (!host && !reply && pending)", "ambiguous": "ambiguous"},
     "fixed": {"pending": "(host && !reply && !pending && !ambiguous) || (!host && !reply && pending)",
-              "ambiguous": "(!host && ambiguous) || (host && !reply && (ambiguous || pending))"}
+              "ambiguous": "((host && !reply) && (ambiguous || pending)) || (!host && ambiguous)"}
   }
 }
