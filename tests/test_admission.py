@@ -107,3 +107,16 @@ class Control(unittest.TestCase):
         self.assertEqual(verdict(repo, base, head), (3, 'checker_unavailable'))
         code, report = namespace['gate'](str(repo.path), base, head, admission_path='admission.json', **PATHS)
         self.assertEqual((code, report['status']), (0, 'verified'))
+
+
+class Record(unittest.TestCase):
+    def test_the_committed_record_names_the_code_on_this_branch(self):
+        """A change to the checker's code must come with an explicit change to the record;
+        otherwise the gate on main would fail closed, and this test says so first."""
+        record = decode((ROOT / 'guarded' / 'admission.json').read_bytes())
+        self.assertEqual(record, dict(admission=1, machine_checker=C1, projection_checker=P1))
+
+    def test_the_workflow_pins_no_checker(self):
+        text = (ROOT / '.github' / 'workflows' / 'model-gate.yml').read_text()
+        self.assertNotIn('EXPECT_CHECKER', text)
+        self.assertIn('ADMISSION_PATH: guarded/admission.json', text)

@@ -99,21 +99,40 @@ class Repository:
         return self.git.read('cat-file', 'blob', obj.decode())
 
 
+def admission(raw):
+    """(machine checker, projection checker) from an admission record, or InvalidRecord."""
+    if raw is None:
+        raise InvalidRecord('no admission record at the base commit')
+    record = decode(raw)
+    if not isinstance(record, dict) or set(record) != {'admission', 'machine_checker', 'projection_checker'}:
+        raise InvalidRecord('an admission record has exactly admission, machine_checker, projection_checker')
+    if type(record['admission']) is not int or record['admission'] != 1:
+        raise InvalidRecord('unsupported admission record')
+    for key in ('machine_checker', 'projection_checker'):
+        if not isinstance(record[key], str) or not re.fullmatch(r'[0-9a-f]{64}', record[key]):
+            raise InvalidRecord(key + ' must be one lowercase SHA-256')
+    return record['machine_checker'], record['projection_checker']
+
+
 def gate(repository, base, head, *, model_path, projection_path, evidence_path,
          expect_checker=None, expect_projection_checker=None, admission_path=None):
     """(exit code, report). Raises InvalidRecord for invalid input (exit 2)."""
-    if admission_path is not None:
-        # RED STUB: the running code is the judge; the record is not read.
-        expect_checker = certificate.checker_id()
-        expect_projection_checker = projection_check.projection_checker_id()
-    for path in (model_path, projection_path, evidence_path):
+    if (admission_path is None) == (expect_checker is None or expect_projection_checker is None):
+        raise InvalidRecord('give either both pinned checker IDs or an admission record, not both')
+    for path in (model_path, projection_path, evidence_path) + ((admission_path,) if admission_path else ()):
         if not isinstance(path, str) or not PATH.fullmatch(path) or '..' in path.split('/'):
             raise InvalidRecord('paths must be relative and ..-free')
     repo = Repository(repository)
     base, head = repo.commit(base), repo.commit(head)
+    if admission_path is not None:
+        # Current authority is a record on the base commit: never the head's, never
+        # ANCHORS.md (history), never the code that happens to be running.
+        admitted = admission(repo.blob(base, admission_path, 4096))
+        expect_checker, expect_projection_checker = admitted
     report = dict(base=base, head=head, model_path=model_path, projection_path=projection_path,
                   evidence_path=evidence_path, checker=expect_checker,
-                  projection_checker=expect_projection_checker)
+                  projection_checker=expect_projection_checker,
+                  admission=admission_path if admission_path else 'pinned')
     def done(status, **fields):
         return EXIT[status], dict(report, status=status, **fields)
     if not repo.ancestor(base, head):

@@ -33,6 +33,7 @@ jobs:
           MODEL_PATH: guarded/model.json
           PROJECTION_PATH: guarded/projection.json
           EVIDENCE_PATH: guarded/evidence.json
-          EXPECT_CHECKER: ab72a8025a564c067f6d3a8551775733a8153ef696d1942a1f1b80e4afe107cd
-          EXPECT_PROJECTION_CHECKER: 392c11b3683dc1e9d93d708c46012600503c3ea495aaa666221d5e27cc20e4a4
+          # Which checkers may admit is guarded/admission.json on the base commit, not a pin
+          # here: a transition to a new checker is a commit to that record (docs/ADMISSION_REGISTRY.md).
+          ADMISSION_PATH: guarded/admission.json
         run: python3 -I -S tools/pr_gate_publish.py
