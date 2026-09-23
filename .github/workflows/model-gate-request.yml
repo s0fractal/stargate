@@ -1,0 +1,13 @@
+name: Model gate request
+# Runs nothing from the pull request and has no permissions. Its completion triggers
+# model-gate.yml, which runs from the default branch and publishes the verdict as a
+# commit status on the pull request's head. See docs/MODEL_GATE_PUBLISHER_REGISTRY.md.
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, edited]
+permissions: {}
+jobs:
+  request:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "requested the model gate for ${{ github.event.pull_request.head.sha }}"

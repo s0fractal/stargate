@@ -1,0 +1,28 @@
+name: Model gate
+# Trusted half: runs from the default branch on workflow_run, so a pull request cannot
+# change these pins. Reads the head as Git objects, executes nothing from it, and writes
+# only a commit status (context stargate/model-gate) on workflow_run.head_sha.
+on:
+  workflow_run:
+    workflows: [Model gate request]
+    types: [completed]
+permissions:
+  contents: read
+  statuses: write
+  pull-requests: read
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262   # v4, the default branch
+        with:
+          fetch-depth: 0
+      - name: Publish the model gate verdict on the head commit
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          MODEL_PATH: guarded/model.json
+          PROJECTION_PATH: guarded/projection.json
+          EVIDENCE_PATH: guarded/evidence.json
+          EXPECT_CHECKER: ab72a8025a564c067f6d3a8551775733a8153ef696d1942a1f1b80e4afe107cd
+          EXPECT_PROJECTION_CHECKER: 392c11b3683dc1e9d93d708c46012600503c3ea495aaa666221d5e27cc20e4a4
+        run: python3 -I -S tools/pr_gate_publish.py

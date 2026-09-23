@@ -75,7 +75,7 @@ class FakeGitHub:
         return [(method, path) for method, path, body in self.requests if method != 'GET']
 
 
-class Publisher(unittest.TestCase):
+class Base(unittest.TestCase):
     def setUp(self):
         self.tmp = Path(tempfile.mkdtemp()); self.addCleanup(shutil.rmtree, self.tmp)
         out = subprocess.run([sys.executable, str(FIXTURE), str(self.tmp / 'origin')],
@@ -101,6 +101,8 @@ class Publisher(unittest.TestCase):
             code = 'raised'
         return code, fake
 
+
+class Publisher(Base):
     def test_1_valid_repair_is_success_on_exactly_that_head(self):
         code, fake = self.run_publisher(self.v['good'], [self.pull(1, self.v['good'])])
         self.assertEqual([(s, st, c) for s, st, d, c in fake.statuses()],
@@ -150,3 +152,38 @@ class Publisher(unittest.TestCase):
     def test_8_a_refused_final_post_makes_the_run_red(self):
         code, fake = self.run_publisher(self.v['good'], [self.pull(1, self.v['good'])], fail_final=True)
         self.assertNotEqual(code, 0)
+
+
+class Control(Base):
+    SITE = "    if len(matching) != 1:\n"
+
+    def test_without_the_one_pull_request_check_a_shared_head_gets_a_verdict(self):
+        source = PUBLISH.read_text()
+        self.assertIn(self.SITE, source, 'mutation site not found: the control would prove nothing')
+        namespace = {'__name__': 'publish_mutant', '__file__': str(PUBLISH)}
+        exec(compile(source.replace(self.SITE, "    if not matching:\n"), 'publish_mutant', 'exec'), namespace)
+        pulls = [self.pull(1, self.v['good']), self.pull(3, self.v['good'])]
+        fake = FakeGitHub(pulls, {'main': self.v['base']}); self.addCleanup(fake.close)
+        namespace['publish'](api=fake.api, token='t', repository=REPO, head=self.v['good'], event_pulls=[1, 3],
+                             clone=str(self.tmp / 'clone'), model_path='model.json', projection_path='projection.json',
+                             evidence_path='.stargate/evidence.json', expect_checker=self.v['checker'],
+                             expect_projection_checker=self.v['projection_checker'])
+        self.assertEqual(fake.statuses()[-1][1], 'success')
+
+
+class Entry(Base):
+    def test_the_workflow_entry_point_runs_under_isolation(self):
+        """What model-gate.yml runs: python3 -I -S tools/pr_gate_publish.py, from the event file."""
+        import os
+        fake = FakeGitHub([self.pull(1, self.v['good'])], {'main': self.v['base']}); self.addCleanup(fake.close)
+        event = self.tmp / 'event.json'
+        event.write_text(json.dumps({'workflow_run': {'head_sha': self.v['good'], 'pull_requests': [{'number': 1}]}}))
+        env = dict(os.environ, GITHUB_EVENT_PATH=str(event), GITHUB_API_URL=fake.api, GITHUB_TOKEN='t',
+                   GITHUB_REPOSITORY=REPO, GITHUB_WORKSPACE=str(self.tmp / 'clone'), GITHUB_RUN_ID='1',
+                   GITHUB_SERVER_URL='https://github.example', MODEL_PATH='model.json',
+                   PROJECTION_PATH='projection.json', EVIDENCE_PATH='.stargate/evidence.json',
+                   EXPECT_CHECKER=self.v['checker'], EXPECT_PROJECTION_CHECKER=self.v['projection_checker'])
+        result = subprocess.run([sys.executable, '-I', '-S', str(PUBLISH)], env=env, capture_output=True,
+                                text=True, cwd='/')
+        self.assertEqual(result.returncode, 0, result.stderr[-400:])
+        self.assertEqual([st for s, st, d, c in fake.statuses()], ['pending', 'success'])
