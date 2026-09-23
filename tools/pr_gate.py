@@ -65,8 +65,10 @@ class Repository:
     def __init__(self, path):
         top = Path(path).resolve()
         if (top / '.git').is_file():             # a worktree or submodule: ask Git where its directory is
-            found = subprocess.run(['git', '-C', str(top), 'rev-parse', '--absolute-git-dir'],
-                                   capture_output=True, text=True)
+            clean = _Git(top).env                # the same sanitised environment: no GIT_*, no global/system config
+            found = subprocess.run(['git', '-c', 'core.hooksPath=' + os.devnull, '-c', 'core.fsmonitor=false',
+                                    '-C', str(top), 'rev-parse', '--absolute-git-dir'],
+                                   capture_output=True, text=True, env=clean)
             if found.returncode:
                 raise InvalidRecord('not a Git checkout: ' + str(top))
             self.git = _Git(found.stdout.strip())
