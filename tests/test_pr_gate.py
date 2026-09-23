@@ -252,3 +252,29 @@ class Worktree(unittest.TestCase):
         except ValueError as exc:
             code, report = 2, dict(status='invalid', error=str(exc))
         self.assertEqual((code, report['status']), (0, 'verified'), report.get('error'))
+
+
+class HostileEnvironment(unittest.TestCase):
+    """Codex's review of #71: the worktree resolution ran before _Git's sanitised
+    environment, so an inherited GIT_DIR redirected it to another repository."""
+
+    def test_git_dir_and_work_tree_from_the_environment_are_ignored(self):
+        import os
+        repo, base = base_repo()
+        head = head_with(repo, GOOD)
+        tree = Path(tempfile.mkdtemp()) / 'wt'
+        repo.git('worktree', 'add', '-q', str(tree), head)
+        other = Repo(); other.commit({'x': b'another repository\n'}, 'other')
+        options = dict(PATHS, expect_checker=CHECKER, expect_projection_checker=PCHECKER)
+        saved = {k: os.environ.get(k) for k in ('GIT_DIR', 'GIT_WORK_TREE')}
+        os.environ['GIT_DIR'] = str(other.path / '.git'); os.environ['GIT_WORK_TREE'] = str(other.path)
+        try:
+            try:
+                code, report = tool().gate(str(tree), base, head, **options)
+            except ValueError as exc:
+                code, report = 2, dict(status='invalid', error=str(exc))
+        finally:
+            for key, value in saved.items():
+                if value is None: os.environ.pop(key, None)
+                else: os.environ[key] = value
+        self.assertEqual((code, report['status']), (0, 'verified'), report.get('error'))
