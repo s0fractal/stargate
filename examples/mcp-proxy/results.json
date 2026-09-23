@@ -1,0 +1,108 @@
+{
+  "checker": "ab72a8025a564c067f6d3a8551775733a8153ef696d1942a1f1b80e4afe107cd",
+  "chosen": {
+    "model": "14cfbf8c906b36518bf1d7be689aeeaa7032e6fb03beb333d2697568f55b8234",
+    "projection": "6235a212057f2ef360d30cb767f170a363311f20bfa18f00dbf4143c8d7ac321",
+    "runtime_digest": "4ab9224fac3605bd150cb12764424e9b5c7147c72a0e5259c2d0861f94746b1a",
+    "successor": "fixed"
+  },
+  "current": {
+    "claim": "unsafe",
+    "endpoint": {
+      "ambiguous": false,
+      "calls.one": true,
+      "calls.two": true,
+      "pending": true
+    },
+    "exit": 4,
+    "status": "verified_refutation",
+    "trace": [
+      [
+        true,
+        false
+      ],
+      [
+        true,
+        false
+      ]
+    ]
+  },
+  "fixed": {
+    "exit": 0,
+    "live_ranks": 1,
+    "states": 5,
+    "status": "verified_certificate"
+  },
+  "hand-repair": "verified_repair",
+  "historic": {
+    "claim": "unsafe",
+    "endpoint": {
+      "ambiguous": false,
+      "calls.one": true,
+      "calls.two": false,
+      "pending": false
+    },
+    "exit": 4,
+    "status": "verified_refutation",
+    "trace": [
+      [
+        true,
+        false
+      ],
+      [
+        false,
+        false
+      ]
+    ]
+  },
+  "machines": {
+    "current": "068d7c49a953136a6086531b2a0d6e2c3b6cb9a7842df289f10daaee87f2c8b8",
+    "fixed": "2ba0911d3738a34924540caef9889421e6c0a33a1c0e420c6a89fd31ee5ebcbc",
+    "historic": "fe36aaa10e2f657e0447a1c25134905ba26df7e4c39952ed8f90e3a7711bef04",
+    "naive-fix": "068d7c49a953136a6086531b2a0d6e2c3b6cb9a7842df289f10daaee87f2c8b8"
+  },
+  "search-one-edit": {
+    "attempted": 3,
+    "edit": {
+      "calls.one": "(((host && !(reply)) || ((!(host) && reply) && calls.two)) && ((!(host) && !(reply)) && calls.one))"
+    },
+    "edited": [
+      "calls.one"
+    ],
+    "exit": 0,
+    "repair_check": "verified_repair",
+    "status": "found"
+  },
+  "search-trace": {
+    "attempted": 10,
+    "edit": {
+      "calls.one": "(((host && !(reply)) || ((!(host) && reply) && calls.two)) && ((!(host) && !(reply)) && calls.one))"
+    },
+    "edited": [
+      "calls.one"
+    ],
+    "exit": 0,
+    "repair_check": "verified_repair",
+    "status": "found"
+  },
+  "successors": {
+    "fixed": {
+      "conforms": "conforms",
+      "machine": "2ba0911d3738a34924540caef9889421e6c0a33a1c0e420c6a89fd31ee5ebcbc",
+      "model": "14cfbf8c906b36518bf1d7be689aeeaa7032e6fb03beb333d2697568f55b8234",
+      "projection": "6235a212057f2ef360d30cb767f170a363311f20bfa18f00dbf4143c8d7ac321"
+    },
+    "search-one-edit": {
+      "conforms": "conforms",
+      "machine": "788c4bbaa6627de65dce397549094c37d0186554159a644daa13c97d56882b35",
+      "model": "12d743af1d5abf4b3d96812db5814b4a5652c9f78f00c094647307962d888c16",
+      "projection": "8700640f724d75c5fd46dce3c26cfd0be1075d745ed3c4e2d008574e5f2022ff"
+    },
+    "search-trace": {
+      "conforms": "conforms",
+      "machine": "788c4bbaa6627de65dce397549094c37d0186554159a644daa13c97d56882b35",
+      "model": "12d743af1d5abf4b3d96812db5814b4a5652c9f78f00c094647307962d888c16",
+      "projection": "8700640f724d75c5fd46dce3c26cfd0be1075d745ed3c4e2d008574e5f2022ff"
+    }
+  }
+}

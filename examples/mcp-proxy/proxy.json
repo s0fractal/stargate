@@ -1,0 +1,21 @@
+{
+  "source": "warrant impl/warrant_mcp.py run_proxy, origin/master b273b9e, lines 276-354",
+  "state": ["ambiguous", "calls.one", "calls.two", "pending"],
+  "events": ["host", "reply"],
+  "initial": [{"ambiguous": false, "calls.one": false, "calls.two": false, "pending": false}],
+  "invariant": "(!calls.two || calls.one) && (!calls.two || ambiguous) && (!calls.one || pending || ambiguous)",
+  "goals": [{"ambiguous": false, "calls.one": false, "calls.two": false, "pending": false}],
+  "live_goals": [{"ambiguous": false, "calls.one": false, "calls.two": false, "pending": false}],
+  "max_atp": 1000,
+  "world": {
+    "calls.one": "(host && !reply) || (!host && reply && calls.two) || (!host && !reply && calls.one)",
+    "calls.two": "(host && !reply && calls.one) || (!host && !reply && calls.two)"
+  },
+  "variants": {
+    "current": {"pending": "(host && !reply) || (!host && !reply && pending)", "ambiguous": "ambiguous"},
+    "historic": {"pending": "(host && !reply)", "ambiguous": "ambiguous"},
+    "naive-fix": {"pending": "(host && !reply) || (!host && !reply && pending)", "ambiguous": "ambiguous"},
+    "fixed": {"pending": "(host && !reply && !pending && !ambiguous) || (!host && !reply && pending)",
+              "ambiguous": "(!host && ambiguous) || (host && !reply && (ambiguous || pending))"}
+  }
+}
