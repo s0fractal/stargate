@@ -1,6 +1,7 @@
 """Build the fixture repository the pull-request gate's self-test runs against.
 
-    python tools/pr_gate_fixture.py DIR     # prints base=, good=, bad=, checker=, projection_checker=
+    python tools/pr_gate_fixture.py DIR               # prints base=, good=, bad=, checker=, projection_checker=
+    python tools/pr_gate_fixture.py DIR --admission   # the base also carries admission.json naming this code
 
 A Git repository at DIR whose base commit holds the MCP proxy model `current` and its
 projection, a `good` head carrying `fixed`, its projection and the repair packet, and a
@@ -26,7 +27,9 @@ def artifacts(variant):
 
 
 def main(argv=None):
-    directory = Path((argv or sys.argv[1:])[0])
+    args = list(argv if argv is not None else sys.argv[1:])
+    with_admission = '--admission' in args
+    directory = Path([a for a in args if a != '--admission'][0])
     directory.mkdir(parents=True)
     def git(*args):
         return subprocess.run(['git', '-C', str(directory), *args], check=True,
@@ -41,7 +44,11 @@ def main(argv=None):
     git('config', 'user.email', 'fixture@stargate'); git('config', 'user.name', 'fixture')
     current_model, current_proof, current_table = artifacts('current')
     fixed_model, fixed_proof, fixed_table = artifacts('fixed')
-    base = commit({'model.json': current_model, 'projection.json': current_table}, 'base')
+    base_files = {'model.json': current_model, 'projection.json': current_table}
+    if with_admission:
+        base_files['admission.json'] = canon(dict(admission=1, machine_checker=certificate.checker_id(),
+                                                  projection_checker=projection_check.projection_checker_id()))
+    base = commit(base_files, 'base')
     git('checkout', '-q', '-b', 'good')
     good = commit({'model.json': fixed_model, 'projection.json': fixed_table,
                    '.stargate/evidence.json': certificate.pack_repair(current_proof, fixed_proof)}, 'good')

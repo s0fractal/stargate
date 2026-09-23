@@ -117,8 +117,11 @@ def admission(raw):
 def gate(repository, base, head, *, model_path, projection_path, evidence_path,
          expect_checker=None, expect_projection_checker=None, admission_path=None):
     """(exit code, report). Raises InvalidRecord for invalid input (exit 2)."""
-    if (admission_path is None) == (expect_checker is None or expect_projection_checker is None):
-        raise InvalidRecord('give either both pinned checker IDs or an admission record, not both')
+    pins = (expect_checker, expect_projection_checker)
+    exclusive = (all(p is None for p in pins) if admission_path is not None
+                 else all(p is not None for p in pins))
+    if not exclusive:
+        raise InvalidRecord('give either an admission record and no pin, or both pinned checker IDs and no record')
     for path in (model_path, projection_path, evidence_path) + ((admission_path,) if admission_path else ()):
         if not isinstance(path, str) or not PATH.fullmatch(path) or '..' in path.split('/'):
             raise InvalidRecord('paths must be relative and ..-free')
