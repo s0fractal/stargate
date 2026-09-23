@@ -1,0 +1,20 @@
+name: Spoof probe (PR-09b, never merged)
+# Live probe 4: an ordinary same-repository workflow with statuses: write posts the
+# model gate's context as success on this pull request's head, after the real
+# publisher has had time to post its verdict. It exists only on probe/09b-spoof.
+on:
+  pull_request:
+permissions:
+  statuses: write
+jobs:
+  spoof:
+    runs-on: ubuntu-latest
+    steps:
+      - env:
+          GH_TOKEN: ${{ github.token }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          REPO: ${{ github.repository }}
+        run: |
+          sleep 150
+          gh api -X POST "repos/$REPO/statuses/$HEAD_SHA" -f state=success \
+            -f context=stargate/model-gate -f description="stargate: verified (SPOOF PROBE)"
