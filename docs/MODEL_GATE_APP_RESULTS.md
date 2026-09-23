@@ -1,4 +1,4 @@
-# Results: the model gate as a GitHub App (PR-09b-App acceptance)
+# Results: the model gate as a GitHub App (PR-09b-App acceptance, closed end to end)
 
 Measured on 2026-09-23 on this repository, `main` `3866d75` (#72 merged), App
 `s0fractal-stargate-model-gate` (App ID 5041755). The pre-registration is
@@ -13,7 +13,7 @@ unmerged and their branches deleted; statuses stay on the commits
 | 3 spoof, no ruleset | #75, invalid projection + a PR workflow posting `success` with `GITHUB_TOKEN` 150 s later | `c801782` | App `failure (projection_mismatch)` 04:42:26; `github-actions[bot]` `success` 04:44:42; combined `/status`: `success` | **as registered** — both statuses exist; `/status` shows the later one |
 | 4 ruleset | owner | — | `protect-main` required checks += `{context: stargate/model-gate, integration_id: 5041755}`; strict on; no bypass actor | done by the owner |
 | 5 spoof, with ruleset | #77 (spoof) vs #76 (control) | `45eafbb` / `016dae9` | #77: all four `check (3.x)` success, rollup shows `stargate/model-gate: SUCCESS` (the spoof, 04:52:38), App `failure (unverified)` 04:50:22 → **`mergeStateStatus: BLOCKED`**. #76: same checks, App `success (verified)` → **`CLEAN`** | **pass** |
-| 6 full loop against `main` | #76 | — | needs `main` to advance; this document's merge is that advance | pending |
+| 6 full loop against `main` | #76 | `016dae9` → `4090766` | valid and `CLEAN`; `main` advanced to `2025ed3` (the merge of #78) → the same head became **`behind`**; update branch → new head `4090766` (parents `016dae9`, `2025ed3`) → App `pending` 05:04:44, `success (verified)` 05:04:45 on the new pair → **`CLEAN`** again (`mergeable_state: clean`, base `2025ed3`). The old head keeps its old `success`, which strict mode does not let merge | **pass** |
 
 ## Step 5 needed a second design, and the first attempt does not count
 
