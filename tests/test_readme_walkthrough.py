@@ -41,3 +41,12 @@ class Runner(unittest.TestCase):
 
     def test_blocks_share_one_shell(self):
         self.assertEqual(run('```sh\nX=5\n```\nprose\n```sh\ntest "$X" = 5\n```\n')[0], 0)
+
+
+class Readme(unittest.TestCase):
+    def test_the_build_it_names_is_this_build(self):
+        """The old README said build 41 while the code was at 46."""
+        import re
+        from stargate.build import __version__
+        named = re.search(r'\*\*Build (\d+) ·', (ROOT / 'README.md').read_text())
+        self.assertEqual(named.group(1) if named else None, __version__)

@@ -1,0 +1,44 @@
+{
+  "events": [
+    "host",
+    "reply"
+  ],
+  "goals": [
+    {
+      "ambiguous": false,
+      "calls.one": false,
+      "calls.two": false,
+      "pending": false
+    }
+  ],
+  "initial": [
+    {
+      "ambiguous": false,
+      "calls.one": false,
+      "calls.two": false,
+      "pending": false
+    }
+  ],
+  "invariant": "fact ambiguous: bool\nfact calls.one: bool\nfact calls.two: bool\nfact pending: bool\ncheck (!calls.two || calls.one) && (!calls.two || ambiguous) && (!calls.one || pending || ambiguous)\n",
+  "live_goals": [
+    {
+      "ambiguous": false,
+      "calls.one": false,
+      "calls.two": false,
+      "pending": false
+    }
+  ],
+  "max_atp": 1000,
+  "next": {
+    "ambiguous": "fact ambiguous: bool\nfact calls.one: bool\nfact calls.two: bool\nfact host: bool\nfact pending: bool\nfact reply: bool\ncheck ambiguous\n",
+    "calls.one": "fact ambiguous: bool\nfact calls.one: bool\nfact calls.two: bool\nfact host: bool\nfact pending: bool\nfact reply: bool\ncheck (host && !reply) || (!host && reply && calls.two) || (!host && !reply && calls.one)\n",
+    "calls.two": "fact ambiguous: bool\nfact calls.one: bool\nfact calls.two: bool\nfact host: bool\nfact pending: bool\nfact reply: bool\ncheck (host && !reply && calls.one) || (!host && !reply && calls.two)\n",
+    "pending": "fact ambiguous: bool\nfact calls.one: bool\nfact calls.two: bool\nfact host: bool\nfact pending: bool\nfact reply: bool\ncheck (host && !reply)\n"
+  },
+  "state": [
+    "ambiguous",
+    "calls.one",
+    "calls.two",
+    "pending"
+  ]
+}

@@ -1,7 +1,7 @@
 """The MCP sealing proxy vertical, end to end, from a clean checkout.
 
     python integration/mcp_proxy_vertical.py                    # run, compare with results.json
-    python integration/mcp_proxy_vertical.py --write            # run, rewrite results.json
+    python integration/mcp_proxy_vertical.py --write            # run, rewrite results.json and specs/
     python integration/mcp_proxy_vertical.py --vendor DIR       # also write the chosen table for warrant
 
 Every step is an `sg` command in a fresh directory; this script only composes their
@@ -69,6 +69,13 @@ def spec(model, variant):
 
 def events_of(trace, names):
     return [tuple(step['event'][n] for n in names) for step in trace['steps']]
+
+
+SPECS = ('current', 'historic', 'fixed')    # what README.md's walkthrough feeds to sg machine-create
+
+
+def spec_texts(model):
+    return {name: json.dumps(spec(model, name), indent=2, sort_keys=True) + '\n' for name in SPECS}
 
 
 def run(vendor=None):
@@ -192,10 +199,19 @@ def main(argv=None):
     out, failures = run(arguments.vendor)
     results = HERE / 'results.json'
     text = json.dumps(out, indent=2, sort_keys=True) + '\n'
+    specs = spec_texts(json.loads((HERE / 'proxy.json').read_text()))
     if arguments.write:
         results.write_text(text)
-    elif not results.exists() or results.read_text() != text:
-        failures.append(dict(outcome='results.json is current', expected='committed bytes', actual='differs'))
+        (HERE / 'specs').mkdir(exist_ok=True)
+        for name, body in specs.items():
+            (HERE / 'specs' / (name + '.json')).write_text(body)
+    else:
+        if not results.exists() or results.read_text() != text:
+            failures.append(dict(outcome='results.json is current', expected='committed bytes', actual='differs'))
+        for name, body in specs.items():
+            path = HERE / 'specs' / (name + '.json')
+            if not path.exists() or path.read_text() != body:
+                failures.append(dict(outcome='specs/' + name + '.json is current', expected='committed bytes', actual='differs'))
     print(text, end='')
     for failure in failures:
         print('MISMATCH', json.dumps(failure, sort_keys=True), file=sys.stderr)
