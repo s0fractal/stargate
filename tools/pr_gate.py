@@ -25,6 +25,7 @@ import json
 import os
 from pathlib import Path
 import re
+import subprocess
 import sys
 
 
@@ -63,7 +64,14 @@ EXIT = {'verified': 0, 'untouched': 0, 'checker_error': 1, 'invalid': 2, 'unveri
 class Repository:
     def __init__(self, path):
         top = Path(path).resolve()
-        self.git = _Git(top / '.git' if (top / '.git').is_dir() else top)
+        if (top / '.git').is_file():             # a worktree or submodule: ask Git where its directory is
+            found = subprocess.run(['git', '-C', str(top), 'rev-parse', '--absolute-git-dir'],
+                                   capture_output=True, text=True)
+            if found.returncode:
+                raise InvalidRecord('not a Git checkout: ' + str(top))
+            self.git = _Git(found.stdout.strip())
+        else:
+            self.git = _Git(top / '.git' if (top / '.git').is_dir() else top)
 
     def commit(self, sha):
         if not isinstance(sha, str) or not COMMIT.fullmatch(sha):
