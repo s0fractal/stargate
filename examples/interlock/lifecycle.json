@@ -1,0 +1,44 @@
+{
+  "events": [
+    "bad",
+    "elapsed"
+  ],
+  "goals": [
+    {
+      "demand_open": false,
+      "from_open": false,
+      "half": false,
+      "open": false
+    }
+  ],
+  "initial": [
+    {
+      "demand_open": false,
+      "from_open": false,
+      "half": false,
+      "open": false
+    }
+  ],
+  "invariant": "!(open && half) && (!demand_open || open) && (!from_open || open || half)",
+  "live_goals": [
+    {
+      "demand_open": false,
+      "from_open": false,
+      "half": false,
+      "open": false
+    }
+  ],
+  "max_atp": 1000,
+  "next": {
+    "demand_open": "(!open && !half && bad) || (half && bad)",
+    "from_open": "open",
+    "half": "(open && elapsed) || (half && !bad && !elapsed)",
+    "open": "(!open && !half && bad) || (open && !elapsed) || (half && bad)"
+  },
+  "state": [
+    "demand_open",
+    "from_open",
+    "half",
+    "open"
+  ]
+}

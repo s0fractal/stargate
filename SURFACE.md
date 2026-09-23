@@ -23,7 +23,7 @@ fail on a stale table.
 | `certificate-change-check` | check a next-only change: both certificates and the inherited contract | 1 | 1 | 0 | 0 |
 | `certificate-change-pack` | package parent and candidate certificates as an unchecked next-only change | 1 | 0 | 0 | 0 |
 | `certificate-check` | check an inductive certificate against an expected model and checker | 1 | 0 | 0 | 0 |
-| `certificate-checker` | identify the independent finite-certificate checker | 0 | 4 | 0 | 0 |
+| `certificate-checker` | identify the independent finite-certificate checker | 0 | 4 | 0 | 1 |
 | `certificate-history-append` | extend a certificate history with the next checked certificate | 1 | 0 | 0 | 0 |
 | `certificate-history-check` | check every step of a certificate history against its root | 1 | 1 | 0 | 0 |
 | `certificate-history-start` | begin a certificate history at a root certificate | 1 | 0 | 0 | 0 |
@@ -55,15 +55,15 @@ fail on a stale table.
 | `machine-change` | check a next-only change, exploring parent and candidate again | 3 | 1 | 0 | 0 |
 | `machine-check` | explore every reachable state and check the invariant and the goals | 2 | 0 | 0 | 0 |
 | `machine-claim` | check one claimed property at every reached state | 1 | 0 | 0 | 0 |
-| `machine-create` | build a machine from a specification and write its bytes | 2 | 4 | 0 | 1 |
+| `machine-create` | build a machine from a specification and write its bytes | 2 | 4 | 0 | 2 |
 | `machine-discover` | report the bit properties that hold at every reached state | 1 | 0 | 0 | 0 |
-| `machine-evidence` | produce a certificate or a refutation for a machine and write it | 3 | 5 | 0 | 2 |
+| `machine-evidence` | produce a certificate or a refutation for a machine and write it | 3 | 5 | 0 | 3 |
 | `machine-search` | search one-rule edits for a candidate that passes the change check | 3 | 1 | 0 | 0 |
 | `model-apply` | apply a certified change or repair to a bare Git branch | 2 | 3 | 0 | 0 |
-| `model-project` | write a machine's full transition table as a canonical projection, unchecked | 4 | 3 | 0 | 1 |
+| `model-project` | write a machine's full transition table as a canonical projection, unchecked | 4 | 3 | 0 | 2 |
 | `policy` | compile a boolean WPL file and sign its decision | 25 | 0 | 1 | 0 |
-| `projection-check` | check a projection row by row against a verified certificate of its model | 2 | 2 | 0 | 2 |
-| `projection-checker` | identify the independent projection checker | 1 | 4 | 0 | 1 |
+| `projection-check` | check a projection row by row against a verified certificate of its model | 2 | 2 | 0 | 4 |
+| `projection-checker` | identify the independent projection checker | 1 | 4 | 0 | 2 |
 | `projection-materialize` | write a projection next to the fixed table runtime; verify nothing | 3 | 2 | 0 | 1 |
 | `put` | store object bytes | 0 | 1 | 0 | 0 |
 | `record` | execute a check and store its signed decision | 10 | 3 | 0 | 0 |

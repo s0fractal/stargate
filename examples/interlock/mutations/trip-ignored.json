@@ -1,0 +1,6 @@
+{
+  "defect": "trip-ignored",
+  "overrides": {
+    "open": "(open && !elapsed) || (half && bad)"
+  }
+}

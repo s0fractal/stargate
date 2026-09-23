@@ -1,0 +1,6 @@
+{
+  "defect": "half-open-stuck",
+  "overrides": {
+    "half": "(open && elapsed) || (half && !bad)"
+  }
+}

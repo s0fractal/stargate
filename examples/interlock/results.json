@@ -1,0 +1,108 @@
+{
+  "lifecycle.as-is": {
+    "exit": 0,
+    "machine": "3658a89fa6a238028169176dfbcbbbfe633e4dceeca654c04b41c6c5dec18025",
+    "measured": [
+      "verified_certificate",
+      5
+    ]
+  },
+  "lifecycle.bad-round-closes": {
+    "exit": 4,
+    "machine": "6b160597245827e3bf7b76912eb2b164710a423f0c5a4a90bdb7f6a0298420d0",
+    "measured": [
+      "verified_refutation",
+      "unsafe",
+      3
+    ]
+  },
+  "lifecycle.half-open-stuck": {
+    "exit": 4,
+    "machine": "c57ab8bf7436bfe235ae6a4a61683f6238c9ffca2e2a22bedbd23856b54af460",
+    "measured": [
+      "verified_refutation",
+      "trap"
+    ]
+  },
+  "lifecycle.open-skips-half-open": {
+    "exit": 4,
+    "machine": "a6d50adde91a3167c7ded7793f4a600ec09ccbccee33536662663b6212dfa302",
+    "measured": [
+      "verified_refutation",
+      "unsafe",
+      2
+    ]
+  },
+  "lifecycle.trip-ignored": {
+    "exit": 4,
+    "machine": "0237c3d65b968a69f82416ef34e86acd53af029f2c2f43271dfa2a5163e071b0",
+    "measured": [
+      "verified_refutation",
+      "unsafe",
+      1
+    ]
+  },
+  "projection": {
+    "conforms": "conforms",
+    "flipped": "mismatch",
+    "model": "9a8826c4d0001108e4c948dcbd828ee9dc703bc3b30c678b4acdafd87f52233e",
+    "projection": "b5498b9fd8c3d7cc5c66b3c0e1b6d75432daf26acb751fd7da86d113dc41b634",
+    "rows": 64
+  },
+  "too-weak.as-is": {
+    "exit": 0,
+    "machine": "50fc5676049c0df183b26bde449365bda7b7be779fcfbc31357c84d7f52d11e3",
+    "measured": [
+      "verified_certificate",
+      3
+    ]
+  },
+  "too-weak.bad-round-closes": {
+    "exit": 0,
+    "machine": "d9f9f9b2696117693acc95b49025db9b0d82bc458e86f2750ac1ad12a9fd8278",
+    "measured": [
+      "verified_certificate",
+      3
+    ]
+  },
+  "too-weak.half-open-stuck": {
+    "exit": 4,
+    "machine": "e77d903cd8d182a621ccf2ebe824a0809f0434dc930199783f47f06ad0ad93d5",
+    "measured": [
+      "verified_refutation",
+      "trap"
+    ]
+  },
+  "too-weak.open-skips-half-open": {
+    "exit": 0,
+    "machine": "e45cb9128a4047656a9b7b7e9ec34cddab5a6f8702091b6b6a7371646a9f5979",
+    "measured": [
+      "verified_certificate",
+      2
+    ]
+  },
+  "too-weak.trip-ignored": {
+    "exit": 0,
+    "machine": "e8551a54e1f0b2c8b0c2a338211698139c63617928f3da346c039e6cab4e7f99",
+    "measured": [
+      "verified_certificate",
+      1
+    ]
+  },
+  "upstream": {
+    "blobs": {
+      "interlock/_state_machine.py": "39135c1487a1a8499b6f5876f06807b6a7ccea55",
+      "tests/test_state_machine.py": "9c26a8b7e66fccb780efa419add7f37fc5f5c00d",
+      "tests/test_state_machine_model.py": "d9708b0db250ba019a030d4a9a8dc17b60639d98"
+    },
+    "claim": "these bytes motivated the abstraction; no correspondence between them and the Boolean model is claimed",
+    "commit": "50de2b3d3acf2a53239d5910d6e605efe011f0f7",
+    "outreach": {
+      "external_response": "pending",
+      "issue": "https://github.com/bagowix/interlock/issues/224",
+      "note": "not a result of this experiment",
+      "opened": "2026-09-23"
+    },
+    "repository": "bagowix/interlock"
+  }
+}
