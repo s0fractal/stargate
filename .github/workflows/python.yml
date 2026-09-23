@@ -38,3 +38,5 @@ jobs:
           python -I -m unittest discover -s "$GITHUB_WORKSPACE/tests" -v
       - name: Installation integration
         run: python integration/test_release_gate.py --with-install
+      - name: MCP proxy vertical (registered outcomes, results.json byte-for-byte)
+        run: python integration/mcp_proxy_vertical.py
