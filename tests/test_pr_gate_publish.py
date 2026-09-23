@@ -117,15 +117,16 @@ class Publisher(Base):
         self.assertEqual((final[0], final[1]), (self.v['bad'], 'failure'))
         self.assertIn('projection_mismatch', final[2])
 
-    def test_3_no_pull_request_is_an_error_never_success(self):
+    # Outcomes 3 and 4 were registered as an `error` status. Changed after Codex's review
+    # of #67: nothing is written before the head is bound to exactly one open pull request
+    # whose API head equals the event's head. An unbound run writes nothing and is red.
+    def test_3_no_pull_request_writes_nothing_and_the_run_is_red(self):
         code, fake = self.run_publisher(self.v['good'], [], event_pulls=[])
-        self.assertEqual([st for s, st, d, c in fake.statuses()][-1:], ['error'])
-        self.assertNotIn('success', [st for s, st, d, c in fake.statuses()])
+        self.assertEqual((fake.writes(), code != 0), ([], True))
 
-    def test_4_two_pull_requests_with_that_head_is_an_error(self):
+    def test_4_two_pull_requests_with_that_head_write_nothing(self):
         code, fake = self.run_publisher(self.v['good'], [self.pull(1, self.v['good']), self.pull(3, self.v['good'])])
-        self.assertEqual(fake.statuses()[-1][1], 'error')
-        self.assertNotIn('success', [st for s, st, d, c in fake.statuses()])
+        self.assertEqual((fake.writes(), code != 0), ([], True))
 
     def test_5_the_base_is_the_branch_tip_not_an_event_value(self):
         subprocess.run(['git', '-C', str(self.tmp / 'origin'), 'checkout', '-q', 'main'], check=True)
@@ -145,9 +146,10 @@ class Publisher(Base):
         self.assertIn(fake.statuses()[-1][1], ('error', 'failure'))
         self.assertNotIn('success', [st for s, st, d, c in fake.statuses()])
 
-    def test_7_the_status_goes_to_the_event_head_even_if_the_pull_request_moved(self):
+    def test_7_a_pull_request_that_moved_on_gets_nothing_from_this_run(self):
+        """The event's head is no longer the PR's head: a later run owns the new head."""
         code, fake = self.run_publisher(self.v['good'], [self.pull(1, self.v['bad'])], event_pulls=[1])
-        self.assertEqual({s for s, st, d, c in fake.statuses()}, {self.v['good']})
+        self.assertEqual((fake.writes(), code != 0), ([], True))
 
     def test_8_a_refused_final_post_makes_the_run_red(self):
         code, fake = self.run_publisher(self.v['good'], [self.pull(1, self.v['good'])], fail_final=True)
@@ -169,6 +171,16 @@ class Control(Base):
                              evidence_path='.stargate/evidence.json', expect_checker=self.v['checker'],
                              expect_projection_checker=self.v['projection_checker'])
         self.assertEqual(fake.statuses()[-1][1], 'success')
+
+
+class RealPayload(Base):
+    def test_the_recorded_github_run_binds_its_head(self):
+        """tests/github_workflow_run_pull_request.json is a real run object of this
+        repository's `Model gate request` (event pull_request, PR #67): head_sha is the
+        pull request's head commit, and pull_requests[0].head.sha is the same commit."""
+        run = json.loads((ROOT / 'tests' / 'github_workflow_run_pull_request.json').read_text())
+        self.assertEqual(run['event'], 'pull_request')
+        self.assertEqual(run['head_sha'], run['pull_requests'][0]['head']['sha'])
 
 
 class Entry(Base):
