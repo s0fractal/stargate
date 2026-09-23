@@ -65,7 +65,8 @@ def pull_request(api, head, event_pulls):
 
 
 def publish(*, api, token, repository, head, event_pulls, clone, model_path, projection_path,
-            evidence_path, expect_checker, expect_projection_checker, target_url=None):
+            evidence_path, expect_checker=None, expect_projection_checker=None, admission_path=None,
+            target_url=None):
     github = Api(api, token, repository)
     # Bind first: exactly one open pull request whose head, as the API reports it now, is
     # the run's head. Only then is anything written. An unbound run writes nothing and is
@@ -83,7 +84,8 @@ def publish(*, api, token, repository, head, event_pulls, clone, model_path, pro
         try:
             code, report = gate.gate(clone, base, head, model_path=model_path, projection_path=projection_path,
                                      evidence_path=evidence_path, expect_checker=expect_checker,
-                                     expect_projection_checker=expect_projection_checker)
+                                     expect_projection_checker=expect_projection_checker,
+                                     admission_path=admission_path)
         except ValueError as exc:
             code, report = 2, dict(status='invalid', error=str(exc))
         final = gate.finish(code, json.dumps(report))
@@ -103,8 +105,9 @@ def main():
                    event_pulls=[p['number'] for p in event.get('pull_requests') or []],
                    clone=os.environ.get('GITHUB_WORKSPACE', '.'),
                    model_path=os.environ['MODEL_PATH'], projection_path=os.environ['PROJECTION_PATH'],
-                   evidence_path=os.environ['EVIDENCE_PATH'], expect_checker=os.environ['EXPECT_CHECKER'],
-                   expect_projection_checker=os.environ['EXPECT_PROJECTION_CHECKER'],
+                   evidence_path=os.environ['EVIDENCE_PATH'], expect_checker=os.environ.get('EXPECT_CHECKER'),
+                   expect_projection_checker=os.environ.get('EXPECT_PROJECTION_CHECKER'),
+                   admission_path=os.environ.get('ADMISSION_PATH'),
                    target_url=f'{os.environ.get("GITHUB_SERVER_URL", "")}/{os.environ["GITHUB_REPOSITORY"]}'
                               f'/actions/runs/{os.environ.get("GITHUB_RUN_ID", "")}')
 

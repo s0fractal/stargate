@@ -203,3 +203,35 @@ class Entry(Base):
                                 text=True, cwd='/')
         self.assertEqual(result.returncode, 0, result.stderr[-400:])
         self.assertEqual([st for s, st, d, c in fake.statuses()], ['pending', 'success'])
+
+
+
+class AdmissionEntry(unittest.TestCase):
+    """Codex's review of #80: the entry point in the mode main runs after the merge —
+    ADMISSION_PATH and no EXPECT_* — end to end, from the recorded run's shape."""
+
+    def test_the_admission_mode_publishes_the_verdict(self):
+        import os
+        tmp = Path(tempfile.mkdtemp()); self.addCleanup(shutil.rmtree, tmp)
+        out = subprocess.run([sys.executable, str(FIXTURE), str(tmp / 'origin'), '--admission'],
+                             capture_output=True, text=True, check=True).stdout
+        v = dict(line.split('=', 1) for line in out.split())
+        subprocess.run(['git', 'clone', '-q', str(tmp / 'origin'), str(tmp / 'clone')], check=True)
+        verdicts = {}
+        for name in ('good', 'bad'):
+            pull = dict(number=1, state='open', head=dict(sha=v[name]), base=dict(ref='main'))
+            fake = FakeGitHub([pull], {'main': v['base']}); self.addCleanup(fake.close)
+            run = json.loads((ROOT / 'tests' / 'github_workflow_run_pull_request.json').read_text())
+            run['head_sha'] = v[name]; run['pull_requests'][0].update(number=1)
+            run['pull_requests'][0]['head']['sha'] = v[name]
+            event = tmp / (name + '.event.json')
+            event.write_text(json.dumps({'action': 'completed', 'workflow_run': run}))
+            env = {k: val for k, val in os.environ.items() if not k.startswith('EXPECT_')}
+            env.update(GITHUB_EVENT_PATH=str(event), GITHUB_API_URL=fake.api, GITHUB_TOKEN='t',
+                       GITHUB_REPOSITORY=REPO, GITHUB_WORKSPACE=str(tmp / 'clone'), GITHUB_RUN_ID='1',
+                       MODEL_PATH='model.json', PROJECTION_PATH='projection.json',
+                       EVIDENCE_PATH='.stargate/evidence.json', ADMISSION_PATH='admission.json')
+            result = subprocess.run([sys.executable, '-I', '-S', str(PUBLISH)], env=env,
+                                    capture_output=True, text=True, cwd='/')
+            verdicts[name] = (result.returncode, [st for s, st, d, c in fake.statuses()])
+        self.assertEqual(verdicts, {'good': (0, ['pending', 'success']), 'bad': (4, ['pending', 'failure'])})
