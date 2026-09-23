@@ -4,7 +4,7 @@ import os
 from pathlib import Path
 import shutil
 
-from . import certificate as c, lab, experiment, machine, composition, lineage, labtask, projection_check
+from . import certificate as c, lab, experiment, machine, composition, lineage, labtask, projection_check, projection_runtime
 from .canonical import canon, decode, InvalidRecord
 
 
@@ -109,6 +109,19 @@ def unpack_projection(projection_raw, certificate_raw, destination):
     return dict(status='unpacked_projection', model=doc['model'],
                 projection=hashlib.sha256(projection_raw).hexdigest(), checker=c.checker_id(),
                 projection_checker=projection_check.projection_checker_id(), replay_digest=replay_digest())
+
+
+def materialize_python(projection_raw, destination):
+    """projection.json, the fixed runtime's bytes and a manifest; verifies nothing.
+
+    The runtime's own loader checks structure, so what is written is what it will run.
+    """
+    fsm = projection_runtime.ProjectionMachine.from_bytes(projection_raw)
+    runtime = __loader__.get_data(str(Path(__file__).with_name('projection_runtime.py')))
+    manifest = dict(runtime=projection_runtime.RUNTIME_ID, runtime_digest=hashlib.sha256(runtime).hexdigest(),
+                    projection=fsm.projection_id, model=fsm.model)
+    _write(destination, {'projection.json': projection_raw, 'runtime.py': runtime, 'RUNTIME.json': canon(manifest)})
+    return manifest
 
 
 PROJECTION_GUIDE = '''A projection-1 table, the certificate it is checked against, and the projection

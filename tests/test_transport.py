@@ -17,7 +17,7 @@ ROOT=Path(__file__).resolve().parents[1]
 class Transport(unittest.TestCase):
     def test_real_surface_removes_six_commands_without_aliases(self):
         choices=next(a.choices for a in cli.parser()._actions if isinstance(a,argparse._SubParsersAction))
-        self.assertEqual(len(choices),58)
+        self.assertEqual(len(choices),59)
         for name in ('machine-certify','certificate-unpack','refutation-unpack','certificate-change-unpack','certificate-history-unpack','certificate-repair-unpack'):
             self.assertNotIn(name,choices)
         self.assertIn('unpack',choices)
