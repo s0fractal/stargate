@@ -71,7 +71,7 @@ def inspect(raw):
     lab._runtime(doc.get('sources'))  # foreign schemas are unavailable, not invalid
     fields = ('stargate_machine', 'state', 'events', 'initial', 'next', 'invariant',
               'max_atp', 'sources', 'guide', 'license', 'goals')
-    exact(doc, fields + ('live_goals',) if 'live_goals' in doc else fields)
+    exact(doc, fields + tuple(f for f in ('live_goals', 'world') if f in doc))
     if type(doc['stargate_machine']) is not int or doc['stargate_machine'] != 32:
         raise InvalidRecord('unsupported machine contract')
     lab._inputs(doc['state']); lab._inputs(doc['events'])
@@ -103,6 +103,11 @@ def inspect(raw):
         declared = {canon(g) for g in goals}
         if any(canon(g) not in declared for g in live):
             raise InvalidRecord('every live goal must also be a declared goal')
+    world = doc.get('world')
+    if world is not None and (not isinstance(world, list) or not world or world != sorted(set(world))
+                              or any(bit not in doc['state'] for bit in world)):
+        # The rules of these bits describe the environment; a repair may not change them.
+        raise InvalidRecord('world must be a nonempty sorted list of distinct state bits')
     if not isinstance(doc['next'], dict) or set(doc['next']) != set(doc['state']):
         raise InvalidRecord('next must define exactly every state bit')
     names = sorted(doc['state'] + doc['events'])
@@ -114,7 +119,7 @@ def create(spec):
     spec = decode(canon(spec))
     if isinstance(spec, dict): spec.setdefault('goals', [])
     fields = ('state', 'events', 'initial', 'next', 'invariant', 'max_atp', 'goals')
-    exact(spec, fields + ('live_goals',) if isinstance(spec, dict) and 'live_goals' in spec else fields)
+    exact(spec, fields + (tuple(f for f in ('live_goals', 'world') if f in spec) if isinstance(spec, dict) else ()))
     raw = canon(dict(spec, stargate_machine=32, sources=lab.runtime_sources(), guide=GUIDE, license=lab.LICENSE))
     inspect(raw)
     return raw

@@ -34,6 +34,7 @@ def model_from_machine(doc):
     """An explicit projection: no claim about the discarded ATP/runtime fields."""
     result = dict(language='boolean-machine-1', **{k: doc[k] for k in MODEL_FIELDS})
     if 'live_goals' in doc: result['live_goals'] = doc['live_goals']
+    if 'world' in doc: result['world'] = doc['world']
     return decode(canon(result))
 
 
@@ -60,7 +61,7 @@ def _assignments(values, names, *, nonempty=False):
 
 def _model(doc, *, programs):
     fields = ('language',) + MODEL_FIELDS
-    exact(doc, fields + ('live_goals',) if 'live_goals' in doc else fields)
+    exact(doc, fields + tuple(f for f in ('live_goals', 'world') if f in doc))
     if doc['language'] != 'boolean-machine-1': raise InvalidRecord('unsupported model language')
     _names(doc['state'], 6); _names(doc['events'], 2)
     if not doc['state'] or set(doc['state']) & set(doc['events']):
@@ -72,6 +73,12 @@ def _model(doc, *, programs):
         # An empty list would be a field that demands nothing while changing identity.
         if any(key not in goals for key in _assignments(doc['live_goals'], doc['state'], nonempty=True)):
             raise InvalidRecord('every live goal must also be a declared goal')
+    if 'world' in doc:
+        # World bits: rules of the environment, which a repair may not change. Empty is
+        # refused for the same reason as empty live_goals.
+        _names(doc['world'], 6)
+        if not doc['world'] or any(bit not in doc['state'] for bit in doc['world']):
+            raise InvalidRecord('world must be a nonempty sorted list of distinct state bits')
     exact(doc['next'], doc['state'])
     for source in [doc['invariant'], *doc['next'].values()]:
         if type(source) is not str or len(source.encode('utf-8')) > 8192:
@@ -251,8 +258,8 @@ def pack_change(parent, candidate):
 
 def _preserves_contract(parent, candidate):
     # Structural identity is meaningful without executing either grammar.
-    for field in ('language', 'state', 'events', 'initial', 'invariant', 'goals', 'live_goals'):
-        # live_goals is absent in most models; dropping or adding it is still a change.
+    for field in ('language', 'state', 'events', 'initial', 'invariant', 'goals', 'live_goals', 'world'):
+        # live_goals and world are absent in most models; dropping or adding one is still a change.
         if parent.get(field) != candidate.get(field):
             raise InvalidRecord('certified change alters protected field: ' + field)
 
@@ -492,6 +499,10 @@ def verify_repair(raw, expected_model, expected_checker, *, max_steps=MAX_STEPS)
     if identity(parent) != expected_model:
         raise InvalidRecord('repair parent model does not match recipient anchor')
     _preserves_contract(parent, candidate)
+    # An automatic repair changes the system, never the world it has to survive.
+    for bit in parent.get('world', ()):
+        if candidate['next'][bit] != parent['next'][bit]:
+            raise InvalidRecord('repair alters world rule: ' + bit)
     report = dict(status='unchecked_repair', repair_id=identity(doc),
                   parent_model=expected_model, refutation_id=identity(doc['refutation']),
                   checker=expected_checker, checks=[])
