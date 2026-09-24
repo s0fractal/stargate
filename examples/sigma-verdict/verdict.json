@@ -1,0 +1,29 @@
+{
+  "source": {"repository": "s0fractal/sigma-glyph", "buggy_commit": "40a9bff758941e084289a0d9a4b0afe7513d1117",
+             "buggy_blob": "220c2aaede2480f2d10d34a88fc0710443df5348", "path": "tools/candidate_gate.py",
+             "fixed": "s0fractal/sigma-glyph#59, final head pinned in RESULTS.md"},
+  "state": ["named", "reject", "sealed_adopt", "sealed_reject"],
+  "events": ["answer_reject", "answered"],
+  "initial": [{"named": false, "reject": false, "sealed_adopt": false, "sealed_reject": false}],
+  "invariant": "!(sealed_reject && sealed_adopt) && (!sealed_reject || (named && reject)) && (!sealed_adopt || (named && !reject))",
+  "goals": [{"named": true, "reject": true, "sealed_adopt": false, "sealed_reject": true},
+            {"named": true, "reject": false, "sealed_adopt": true, "sealed_reject": false}],
+  "max_atp": 1000,
+  "world": ["sealed_adopt", "sealed_reject"],
+  "monitor": {
+    "sealed_reject": "sealed_reject || (!sealed_adopt && answered && answer_reject)",
+    "sealed_adopt": "sealed_adopt || (!sealed_reject && answered && !answer_reject)"
+  },
+  "variants": {
+    "buggy": {"named": "answered", "reject": "answered && answer_reject"},
+    "fixed": {"named": "((sealed_reject || sealed_adopt) && named) || (!(sealed_reject || sealed_adopt) && answered)",
+              "reject": "((sealed_reject || sealed_adopt) && reject) || (!(sealed_reject || sealed_adopt) && answered && answer_reject)"},
+    "C1": {"named": "((sealed_reject || sealed_adopt) && named) || (!(sealed_reject || sealed_adopt) && answered)",
+           "reject": "answered && answer_reject"},
+    "C2": {"named": "answered",
+           "reject": "((sealed_reject || sealed_adopt) && reject) || (!(sealed_reject || sealed_adopt) && answered && answer_reject)"},
+    "C3": {"named": "answered", "reject": "answered && answer_reject", "sealed_reject": "false", "sealed_adopt": "false"},
+    "C3b": {"named": "answered", "reject": "answered && answer_reject",
+            "sealed_reject": "answered && answer_reject", "sealed_adopt": "answered && !answer_reject"}
+  }
+}
