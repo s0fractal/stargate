@@ -142,3 +142,21 @@ class Exclusive(unittest.TestCase):
                 continue
             accepted.append(name)
         self.assertEqual(accepted, [])
+
+
+class Transition(unittest.TestCase):
+    """docs/WORLD_RULES_REGISTRY.md outcome 7: the record and the running code must agree,
+    in both directions, and only agreement admits."""
+
+    def test_record_naming_an_older_checker_than_the_code_fails_closed(self):
+        repo, base = repo_with(record(machine=C0))
+        self.assertEqual(verdict(repo, base, head_with(repo, GOOD)), (3, 'checker_unavailable'))
+
+    def test_record_naming_a_newer_checker_than_the_code_fails_closed(self):
+        newer = certificate.identity(dict(OLD_SOURCES, **{'certificate.py': OLD_SOURCES['certificate.py'] + '# newer\n'}))
+        repo, base = repo_with(record(machine=newer))
+        self.assertEqual(verdict(repo, base, head_with(repo, GOOD)), (3, 'checker_unavailable'))
+
+    def test_record_matching_the_code_admits(self):
+        repo, base = repo_with(record())
+        self.assertEqual(verdict(repo, base, head_with(repo, GOOD)), (0, 'verified'))
