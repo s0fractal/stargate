@@ -33,10 +33,12 @@ class Run:
     def sg(self, *args):
         result = subprocess.run([sys.executable, '-m', 'stargate', *map(str, args)],
                                 cwd=self.directory, capture_output=True, text=True)
-        try:
-            report = json.loads(result.stdout)
-        except ValueError:
-            report = dict(stdout=result.stdout, stderr=result.stderr)
+        for stream in (result.stdout, result.stderr):   # refusals are reported on stderr
+            try:
+                return result.returncode, json.loads(stream)
+            except ValueError:
+                pass
+        report = dict(stdout=result.stdout, stderr=result.stderr)
         return result.returncode, report
 
     def expect(self, label, actual, expected):
@@ -104,19 +106,22 @@ def run():
         # 2. fixed: certified, 3 reachable states, both goals reachable in one step.
         code, report, proof = evidence('fixed')
         out['fixed'] = dict(exit=code, status=report.get('status'), states=len(proof.get('states', [])),
-                            goal_witnesses=[len(w['steps']) if isinstance(w, dict) and 'steps' in w else w
-                                            for w in proof.get('goal_witnesses', [])])
+                            goals=report.get('goals'), path_steps=report.get('checked_path_steps'))
         r.expect('fixed certifies', (code, out['fixed']['status']), (0, 'verified_certificate'))
         r.expect('fixed has 3 reachable states', out['fixed']['states'], 3)
-        # 3. controls as models.
-        predicted = dict(C1='verified_refutation', C2='verified_refutation', C3='goal_unreachable',
-                         C3b='verified_certificate')
+        r.expect('fixed: both goals, one step each', (out['fixed']['goals'], out['fixed']['path_steps']), (2, 2))
+        # 3. controls as models. REGISTRY.md named C3's outcome `goal_unreachable`; machine-evidence
+        # reports an unreached goal as a refutation of kind `unreachable_goal` (RESULTS.md, deviation 1).
+        # The registered predicate — safe, but a sealing goal unreached — is what is checked.
+        predicted = dict(C1=('verified_refutation', 'unsafe'), C2=('verified_refutation', 'unsafe'),
+                         C3=('verified_refutation', 'unreachable_goal'), C3b=('verified_certificate', None))
         out['controls'] = {}
-        for name, status in predicted.items():
+        for name, expected in predicted.items():
             code, report, proof = evidence(name)
-            out['controls'][name] = dict(exit=code, status=report.get('status'),
-                                         unreached_goals=len(report.get('unreached_goals', [])) or None)
-            r.expect('control ' + name, out['controls'][name]['status'], status)
+            claim = proof.get('claim', {})
+            out['controls'][name] = dict(exit=code, status=report.get('status'), claim=claim.get('kind'),
+                                         goal=claim.get('goal'))
+            r.expect('control ' + name, (out['controls'][name]['status'], out['controls'][name]['claim']), expected)
         # 4. fixed as a hand repair of buggy.
         parent = certificate.identity(json.loads(r.path('buggy.proof').read_text())['model'])
 

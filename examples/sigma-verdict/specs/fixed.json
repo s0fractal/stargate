@@ -1,0 +1,46 @@
+{
+  "events": [
+    "answer_reject",
+    "answered"
+  ],
+  "goals": [
+    {
+      "named": true,
+      "reject": true,
+      "sealed_adopt": false,
+      "sealed_reject": true
+    },
+    {
+      "named": true,
+      "reject": false,
+      "sealed_adopt": true,
+      "sealed_reject": false
+    }
+  ],
+  "initial": [
+    {
+      "named": false,
+      "reject": false,
+      "sealed_adopt": false,
+      "sealed_reject": false
+    }
+  ],
+  "invariant": "fact named: bool\nfact reject: bool\nfact sealed_adopt: bool\nfact sealed_reject: bool\ncheck !(sealed_reject && sealed_adopt) && (!sealed_reject || (named && reject)) && (!sealed_adopt || (named && !reject))\n",
+  "max_atp": 1000,
+  "next": {
+    "named": "fact answer_reject: bool\nfact answered: bool\nfact named: bool\nfact reject: bool\nfact sealed_adopt: bool\nfact sealed_reject: bool\ncheck ((sealed_reject || sealed_adopt) && named) || (!(sealed_reject || sealed_adopt) && answered)\n",
+    "reject": "fact answer_reject: bool\nfact answered: bool\nfact named: bool\nfact reject: bool\nfact sealed_adopt: bool\nfact sealed_reject: bool\ncheck ((sealed_reject || sealed_adopt) && reject) || (!(sealed_reject || sealed_adopt) && answered && answer_reject)\n",
+    "sealed_adopt": "fact answer_reject: bool\nfact answered: bool\nfact named: bool\nfact reject: bool\nfact sealed_adopt: bool\nfact sealed_reject: bool\ncheck sealed_adopt || (!sealed_reject && answered && !answer_reject)\n",
+    "sealed_reject": "fact answer_reject: bool\nfact answered: bool\nfact named: bool\nfact reject: bool\nfact sealed_adopt: bool\nfact sealed_reject: bool\ncheck sealed_reject || (!sealed_adopt && answered && answer_reject)\n"
+  },
+  "state": [
+    "named",
+    "reject",
+    "sealed_adopt",
+    "sealed_reject"
+  ],
+  "world": [
+    "sealed_adopt",
+    "sealed_reject"
+  ]
+}
