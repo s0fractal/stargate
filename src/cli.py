@@ -148,7 +148,7 @@ def parser():
     q.add_argument('--expect-kind', required=True, choices=UNPACK_KINDS)
     q.add_argument('--certificate', type=Path, help='the certificate a projection is checked against (kind projection only)')
     q = cmd('repair-search', 'search a bounded neighborhood for a certified model repair')
-    q.add_argument('--strategy', choices=('one-edit','trace'), default='one-edit')
+    q.add_argument('--strategy', choices=('one-edit','trace','synth'), default='one-edit')
     q.add_argument('path', type=Path)
     q.add_argument('--expect-machine', required=True, type=hex_hash)
     q.add_argument('--max-candidates', type=int, default=32)
