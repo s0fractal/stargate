@@ -34,9 +34,11 @@ any registered refusal of the same `(candidate, evaluator, requirement)` is an
 **authenticated** `SEMANTIC_COUNTEREXAMPLE`, whatever its `inputs_digest` or registration
 order; both records are kept (SA1). A semantic-shaped record that does not authenticate
 neither blocks nor permits (`APPLICABILITY_UNKNOWN`) — outside this model, which has no bit
-for an unauthenticated record. The exact head is pinned in `RESULTS.md` after its review;
-if it moves, the pin moves with a note. *(Correspondence text revised before any run after
-the reviewer's AMEND on #99; the model is unchanged.)*
+for an unauthenticated record. **Reviewed fixed source:** black-heart PR #99 exact head
+`5344c879d10478018f47626c9ac4587855056a88`; merged to black-heart `main` as
+`7396cd17c9174899f31770e757cd11cbeab91713`. The correspondence pins the reviewed PR
+head; the merge commit records its integration. *(Correspondence text revised and pinned
+before any run after the reviewer's AMEND on #99; the model is unchanged.)*
 
 **No claim that the model is the code.** The code layer is black-heart's own red
 regressions in PR-A and this reproducer; they are cited, not run by this vertical.
