@@ -6,7 +6,7 @@ certificate or a refutation that a small checker re-verifies without trusting wh
 produced it. A certified model can then be written out as a canonical transition table
 that a fixed runtime executes by lookup.
 
-**Build 46 · 32K draft.** Contracts may change incompatibly. The checker digests are in
+**Build 47 · 32K draft.** Contracts may change incompatibly. The checker digests are in
 [ANCHORS.md](ANCHORS.md); a tag records a source snapshot, not a certified checker.
 
 ## One real case: warrant's MCP sealing proxy
