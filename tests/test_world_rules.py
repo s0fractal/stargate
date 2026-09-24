@@ -124,11 +124,19 @@ class Control(unittest.TestCase):
 
 
 class Producer(unittest.TestCase):
-    def test_no_search_candidate_touches_a_world_rule(self):
+    def test_no_repair_candidate_touches_a_world_rule(self):
         from stargate import search
         doc = machine.inspect(machine.create(spec('current')))
         seen = 0
-        for rules in list(search.repair_candidates(doc, list(doc['state']))) + list(search.machine_candidates(doc)):
+        for rules in search.repair_candidates(doc, list(doc['state'])):
             seen += 1
             self.assertEqual({w: rules[w] for w in WORLD}, {w: doc['next'][w] for w in WORLD})
         self.assertGreater(seen, 0)
+
+    def test_plain_change_search_still_proposes_world_rule_edits(self):
+        """Codex's review of #83: a plain certified change may evolve a world rule, so the
+        generic machine-search producer must keep proposing such edits; only repair skips them."""
+        from stargate import search
+        doc = machine.inspect(machine.create(spec('current')))
+        touched = {w for rules in search.machine_candidates(doc) for w in WORLD if rules[w] != doc['next'][w]}
+        self.assertEqual(touched, set(WORLD))
