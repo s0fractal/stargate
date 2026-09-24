@@ -55,7 +55,7 @@ fail on a stale table.
 | `machine-change` | check a next-only change, exploring parent and candidate again | 3 | 1 | 0 | 0 |
 | `machine-check` | explore every reachable state and check the invariant and the goals | 2 | 0 | 0 | 0 |
 | `machine-claim` | check one claimed property at every reached state | 1 | 0 | 0 | 0 |
-| `machine-create` | build a machine from a specification and write its bytes | 2 | 4 | 0 | 4 |
+| `machine-create` | build a machine from a specification and write its bytes | 2 | 4 | 0 | 6 |
 | `machine-discover` | report the bit properties that hold at every reached state | 1 | 0 | 0 | 0 |
 | `machine-evidence` | produce a certificate or a refutation for a machine and write it | 3 | 5 | 0 | 5 |
 | `machine-search` | search one-rule edits for a candidate that passes the change check | 3 | 1 | 0 | 0 |
@@ -69,7 +69,7 @@ fail on a stale table.
 | `record` | execute a check and store its signed decision | 10 | 3 | 0 | 0 |
 | `refutation-check` | check a refutation claim against an expected model and checker | 1 | 0 | 0 | 0 |
 | `refutation-create` | check a supplied model and refutation claim before writing proof data | 1 | 0 | 0 | 0 |
-| `repair-search` | search a bounded neighborhood for a certified model repair | 2 | 3 | 0 | 3 |
+| `repair-search` | search a bounded neighborhood for a certified model repair | 2 | 3 | 0 | 4 |
 | `require` | require a verified accept for the recipient's rule and facts | 4 | 1 | 0 | 0 |
 | `runtime-pack` | snapshot the compiler source closure; never execute it | 0 | 1 | 0 | 0 |
 | `unpack` | write a packet of a stated kind and an offline launcher into a directory | 17 | 4 | 0 | 0 |

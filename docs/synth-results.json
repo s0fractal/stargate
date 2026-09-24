@@ -1,0 +1,44 @@
+{
+  "sigma": {
+    "candidate_claim": null,
+    "candidate_rules": {
+      "named": "fact answer_reject: bool\nfact answered: bool\nfact named: bool\nfact reject: bool\nfact sealed_adopt: bool\nfact sealed_reject: bool\ncheck ((answered) && !((!answer_reject && !answered && named && !reject && sealed_adopt && !sealed_reject) || (!answer_reject && !answered && named && reject && !sealed_adopt && sealed_reject) || (answer_reject && !answered && named && !reject && sealed_adopt && !sealed_reject) || (answer_reject && !answered && named && reject && !sealed_adopt && sealed_reject))) || (!(answered) && ((!answer_reject && !answered && named && !reject && sealed_adopt && !sealed_reject) || (!answer_reject && !answered && named && reject && !sealed_adopt && sealed_reject) || (answer_reject && !answered && named && !reject && sealed_adopt && !sealed_reject) || (answer_reject && !answered && named && reject && !sealed_adopt && sealed_reject)))\n",
+      "reject": "fact answer_reject: bool\nfact answered: bool\nfact named: bool\nfact reject: bool\nfact sealed_adopt: bool\nfact sealed_reject: bool\ncheck ((answered && answer_reject) && !((!answer_reject && !answered && named && reject && !sealed_adopt && sealed_reject) || (!answer_reject && answered && named && reject && !sealed_adopt && sealed_reject) || (answer_reject && !answered && named && reject && !sealed_adopt && sealed_reject) || (answer_reject && answered && named && !reject && sealed_adopt && !sealed_reject))) || (!(answered && answer_reject) && ((!answer_reject && !answered && named && reject && !sealed_adopt && sealed_reject) || (!answer_reject && answered && named && reject && !sealed_adopt && sealed_reject) || (answer_reject && !answered && named && reject && !sealed_adopt && sealed_reject) || (answer_reject && answered && named && !reject && sealed_adopt && !sealed_reject)))\n"
+    },
+    "changed_owned_rules": [
+      "named",
+      "reject"
+    ],
+    "changed_rows": 6,
+    "emitted_rule_bytes": {
+      "named": 858,
+      "reject": 886
+    },
+    "exit": 0,
+    "final_checker_status": "verified_repair",
+    "parent": "verified_refutation",
+    "reason": null,
+    "status": "found",
+    "total_owned_hamming_delta": 8,
+    "winning_states": 6,
+    "world_bytes_unchanged": true
+  },
+  "warrant": {
+    "candidate_claim": "trap",
+    "changed_owned_rules": [
+      "ambiguous"
+    ],
+    "changed_rows": 1,
+    "emitted_rule_bytes": {
+      "ambiguous": 302,
+      "pending": 170
+    },
+    "exit": 4,
+    "final_checker_status": "verified_refutation",
+    "parent": "verified_refutation",
+    "reason": null,
+    "status": "not_certified",
+    "total_owned_hamming_delta": 1,
+    "winning_states": 9
+  }
+}
