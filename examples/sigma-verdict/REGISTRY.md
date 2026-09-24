@@ -69,10 +69,15 @@ goals (existential, each must be reachable): sealed `REJECT`
 `{named, !reject, !sealed_reject, sealed_adopt}`. No `live_goals`: once one seal is set
 the other is unreachable on purpose.
 
-**World rules (identical in every variant).** The observer bits are the specification: a
-"repair" that edits them could make the invariant vacuous. They are declared
-`world = [sealed_adopt, sealed_reject]` (stargate PR #83; this vertical runs only after
-#83 is merged, on its checker).
+**Monitor rules: a repair-authority boundary (identical in every variant).** `sealed_*`
+are not environment state. They are specification (ghost/monitor) bits: they record
+what the family first said so that the invariant can talk about it. They are declared
+`world = [sealed_adopt, sealed_reject]` (stargate PR #83) not because they are an outside
+world but because `world` is the mechanism that takes a rule out of automatic repair's
+authority: repair may change how the tool behaves, never what the monitor means. Without
+that boundary a "repair" can weaken the monitor's latch instead of fixing the tool, and
+the existential goals do not stop it (control C3b). This vertical runs only after #83 is
+merged, on its checker.
 
     sealed_reject' = sealed_reject || (!sealed_adopt && answered && answer_reject)
     sealed_adopt'  = sealed_adopt  || (!sealed_reject && answered && !answer_reject)
@@ -112,13 +117,17 @@ Before the first named verdict, a `NO VERDICT` leaves room for another attempt.
 
 ## Negative controls (G8), each predicted before the run
 
-| control | change to `fixed` | predicted |
+| control | change (to `fixed`, unless it says `on buggy`) | predicted |
 | --- | --- | --- |
 | C1 seal `named` only | `reject' = answered && answer_reject` | `verified_refutation` |
 | C2 seal `reject` only | `named' = answered` | `verified_refutation` |
 | C3 blind the observer | `sealed_reject' = false`, `sealed_adopt' = false` on `buggy` | as a model: `goal_unreachable` (safety holds vacuously, both goals unreached); as a repair of `buggy`: refused, `repair alters world rule` |
+| C3b un-latch the observer | `sealed_reject' = answered && answer_reject`, `sealed_adopt' = answered && !answer_reject` on `buggy` | as a model: `verified_certificate` — the monitor now records only the latest answer, so the invariant is vacuous and both goals stay reachable in 1 step; as a repair of `buggy` with the boundary: refused, `repair alters world rule`; as a repair of `buggy` declared **without** `world`: `verified_repair` |
 
-C3 is the reason the goals exist: without them, an observer that never seals certifies.
+C3 is the reason the goals exist: without them, an observer that never seals certifies. C3b is the
+reason the boundary exists: goals do not catch an observer that seals and then forgets,
+and only the repair-authority boundary refuses it. The no-boundary run is the control that
+shows the refusal comes from the boundary and not from anything else.
 
 ## Limits, stated now
 
