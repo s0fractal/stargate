@@ -19,7 +19,10 @@ Build 46 adds the fixed Python table runtime outside every anchored closure; the
 snapshot and all five digests are unchanged, and the runtime carries its own digest in
 `RUNTIME.json`.
 
-`snapshot-a4b5fdb9b8fe` describes build 45. It is an untagged PR candidate, not a
+`snapshot-60fcd3fcb072` describes build 47: the world-rules contract changes the proof
+checker (and through its closure the projection checker) and the lab runtime; the
+controller and the launcher do not. It is an untagged PR candidate until the reviewed
+merge is tagged. `snapshot-a4b5fdb9b8fe` describes build 45 and stays as history. It is an untagged PR candidate, not a
 published checkpoint, until that tag exists; the tag is published against the reviewed
 merge commit, after review, never before. Its rows were first written under the older
 rule as `checker-b4eee031f709` and then `checker-ab72a8025a56`; neither was ever
@@ -38,6 +41,10 @@ bytes.
 | `snapshot-a4b5fdb9b8fe` | Boolean lab runtime | `cb9d30cea2b59ca84e96af10aedf0ea81df35fa5eccc22c3f24dd2d313ab4e35` | `7e2b854bb2a84419a1d69ef0d54c76e258a5b609a3acdb943b27607e31d0be75` |
 | `snapshot-a4b5fdb9b8fe` | Experiment controller | `8acd80175b60ed4e4cc2646cdb95ea2ff245e7fbc0f01208388947ae6cfe89c4` | `7e2b854bb2a84419a1d69ef0d54c76e258a5b609a3acdb943b27607e31d0be75` |
 | `snapshot-a4b5fdb9b8fe` | Projection checker | `392c11b3683dc1e9d93d708c46012600503c3ea495aaa666221d5e27cc20e4a4` | `7e2b854bb2a84419a1d69ef0d54c76e258a5b609a3acdb943b27607e31d0be75` |
+| `snapshot-60fcd3fcb072` | Machine proof checker | `d425682ebb142a03021c13de63c8443dfd06c07f68ab1624a63df858e50b43fa` | `7e2b854bb2a84419a1d69ef0d54c76e258a5b609a3acdb943b27607e31d0be75` |
+| `snapshot-60fcd3fcb072` | Boolean lab runtime | `a4f9e6541b24a5ed8bd2c2cd9072325118f87ba9e8eeb1c6583801ef497abdab` | `7e2b854bb2a84419a1d69ef0d54c76e258a5b609a3acdb943b27607e31d0be75` |
+| `snapshot-60fcd3fcb072` | Experiment controller | `8acd80175b60ed4e4cc2646cdb95ea2ff245e7fbc0f01208388947ae6cfe89c4` | `7e2b854bb2a84419a1d69ef0d54c76e258a5b609a3acdb943b27607e31d0be75` |
+| `snapshot-60fcd3fcb072` | Projection checker | `80a23b477b853dea066ce1cc40eec5f37ed74388fc42ddfbc3e82e01dfa0c6d7` | `7e2b854bb2a84419a1d69ef0d54c76e258a5b609a3acdb943b27607e31d0be75` |
 
 For a machine proof choose its model ID separately; for histories choose the root,
 for changes/repairs the parent. Runtime or checker identity does not identify the
