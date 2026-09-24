@@ -145,7 +145,8 @@ def run():
                            s['total_owned_hamming_delta'], s['final_checker_status']),
                  ('found', 6, 2, ['admitted'], 2, 'verified_repair'))
         # Controls.
-        code, report = r.sg('repair-search', 'C1.machine', '--expect-machine', machines['C1'], '--strategy', 'synth')
+        code, report = r.sg('repair-search', 'C1.machine', '--expect-machine', machines['C1'], '--strategy', 'synth',
+                            '--output', 'C1.repair')
         out['C1'] = dict(exit=code, status=report.get('status'))
         r.expect('C1 not applicable', out['C1']['status'], 'not_applicable')
         for name, goal in (('C2', model['goals'][1]), ('C3', model['goals'][0])):
