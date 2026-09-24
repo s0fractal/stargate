@@ -60,20 +60,36 @@ distance from the parent's, ties broken by comparing vectors as tuples in sorted
 order with `false < true`, smallest first. For `s` outside `W*`, keep the parent's rows.
 World rule bytes are not touched.
 
-**Emitter (existing WPL only).** For each owned bit, over its truth table on all
-`(state, event)` rows in canonical order (inputs sorted, rows in binary order with the
-first sorted input most significant): `true` or `false` if constant; otherwise the shorter
-of the DNF of its true rows and `!(DNF of its false rows)`, full minterms, no
-minimization, ties to the DNF of true rows. Before the candidate reaches the checker, the
-emitted rule is evaluated on every row and must equal the chosen table exactly; a
-difference is a producer error, not a candidate. If an emitted rule exceeds the 8192-byte
-rule ceiling, the status is `search_incomplete` with reason `rule_size` — never "repair
-impossible". The same holds for evaluation cost: every rule of a machine is evaluated
-within the machine's inherited `max_atp` (1000 in both verticals), so the emitter also
-compiles each emitted rule on every row within that budget; if any row exceeds it, the
-status is `search_incomplete` with reason `rule_atp`. *(Added before any code or run,
-after reading `machine.py`'s evaluation path.)* WPL is not extended for the synthesizer,
-and `max_atp` is a contract field the synthesizer does not change.
+**Emitter (existing WPL only).** *(Revised before the run after Codex's pre-run review of
+#85: the first text ignored the compiler's 256-token ceiling, which the full-minterm form
+exceeds on every owned rule of both acceptance cases — 570 / 436 / 519 / 313 tokens — and
+re-emitted rules the strategy did not change.)*
+
+- If an owned bit's chosen truth table equals the parent rule's table, the parent rule's
+  bytes are kept **exactly**. `changed_owned_rules` is then exactly the set of rules whose
+  bytes change.
+- Otherwise, candidate representations over the rule's inputs (sorted; rows in binary
+  order, first input most significant): a constant `true`/`false` if the table is
+  constant; the **delta over the parent** `(P && !F) || (!P && F)`, where `P` is the parent
+  rule's expression and `F` the DNF of the rows where the strategy differs from the parent
+  (XOR with the changed rows; available when the parent rule is fact declarations and one
+  `check`); the DNF of the true rows; `!(DNF of the false rows)`. Full minterms, no
+  minimization.
+- A representation is **valid** only if the current compiler parses it
+  (`compiler.parse`: `compiler.MAX_SOURCE_BYTES`, `compiler.MAX_TOKENS`, grammar — no
+  second copy of these limits), every row compiles within the machine's `max_atp`, and the
+  independent Boolean oracle gives exactly the chosen table on every row.
+- The emitter takes the valid representation with the fewest UTF-8 bytes; ties in the
+  order constant, delta, true-row DNF, negated false-row DNF.
+- No valid representation: `search_incomplete` with reason `rule_wpl` (carrying the
+  compiler's own message) when no candidate parses, `rule_atp` when some parse but none
+  compiles within `max_atp` — never "repair impossible". A table mismatch of a parsed
+  candidate is a producer error. WPL is not extended, and `max_atp` is a contract field
+  the synthesizer does not change.
+
+Whether the delta forms fit `max_atp = 1000` in the two verticals is **not predicted**;
+the run measures it. If they do not, the registered checker outcomes are not reached and
+the result is a representability boundary, recorded as such.
 
 **Report.** `winning_states`, `changed_rows`, `changed_owned_rules`,
 `total_owned_hamming_delta`, `emitted_rule_bytes` (per owned rule), and
