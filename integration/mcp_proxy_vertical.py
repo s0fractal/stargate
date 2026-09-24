@@ -196,6 +196,37 @@ def run(vendor=None):
         r.expect('materialize', code, 0)
         out['chosen'] = dict(successor=CHOSEN, projection=manifest.get('projection'),
                              runtime_digest=manifest.get('runtime_digest'), model=manifest.get('model'))
+        # docs/WORLD_RULES_REGISTRY.md outcome 6: the same search with the server declared as
+        # the world. Acceptance is only that no accepted repair edits calls.*; both "found
+        # (owned rules only)" and exhaustion are acceptable. The hand-written fixed still repairs.
+        world = ['calls.one', 'calls.two']
+        out['world_rerun'] = {}
+        for variant in ('current', 'fixed'):
+            doc = dict(spec(model, variant), world=world)
+            r.path(variant + '.world.spec.json').write_text(json.dumps(doc))
+            r.sg('machine-create', variant + '.world.spec.json', '--output', variant + '.world.machine')
+        world_ids = {v: sha(r.path(v + '.world.machine').read_bytes()) for v in ('current', 'fixed')}
+        for strategy in ('one-edit', 'trace'):
+            code, report = r.sg('repair-search', 'current.world.machine', '--expect-machine', world_ids['current'],
+                                '--max-candidates', 256, '--strategy', strategy, '--output', strategy + '.world.repair')
+            entry = dict(status=report.get('status'), attempted=report.get('attempted'))
+            if report.get('status') == 'found':
+                packet = json.loads(r.path(strategy + '.world.repair').read_text())
+                candidate, parent_rules = packet['candidate']['model']['next'], json.loads(
+                    r.path('current.world.machine').read_text())['next']
+                entry['edited'] = sorted(n for n in candidate if candidate[n] != parent_rules[n])
+            r.expect('world rerun ' + strategy + ': no repair edits calls.*',
+                     [n for n in entry.get('edited', []) if n in world], [])
+            out['world_rerun']['search-' + strategy] = entry
+        for variant in ('current', 'fixed'):
+            r.sg('machine-evidence', variant + '.world.machine', '--expect-machine', world_ids[variant],
+                 '--output', variant + '.world.proof')
+        r.sg('certificate-repair-pack', 'current.world.proof', 'fixed.world.proof', '--output', 'hand.world.repair')
+        world_parent = certificate.identity(json.loads(r.path('current.world.proof').read_text())['model'])
+        code, check = r.sg('certificate-repair-check', 'hand.world.repair', '--expect-model', world_parent,
+                           '--expect-checker', checker)
+        out['world_rerun']['hand-repair'] = check.get('status')
+        r.expect('world rerun: the hand-written fixed still repairs', check.get('status'), 'verified_repair')
         if vendor is not None:
             vendor = Path(vendor); vendor.mkdir(parents=True, exist_ok=False)
             for name in ('projection.json', 'runtime.py'):
