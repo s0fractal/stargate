@@ -158,6 +158,8 @@ def search(raw, *, max_candidates=32, experience=None):
 def machine_candidates(doc):
     """Change one next rule at a time, in state-name order."""
     for name in doc['state']:
+        if name in doc.get('world', ()):
+            continue                    # producer only: the world is not a repair target
         for source in candidates(dict(rule=doc['next'][name], inputs=sorted(doc['state'] + doc['events']))):
             yield dict(doc['next'], **{name: source})
 
@@ -327,6 +329,8 @@ def repair_candidates(doc, order):
     names = sorted(doc['state'] + doc['events'])
     declarations = ''.join('fact '+n+': bool\n' for n in names)
     for name in order:
+        if name in doc.get('world', ()):
+            continue                    # producer only: the world is not a repair target
         tree, _ = compiler.parse(doc['next'][name],dict.fromkeys(names,False),allow_unused=True)
         nodes = list(_binary_nodes(tree)); pairs = []
         for index,(a,left) in enumerate(nodes):

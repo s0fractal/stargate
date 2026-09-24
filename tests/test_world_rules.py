@@ -121,3 +121,14 @@ class Control(unittest.TestCase):
             certificate.verify_repair(forged, certificate.identity(decode(parent)['model']), certificate.checker_id())
         report, _ = mutant.verify_repair(forged, certificate.identity(decode(parent)['model']), certificate.checker_id())
         self.assertEqual(report['status'], 'verified_repair')
+
+
+class Producer(unittest.TestCase):
+    def test_no_search_candidate_touches_a_world_rule(self):
+        from stargate import search
+        doc = machine.inspect(machine.create(spec('current')))
+        seen = 0
+        for rules in list(search.repair_candidates(doc, list(doc['state']))) + list(search.machine_candidates(doc)):
+            seen += 1
+            self.assertEqual({w: rules[w] for w in WORLD}, {w: doc['next'][w] for w in WORLD})
+        self.assertGreater(seen, 0)

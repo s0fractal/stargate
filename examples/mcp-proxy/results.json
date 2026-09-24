@@ -104,5 +104,16 @@
       "model": "12d743af1d5abf4b3d96812db5814b4a5652c9f78f00c094647307962d888c16",
       "projection": "8700640f724d75c5fd46dce3c26cfd0be1075d745ed3c4e2d008574e5f2022ff"
     }
+  },
+  "world_rerun": {
+    "hand-repair": "verified_repair",
+    "search-one-edit": {
+      "attempted": 21,
+      "status": "neighborhood_exhausted"
+    },
+    "search-trace": {
+      "attempted": 22,
+      "status": "neighborhood_exhausted"
+    }
   }
 }

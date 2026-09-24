@@ -27,8 +27,8 @@ fail on a stale table.
 | `certificate-history-append` | extend a certificate history with the next checked certificate | 1 | 0 | 0 | 0 |
 | `certificate-history-check` | check every step of a certificate history against its root | 1 | 1 | 0 | 0 |
 | `certificate-history-start` | begin a certificate history at a root certificate | 1 | 0 | 0 | 0 |
-| `certificate-repair-check` | check a repair: the parent defect, the candidate proof, the inherited contract | 3 | 5 | 0 | 2 |
-| `certificate-repair-pack` | package a refutation and a candidate certificate as an unchecked repair | 1 | 2 | 0 | 1 |
+| `certificate-repair-check` | check a repair: the parent defect, the candidate proof, the inherited contract | 3 | 5 | 0 | 3 |
+| `certificate-repair-pack` | package a refutation and a candidate certificate as an unchecked repair | 1 | 2 | 0 | 2 |
 | `composition-change` | check a next-only change to one component of a composition | 1 | 0 | 0 | 0 |
 | `composition-check` | explore a composition and check the joint contract | 2 | 0 | 0 | 0 |
 | `composition-create` | build a composition of two components under a joint contract | 1 | 0 | 0 | 0 |
@@ -55,9 +55,9 @@ fail on a stale table.
 | `machine-change` | check a next-only change, exploring parent and candidate again | 3 | 1 | 0 | 0 |
 | `machine-check` | explore every reachable state and check the invariant and the goals | 2 | 0 | 0 | 0 |
 | `machine-claim` | check one claimed property at every reached state | 1 | 0 | 0 | 0 |
-| `machine-create` | build a machine from a specification and write its bytes | 2 | 4 | 0 | 2 |
+| `machine-create` | build a machine from a specification and write its bytes | 2 | 4 | 0 | 3 |
 | `machine-discover` | report the bit properties that hold at every reached state | 1 | 0 | 0 | 0 |
-| `machine-evidence` | produce a certificate or a refutation for a machine and write it | 3 | 5 | 0 | 3 |
+| `machine-evidence` | produce a certificate or a refutation for a machine and write it | 3 | 5 | 0 | 4 |
 | `machine-search` | search one-rule edits for a candidate that passes the change check | 3 | 1 | 0 | 0 |
 | `model-apply` | apply a certified change or repair to a bare Git branch | 2 | 3 | 0 | 0 |
 | `model-project` | write a machine's full transition table as a canonical projection, unchecked | 4 | 3 | 0 | 2 |
@@ -69,7 +69,7 @@ fail on a stale table.
 | `record` | execute a check and store its signed decision | 10 | 3 | 0 | 0 |
 | `refutation-check` | check a refutation claim against an expected model and checker | 1 | 0 | 0 | 0 |
 | `refutation-create` | check a supplied model and refutation claim before writing proof data | 1 | 0 | 0 | 0 |
-| `repair-search` | search a bounded neighborhood for a certified model repair | 2 | 3 | 0 | 1 |
+| `repair-search` | search a bounded neighborhood for a certified model repair | 2 | 3 | 0 | 2 |
 | `require` | require a verified accept for the recipient's rule and facts | 4 | 1 | 0 | 0 |
 | `runtime-pack` | snapshot the compiler source closure; never execute it | 0 | 1 | 0 | 0 |
 | `unpack` | write a packet of a stated kind and an offline launcher into a directory | 17 | 4 | 0 | 0 |
