@@ -68,7 +68,12 @@ minimization, ties to the DNF of true rows. Before the candidate reaches the che
 emitted rule is evaluated on every row and must equal the chosen table exactly; a
 difference is a producer error, not a candidate. If an emitted rule exceeds the 8192-byte
 rule ceiling, the status is `search_incomplete` with reason `rule_size` — never "repair
-impossible". WPL is not extended for the synthesizer.
+impossible". The same holds for evaluation cost: every rule of a machine is evaluated
+within the machine's inherited `max_atp` (1000 in both verticals), so the emitter also
+compiles each emitted rule on every row within that budget; if any row exceeds it, the
+status is `search_incomplete` with reason `rule_atp`. *(Added before any code or run,
+after reading `machine.py`'s evaluation path.)* WPL is not extended for the synthesizer,
+and `max_atp` is a contract field the synthesizer does not change.
 
 **Report.** `winning_states`, `changed_rows`, `changed_owned_rules`,
 `total_owned_hamming_delta`, `emitted_rule_bytes` (per owned rule), and
