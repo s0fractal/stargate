@@ -1,0 +1,101 @@
+{
+  "C1": {
+    "exit": 4,
+    "status": "not_applicable"
+  },
+  "C2": {
+    "as_repair": {
+      "error": "unexpected fields; expected certificate, checker, model, states, paths",
+      "exit": 2,
+      "stage": "pack",
+      "status": "invalid"
+    },
+    "claim": "unreachable_goal",
+    "exit": 4,
+    "goal": {
+      "admitted": false,
+      "resource": true,
+      "semantic": true
+    },
+    "status": "verified_refutation"
+  },
+  "C3": {
+    "claim": "unreachable_goal",
+    "exit": 4,
+    "goal": {
+      "admitted": true,
+      "resource": true,
+      "semantic": false
+    },
+    "status": "verified_refutation"
+  },
+  "buggy": {
+    "claim": "unsafe",
+    "exit": 4,
+    "initial": {
+      "admitted": false,
+      "resource": false,
+      "semantic": true
+    },
+    "status": "verified_refutation",
+    "trace": [
+      {
+        "resource_event": true,
+        "retest_success": false
+      },
+      {
+        "resource_event": false,
+        "retest_success": true
+      }
+    ]
+  },
+  "checker": "d425682ebb142a03021c13de63c8443dfd06c07f68ab1624a63df858e50b43fa",
+  "fixed": {
+    "exit": 0,
+    "goals": 2,
+    "states": 5,
+    "status": "verified_certificate"
+  },
+  "hand-repair": {
+    "error": null,
+    "exit": 0,
+    "stage": "check",
+    "status": "verified_repair"
+  },
+  "machines": {
+    "C1": "786e2aca2c0c58bbc17bac071074b920fac51393859a500ebaec447ffed0eb3a",
+    "C2": "cb6a2fab255a707736abaeba0fd895d31948a7fdaa97fe2a1b4ce48cdd1faea7",
+    "C3": "12b90fc37246124b6dcac7b6e26e54aa08fb274885fca570f6b91b7611e90f38",
+    "buggy": "bf527d70f29ab7422f0b63494a4dcfbb61c2dd29b99efcbcce2a2129268bec4c",
+    "fixed": "1472d50c7928b6cc6e62043cb988ab19b6012d9ee5362fb6c9d075c39a92a24b"
+  },
+  "search-one-edit": {
+    "attempted": 9,
+    "exit": 4,
+    "status": "neighborhood_exhausted"
+  },
+  "search-synth": {
+    "admitted_rule": "fact admitted: bool\nfact resource: bool\nfact resource_event: bool\nfact retest_success: bool\nfact semantic: bool\ncheck ((admitted || (retest_success && resource)) && !((!admitted && resource && !resource_event && retest_success && semantic) || (!admitted && resource && resource_event && retest_success && semantic))) || (!(admitted || (retest_success && resource)) && ((!admitted && resource && !resource_event && retest_success && semantic) || (!admitted && resource && resource_event && retest_success && semantic)))\n",
+    "attempted": 1,
+    "changed_owned_rules": [
+      "admitted"
+    ],
+    "changed_rows": 2,
+    "edited": [
+      "admitted"
+    ],
+    "emitted_rule_bytes": {
+      "admitted": 519
+    },
+    "exit": 0,
+    "final_checker_status": "verified_repair",
+    "status": "found",
+    "total_owned_hamming_delta": 2,
+    "winning_states": 6
+  },
+  "search-trace": {
+    "attempted": 9,
+    "exit": 4,
+    "status": "neighborhood_exhausted"
+  }
+}
