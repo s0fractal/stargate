@@ -80,7 +80,7 @@ def repair_search(raw, expected_machine, *, max_candidates=32, max_edges=256,
     Candidate incompleteness does not stop later candidates or become refutation.
     """
     from . import search
-    if strategy not in ('one-edit','trace'): raise InvalidRecord('unknown repair search strategy')
+    if strategy not in ('one-edit','trace','synth'): raise InvalidRecord('unknown repair search strategy')
     if type(max_candidates) is not int or not 1 <= max_candidates <= 256:
         raise InvalidRecord('candidate quota must be 1..256')
     parent_check, refutation = produce(raw, expected_machine, max_edges=max_edges, max_steps=max_steps)
@@ -91,6 +91,9 @@ def repair_search(raw, expected_machine, *, max_candidates=32, max_edges=256,
         return dict(report, status=('not_needed' if parent_check['status'] == 'verified_certificate'
                                     else parent_check['status'])), None
     doc = machine.inspect(raw)
+    if strategy == 'synth':
+        from . import synth
+        return dict(report, status=synth.synthesize(doc)['status']), None
     parent_model = certificate.model_from_machine(doc)
     checker = certificate.checker_id()
     seen = {canon(doc['next'])}
