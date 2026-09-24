@@ -29,11 +29,14 @@ counter back (5 executor calls under a quota of 3, admission on the fifth, recor
 `executed_runs_count = 3`). D needs its own contract decision (durable reservation versus
 a narrower SA4) and its own PR.
 
-**Fixed correspondence.** The black-heart PR "semantic dominance in `assess_request`"
-(PR-A), narrow: a request is blocked when any registered refusal of the same
-`(candidate, evaluator, requirement)` is a `SEMANTIC_COUNTEREXAMPLE`, whatever its
-`inputs_digest`; both records are kept (SA1). The exact head is pinned in `RESULTS.md`
-after its review; if it moves, the pin moves with a note.
+**Fixed correspondence.** black-heart PR #99 (PR-A), narrow: a request is blocked when
+any registered refusal of the same `(candidate, evaluator, requirement)` is an
+**authenticated** `SEMANTIC_COUNTEREXAMPLE`, whatever its `inputs_digest` or registration
+order; both records are kept (SA1). A semantic-shaped record that does not authenticate
+neither blocks nor permits (`APPLICABILITY_UNKNOWN`) — outside this model, which has no bit
+for an unauthenticated record. The exact head is pinned in `RESULTS.md` after its review;
+if it moves, the pin moves with a note. *(Correspondence text revised before any run after
+the reviewer's AMEND on #99; the model is unchanged.)*
 
 **No claim that the model is the code.** The code layer is black-heart's own red
 regressions in PR-A and this reproducer; they are cited, not run by this vertical.
@@ -44,7 +47,7 @@ regressions in PR-A and this reproducer; they are cited, not run by this vertica
 | --- | --- |
 | `admitted` | a scoped admission exists for the triple |
 | `resource` | monitor: a `RESOURCE_LIMIT` refusal is registered for the triple |
-| `semantic` | monitor: a `SEMANTIC_COUNTEREXAMPLE` is registered for the triple |
+| `semantic` | monitor: an **authenticated** `SEMANTIC_COUNTEREXAMPLE` is registered for the triple (evidence present, `record_id` recomputes) — not merely a record whose `outcome_type` says so |
 
 | event | meaning |
 | --- | --- |
