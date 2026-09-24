@@ -1,0 +1,102 @@
+{
+  "C3b-repair": {
+    "boundary": {
+      "error": "repair alters world rule: sealed_adopt",
+      "exit": 2,
+      "stage": "check",
+      "status": "invalid"
+    },
+    "no_boundary": {
+      "error": null,
+      "exit": 0,
+      "stage": "check",
+      "status": "verified_repair"
+    }
+  },
+  "buggy": {
+    "claim": "unsafe",
+    "endpoint": {
+      "named": false,
+      "reject": false,
+      "sealed_adopt": true,
+      "sealed_reject": false
+    },
+    "exit": 4,
+    "status": "verified_refutation",
+    "trace": [
+      {
+        "answer_reject": false,
+        "answered": true
+      },
+      {
+        "answer_reject": false,
+        "answered": false
+      }
+    ]
+  },
+  "checker": "d425682ebb142a03021c13de63c8443dfd06c07f68ab1624a63df858e50b43fa",
+  "controls": {
+    "C1": {
+      "claim": "unsafe",
+      "exit": 4,
+      "goal": null,
+      "status": "verified_refutation"
+    },
+    "C2": {
+      "claim": "unsafe",
+      "exit": 4,
+      "goal": null,
+      "status": "verified_refutation"
+    },
+    "C3": {
+      "claim": "unreachable_goal",
+      "exit": 4,
+      "goal": {
+        "named": true,
+        "reject": true,
+        "sealed_adopt": false,
+        "sealed_reject": true
+      },
+      "status": "verified_refutation"
+    },
+    "C3b": {
+      "claim": null,
+      "exit": 0,
+      "goal": null,
+      "status": "verified_certificate"
+    }
+  },
+  "fixed": {
+    "exit": 0,
+    "goals": 2,
+    "path_steps": 2,
+    "states": 3,
+    "status": "verified_certificate"
+  },
+  "hand-repair": {
+    "error": null,
+    "exit": 0,
+    "stage": "check",
+    "status": "verified_repair"
+  },
+  "machines": {
+    "C1": "b59f8ce4699f33d4ac2603ba60b57239a4a331ceaeca09627da0aef59323fc27",
+    "C2": "6ebbadaec6754eac537777351d8235fd94c695a7c1c14399cfe5c06e0a58bc05",
+    "C3": "79e6d70107b094c55c1ba67898a29e7d71368d2e85d75e01e58b158ce4b693c0",
+    "C3b": "ba3552dcc01c5c3140d9795764040ffc5ab6f191f7fb55d80c9aff3cf8f80a5a",
+    "C3b.nw": "da03c19d24e542b3c271df6f7e51922dad376020d06b1304e03c4df657061058",
+    "buggy": "b68b478a079560119b0c73ea1eae7141251d82cda0f1a7b01ed5a8d8fcc48978",
+    "buggy.nw": "2e014cf8f1f01e2f8bc87b87c44658148fcdaa9aea226b989f4384e2241ac8e6",
+    "fixed": "1cecdcac3c96b2e5691c24277d45ae594a2bb0ed52a5e559b2959b9e7ee37628"
+  },
+  "search-one-edit": {
+    "attempted": 6,
+    "exit": 4,
+    "status": "neighborhood_exhausted"
+  },
+  "search-trace": {
+    "attempted": 6,
+    "exit": 4,
+    "status": "neighborhood_exhausted"
+  }
+}
