@@ -51,6 +51,14 @@ not one that flips.
 
 ## Fixed correspondence
 
-sigma-glyph PR #59 head at the time of this run:
-`46dd64c412c77a2680f03f810e237daf703ea42b` (after Codex's append-only AMEND). Not yet
-merged; if the head moves before merge, this pin is replaced with a note, never silently.
+sigma-glyph PR #59 exact head: `3f8db898d85e925f9d3aee2e8b98c17f1e6d1a6a` (unmerged).
+
+Pin history, never silent:
+- `46dd64c412c77a2680f03f810e237daf703ea42b` — at the time of the run (after the
+  append-only AMEND).
+- `3f8db898d85e925f9d3aee2e8b98c17f1e6d1a6a` — after the concurrency AMEND: one run per
+  round (`flock` on the round directory) and attempt files created exclusively. The
+  behavioural contract the model states is unchanged — the AMEND closes a way for two
+  runs to break it together, which a one-family, one-attempt-per-step model does not
+  distinguish from one run — so the model, specs and `results.json` are not re-run or
+  re-written; only this pin moves.
