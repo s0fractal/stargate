@@ -142,3 +142,7 @@ def synthesize(doc):
         sizes[name] = len(source.encode('utf-8'))
     metrics['emitted_rule_bytes'] = sizes
     return dict(status='realizable', next=rules, metrics=metrics)
+
+
+def represent(table, inputs, parent_source, max_atp):
+    return emit(table, inputs)

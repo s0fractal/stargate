@@ -106,6 +106,41 @@ class Emitter(unittest.TestCase):
         self.assertEqual(caught.exception.reason, 'rule_size')
 
 
+class Representation(unittest.TestCase):
+    """Codex's pre-run review of #85: the compiler's token ceiling, unchanged rules, delta."""
+
+    def test_short_names_parity_is_under_the_byte_ceiling_but_refused_cleanly_by_tokens(self):
+        from stargate import synth as module
+        inputs = [chr(ord('a') + n) for n in range(8)]
+        parity = [bin(row).count('1') % 2 == 1 for row in range(256)]
+        parent = rule(inputs, 'a')
+        self.assertLess(len(module.emit(parity, inputs).encode('utf-8')), 8192)
+        with self.assertRaises(module.Unrepresentable) as caught:
+            module.represent(parity, inputs, parent, 1000)
+        self.assertEqual(caught.exception.reason, 'rule_wpl')
+        self.assertIn('256 tokens', str(caught.exception.detail))
+
+    def test_an_owned_rule_the_strategy_does_not_change_keeps_its_parent_bytes(self):
+        # Two owned bits; the fix needs only o. p's parent rule must come back byte for byte.
+        raw = build(state=['o', 'p', 'w'], events=['x'], rules={'w': 'x', 'o': 'false', 'p': 'p || x'},
+                    invariant='!w || o', world=['w'])
+        report, packet = synth(raw)
+        self.assertEqual(report['status'], 'found')
+        candidate = decode(packet)['candidate']['model']['next']
+        self.assertEqual(candidate['p'], machine.inspect(raw)['next']['p'])
+        self.assertEqual(report['synthesis']['changed_owned_rules'], ['o'])
+
+    def test_the_delta_over_the_parent_is_exact_and_chosen_when_shorter(self):
+        from stargate import synth as module
+        inputs = ['a', 'b', 'c', 'd', 'e', 'f']
+        parent = rule(inputs, '(a && b) || (c && !d) || (e && f)')
+        table = module.table_of(parent, inputs)
+        table[5], table[40] = not table[5], not table[40]
+        source = module.represent(table, inputs, parent, 1000)
+        self.assertIn('(a && b) || (c && !d) || (e && f)', source)
+        self.assertEqual(module.table_of(source, inputs), table)
+
+
 def mutant(site, replacement):
     from stargate import synth as module
     source = (ROOT / 'src' / 'synth.py').read_text()
