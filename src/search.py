@@ -155,10 +155,13 @@ def search(raw, *, max_candidates=32, experience=None):
     return report, None
 
 
-def machine_candidates(doc):
-    """Change one next rule at a time, in state-name order."""
+def machine_candidates(doc, *, repair=False):
+    """Change one next rule at a time, in state-name order.
+
+    A plain change may evolve any rule; a repair never proposes a world rule.
+    """
     for name in doc['state']:
-        if name in doc.get('world', ()):
+        if repair and name in doc.get('world', ()):
             continue                    # producer only: the world is not a repair target
         for source in candidates(dict(rule=doc['next'][name], inputs=sorted(doc['state'] + doc['events']))):
             yield dict(doc['next'], **{name: source})
@@ -341,4 +344,4 @@ def repair_candidates(doc, order):
         for a,b,left,right in pairs[:8]:
             source = declarations+'check '+_render(_exchange(tree,a,b,left,right))
             yield dict(doc['next'], **{name:source})
-    yield from machine_candidates(doc)
+    yield from machine_candidates(doc, repair=True)

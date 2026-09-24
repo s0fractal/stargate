@@ -128,7 +128,7 @@ class Producer(unittest.TestCase):
         from stargate import search
         doc = machine.inspect(machine.create(spec('current')))
         seen = 0
-        for rules in search.repair_candidates(doc, list(doc['state'])):
+        for rules in list(search.repair_candidates(doc, list(doc['state']))) + list(search.machine_candidates(doc, repair=True)):
             seen += 1
             self.assertEqual({w: rules[w] for w in WORLD}, {w: doc['next'][w] for w in WORLD})
         self.assertGreater(seen, 0)

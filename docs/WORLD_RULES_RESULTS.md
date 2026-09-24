@@ -21,3 +21,10 @@ repair of the world it returned in #64. It also finds no repair at all: the fix 
 adopted changes two owned rules together, outside a one-edit neighborhood. Ownership
 removed a wrong answer; it did not produce a right one. Whether automatic repair should
 search further is a separate question, and this change does not answer it.
+
+**Scope of the producer filter (amended after review).** Only repair paths skip world
+rules: `repair-search` in both strategies (`repair_candidates` and the one-edit
+neighborhood called with `repair=True`). Plain `machine-search` still proposes edits to
+every rule, world rules included, because a certified change may evolve the world; a
+test pins that it still reaches both `calls.*` rules. Outcome 6's numbers did not
+change (21 and 22 attempts).
