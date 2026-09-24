@@ -11,15 +11,16 @@ from itertools import product
 
 from . import boolean, compiler, kernel
 
-MAX_RULE_BYTES = 8192
-
-
 class Unrepresentable(Exception):
-    """The chosen table exists but this emitter cannot state it within the machine's limits."""
+    """The chosen table exists but no representation here states it within the machine's limits."""
 
-    def __init__(self, reason):
-        super().__init__(reason)
-        self.reason = reason
+    def __init__(self, reason, detail=None):
+        super().__init__(reason if detail is None else reason + ': ' + detail)
+        self.reason, self.detail = reason, detail
+
+
+class EmitterError(Exception):
+    """A representation parsed but does not compute the chosen table: a producer defect."""
 
 
 def _rows(names):
@@ -29,25 +30,19 @@ def _rows(names):
         yield {name: bool(row >> (n - 1 - i) & 1) for i, name in enumerate(names)}
 
 
+def _dnf(table, inputs, value):
+    return ' || '.join('(' + ' && '.join(n if row[n] else '!' + n for n in inputs) + ')'
+                       for row, cell in zip(_rows(inputs), table) if cell == value)
+
+
 def emit(table, inputs):
-    """The truth table as WPL: a constant, the true-row DNF or the negated false-row DNF."""
+    """The truth table as a full-minterm WPL rule; no validity check (see represent)."""
     inputs = sorted(inputs)
     declarations = ''.join('fact ' + name + ': bool\n' for name in inputs)
-    if all(table):
-        expression = 'true'
-    elif not any(table):
-        expression = 'false'
-    else:
-        rows = list(_rows(inputs))
-
-        def dnf(value):
-            return ' || '.join('(' + ' && '.join(n if row[n] else '!' + n for n in inputs) + ')'
-                               for row, cell in zip(rows, table) if cell == value)
-        positive, negative = dnf(True), '!(' + dnf(False) + ')'
-        expression = positive if len(positive) <= len(negative) else negative
-    if len((declarations + 'check ' + expression + '\n').encode('utf-8')) > MAX_RULE_BYTES:
-        raise Unrepresentable('rule_size')
-    return declarations + 'check ' + expression + '\n'
+    if all(table) or not any(table):
+        return declarations + 'check ' + ('true' if all(table) else 'false') + '\n'
+    positive, negative = _dnf(table, inputs, True), '!(' + _dnf(table, inputs, False) + ')'
+    return declarations + 'check ' + (positive if len(positive) <= len(negative) else negative) + '\n'
 
 
 def table_of(source, inputs):
@@ -57,12 +52,61 @@ def table_of(source, inputs):
     return [boolean.evaluate(code, row) for row in _rows(inputs)]
 
 
+def _expression(source):
+    """The parent rule's expression, when the rule is fact declarations and one check."""
+    lines = [line for line in source.split('\n') if line.strip()]
+    if not lines or not lines[-1].startswith('check ') or not all(
+            line.startswith('fact ') and line.endswith(': bool') for line in lines[:-1]):
+        return None
+    return lines[-1][len('check '):]
+
+
+def _forms(table, inputs, parent_source):
+    """Candidate expressions, in tie-break order."""
+    if all(table) or not any(table):
+        yield 'true' if all(table) else 'false'
+        return
+    parent = _expression(parent_source)
+    if parent is not None:
+        flipped = [a != b for a, b in zip(table, table_of(parent_source, inputs))]
+        changed = _dnf(flipped, inputs, True)
+        yield '((' + parent + ') && !(' + changed + ')) || (!(' + parent + ') && (' + changed + '))'
+    yield _dnf(table, inputs, True)
+    yield '!(' + _dnf(table, inputs, False) + ')'
+
+
 def _within_budget(source, inputs, max_atp):
-    for row in _rows(sorted(inputs)):
+    for row in _rows(inputs):
         try:
             compiler.compile_source(source, facts=row, max_atp=max_atp, allow_unused=True)
-        except (compiler.CompileIncomplete, kernel.ResourceFault, kernel.AdmissionRefused):
-            raise Unrepresentable('rule_atp')
+        except (compiler.CompileIncomplete, kernel.ResourceFault, kernel.AdmissionRefused) as exc:
+            return str(exc) or type(exc).__name__
+    return None
+
+
+def represent(table, inputs, parent_source, max_atp):
+    """The shortest representation the current compiler accepts that computes the table."""
+    inputs = sorted(inputs)
+    declarations = ''.join('fact ' + name + ': bool\n' for name in inputs)
+    valid, refusals = [], []
+    for order, expression in enumerate(_forms(table, inputs, parent_source)):
+        source = declarations + 'check ' + expression + '\n'
+        try:
+            compiler.parse(source, dict.fromkeys(inputs, False), allow_unused=True)
+        except compiler.PolicyError as exc:
+            refusals.append(('rule_wpl', str(exc)))
+            continue
+        over = _within_budget(source, inputs, max_atp)
+        if over is not None:
+            refusals.append(('rule_atp', over))
+            continue
+        if table_of(source, inputs) != table:
+            raise EmitterError('representation ' + str(order) + ' does not compute the chosen table')
+        valid.append((len(source.encode('utf-8')), order, source))
+    if valid:
+        return min(valid)[2]
+    reason = 'rule_atp' if any(kind == 'rule_atp' for kind, _ in refusals) else 'rule_wpl'
+    raise Unrepresentable(reason, '; '.join(sorted({detail for _, detail in refusals})))
 
 
 def synthesize(doc):
@@ -130,19 +174,18 @@ def synthesize(doc):
     rules, sizes = dict(doc['next']), {}
     for index, name in enumerate(choosable):
         table = [choice[key(row), tuple(row[n] for n in events)][index] for row in _rows(inputs)]
-        try:
-            source = emit(table, inputs)
-            if table_of(source, inputs) != table:
-                return dict(status='producer_error', reason='emitted rule for ' + name + ' differs from the strategy',
+        if table == table_of(doc['next'][name], inputs):
+            source = doc['next'][name]              # unchanged function: the parent's bytes
+        else:
+            try:
+                source = represent(table, inputs, doc['next'][name], doc['max_atp'])
+            except EmitterError as exc:
+                return dict(status='producer_error', reason=name + ': ' + str(exc), metrics=metrics)
+            except Unrepresentable as exc:
+                return dict(status='search_incomplete', reason=exc.reason + ': ' + name + ': ' + str(exc.detail),
                             metrics=metrics)
-            _within_budget(source, inputs, doc['max_atp'])
-        except Unrepresentable as exc:
-            return dict(status='search_incomplete', reason=exc.reason + ': ' + name, metrics=metrics)
         rules[name] = source
         sizes[name] = len(source.encode('utf-8'))
     metrics['emitted_rule_bytes'] = sizes
     return dict(status='realizable', next=rules, metrics=metrics)
 
-
-def represent(table, inputs, parent_source, max_atp):
-    return emit(table, inputs)

@@ -97,13 +97,14 @@ class Emitter(unittest.TestCase):
             source = module.emit(table, inputs)
             self.assertEqual(module.table_of(source, inputs), table, source)
 
-    def test_a_rule_over_the_size_ceiling_is_refused_as_rule_size(self):
+    def test_a_rule_over_the_byte_ceiling_is_refused_by_the_compiler(self):
         from stargate import synth as module
         inputs = ['observed_input_' + str(n) for n in range(8)]   # 8 inputs is the machine maximum
         parity = [bin(row).count('1') % 2 == 1 for row in range(256)]
         with self.assertRaises(module.Unrepresentable) as caught:
-            module.emit(parity, inputs)
-        self.assertEqual(caught.exception.reason, 'rule_size')
+            module.represent(parity, inputs, rule(inputs, inputs[0]), 1000)
+        self.assertEqual(caught.exception.reason, 'rule_wpl')      # the compiler's own ceiling
+        self.assertIn('8192 bytes', caught.exception.detail)
 
 
 class Representation(unittest.TestCase):
@@ -174,8 +175,8 @@ class Controls(unittest.TestCase):
         self.assertIn('repair alters world rule: w', report.get('reason', ''))
 
     def test_G3_a_flipped_emitted_row_is_caught_before_the_checker(self):
-        site = "    return declarations + 'check ' + expression + '\\n'\n"
-        flipped = mutant(site, "    return declarations + 'check !(' + expression + ')\\n'\n")
+        site = "        source = declarations + 'check ' + expression + '\\n'\n"
+        flipped = mutant(site, "        source = declarations + 'check !(' + expression + ')\\n'\n")
         report, packet = self.run_with(flipped, build(**R))
         self.assertEqual((report['status'], report.get('producer_calls'), packet), ('producer_error', 1, None))
 

@@ -106,7 +106,9 @@ def repair_search(raw, expected_machine, *, max_candidates=32, max_edges=256,
             return dict(report, status=synthesized['status'], reason=synthesized.get('reason')), None
     parent_model = certificate.model_from_machine(doc)
     checker = certificate.checker_id()
-    seen = {canon(doc['next'])}
+    # The synthesized candidate is always checked, even when it is the parent's bytes: then
+    # the checker, not this producer, says that the parent is still refuted.
+    seen = set() if strategy == 'synth' else {canon(doc['next'])}
     traces = []
     def remember(proof):
         claim = decode(proof)['claim']
