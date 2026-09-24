@@ -48,6 +48,8 @@ jobs:
         run: python integration/sigma_verdict_vertical.py
       - name: Safety synthesis on both live verticals (registered outcomes, byte-for-byte)
         run: python integration/synth_vertical.py
+      - name: Semantic-seal vertical (registered outcomes, results.json byte-for-byte)
+        run: python integration/semantic_seal_vertical.py
   pr-gate-action:
     # The composite action (action.yml) run end to end against a fixture repository:
     # outcome 13 of docs/PR_GATE_REGISTRY.md. The fixture's heads are local commits,

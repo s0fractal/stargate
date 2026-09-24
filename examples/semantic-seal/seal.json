@@ -1,0 +1,22 @@
+{
+  "source": {"repository": "s0fractal/black-heart", "buggy_commit": "3893fad4bc1cbfa6152a5cecd967c73471a38fde",
+             "buggy_blob": "78b5ac6b80e9ce37a34e108dc96f2e939d00afa9", "path": "scoped_admission.py",
+             "fixed_reviewed_head": "5344c879d10478018f47626c9ac4587855056a88",
+             "fixed_merge": "7396cd17c9174899f31770e757cd11cbeab91713"},
+  "state": ["admitted", "resource", "semantic"],
+  "events": ["resource_event", "retest_success"],
+  "initial": [{"admitted": false, "resource": false, "semantic": false},
+              {"admitted": false, "resource": false, "semantic": true}],
+  "invariant": "!semantic || !admitted",
+  "goals": [{"admitted": true, "resource": true, "semantic": false},
+            {"admitted": false, "resource": true, "semantic": true}],
+  "max_atp": 1000,
+  "world": ["resource", "semantic"],
+  "monitor": {"semantic": "semantic", "resource": "resource || resource_event"},
+  "variants": {
+    "buggy": {"admitted": "admitted || (retest_success && resource)"},
+    "fixed": {"admitted": "admitted || (retest_success && resource && !semantic)"},
+    "C2": {"admitted": "admitted || (retest_success && resource)", "semantic": "false"},
+    "C3": {"admitted": "admitted || (retest_success && resource && !resource)"}
+  }
+}

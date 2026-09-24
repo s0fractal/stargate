@@ -1,0 +1,46 @@
+{
+  "events": [
+    "resource_event",
+    "retest_success"
+  ],
+  "goals": [
+    {
+      "admitted": true,
+      "resource": true,
+      "semantic": false
+    },
+    {
+      "admitted": false,
+      "resource": true,
+      "semantic": true
+    }
+  ],
+  "initial": [
+    {
+      "admitted": false,
+      "resource": false,
+      "semantic": false
+    },
+    {
+      "admitted": false,
+      "resource": false,
+      "semantic": true
+    }
+  ],
+  "invariant": "fact admitted: bool\nfact resource: bool\nfact semantic: bool\ncheck !semantic || !admitted\n",
+  "max_atp": 1000,
+  "next": {
+    "admitted": "fact admitted: bool\nfact resource: bool\nfact resource_event: bool\nfact retest_success: bool\nfact semantic: bool\ncheck admitted || (retest_success && resource && !semantic)\n",
+    "resource": "fact admitted: bool\nfact resource: bool\nfact resource_event: bool\nfact retest_success: bool\nfact semantic: bool\ncheck resource || resource_event\n",
+    "semantic": "fact admitted: bool\nfact resource: bool\nfact resource_event: bool\nfact retest_success: bool\nfact semantic: bool\ncheck semantic\n"
+  },
+  "state": [
+    "admitted",
+    "resource",
+    "semantic"
+  ],
+  "world": [
+    "resource",
+    "semantic"
+  ]
+}
