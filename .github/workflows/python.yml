@@ -44,6 +44,8 @@ jobs:
         run: python tools/readme_walkthrough.py
       - name: Interlock shadow experiment (registered outcomes, results.json byte-for-byte)
         run: python integration/interlock_shadow.py
+      - name: Sigma verdict vertical (registered outcomes, results.json byte-for-byte)
+        run: python integration/sigma_verdict_vertical.py
   pr-gate-action:
     # The composite action (action.yml) run end to end against a fixture repository:
     # outcome 13 of docs/PR_GATE_REGISTRY.md. The fixture's heads are local commits,

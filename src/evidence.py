@@ -104,7 +104,7 @@ def repair_search(raw, expected_machine, *, max_candidates=32, max_edges=256,
     remember(refutation)
     order = search.trace_order(doc, traces[0] if traces else None) if strategy == 'trace' else list(doc['state'])
     report.update(rule_order=order)
-    stream = iter(search.repair_candidates(doc,order) if strategy == 'trace' else search.machine_candidates(doc))
+    stream = iter(search.repair_candidates(doc,order) if strategy == 'trace' else search.machine_candidates(doc, repair=True))
     for _ in range(max_candidates):
         try:
             rules = next(stream)
