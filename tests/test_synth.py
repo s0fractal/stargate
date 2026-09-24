@@ -99,7 +99,7 @@ class Emitter(unittest.TestCase):
 
     def test_a_rule_over_the_size_ceiling_is_refused_as_rule_size(self):
         from stargate import synth as module
-        inputs = ['i' + str(n) for n in range(8)]
+        inputs = ['observed_input_' + str(n) for n in range(8)]   # 8 inputs is the machine maximum
         parity = [bin(row).count('1') % 2 == 1 for row in range(256)]
         with self.assertRaises(module.Unrepresentable) as caught:
             module.emit(parity, inputs)

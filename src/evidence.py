@@ -92,8 +92,18 @@ def repair_search(raw, expected_machine, *, max_candidates=32, max_edges=256,
                                     else parent_check['status'])), None
     doc = machine.inspect(raw)
     if strategy == 'synth':
+        # docs/SYNTH_REGISTRY.md: safety only, and only over rules the model says it owns.
         from . import synth
-        return dict(report, status=synth.synthesize(doc)['status']), None
+        kind = decode(refutation)['claim']['kind']
+        if kind != 'unsafe':
+            return dict(report, status='not_applicable', reason='parent refutation is ' + kind), None
+        if not doc.get('world') or set(doc['world']) == set(doc['state']):
+            return dict(report, status='not_applicable',
+                        reason='synthesis needs a declared world and at least one owned rule'), None
+        synthesized = synth.synthesize(doc)
+        report['synthesis'] = synthesized['metrics']
+        if synthesized['status'] != 'realizable':
+            return dict(report, status=synthesized['status'], reason=synthesized.get('reason')), None
     parent_model = certificate.model_from_machine(doc)
     checker = certificate.checker_id()
     seen = {canon(doc['next'])}
@@ -107,11 +117,15 @@ def repair_search(raw, expected_machine, *, max_candidates=32, max_edges=256,
     remember(refutation)
     order = search.trace_order(doc, traces[0] if traces else None) if strategy == 'trace' else list(doc['state'])
     report.update(rule_order=order)
-    stream = iter(search.repair_candidates(doc,order) if strategy == 'trace' else search.machine_candidates(doc, repair=True))
+    stream = iter([synthesized['next']] if strategy == 'synth' else search.repair_candidates(doc,order)
+                  if strategy == 'trace' else search.machine_candidates(doc, repair=True))
     for _ in range(max_candidates):
         try:
             rules = next(stream)
         except StopIteration:
+            if strategy == 'synth':
+                return dict(report, status=('search_incomplete' if report['incomplete_candidates']
+                                            else 'not_certified')), None
             return dict(report, status=('search_incomplete' if report['incomplete_candidates']
                                         else 'neighborhood_exhausted'), reason='neighborhood_exhausted'), None
         report['attempted'] += 1
@@ -155,6 +169,10 @@ def repair_search(raw, expected_machine, *, max_candidates=32, max_edges=256,
         checked, proof = produce(candidate, hashlib.sha256(candidate).hexdigest(),
                                  max_edges=max_edges, max_steps=max_steps)
         attempt.update(status=checked['status'], check=checked)
+        if strategy == 'synth':
+            report['synthesis']['final_checker_status'] = checked['status']
+            if checked['status'] == 'verified_refutation':
+                report['synthesis']['candidate_claim'] = decode(proof)['claim']['kind']
         if checked['status'] == 'incomplete':
             report['incomplete_candidates'] += 1
             continue
@@ -170,9 +188,14 @@ def repair_search(raw, expected_machine, *, max_candidates=32, max_edges=256,
             packet = certificate.pack_repair(refutation, proof)
             verdict, successor = certificate.verify_repair(packet, certificate.identity(parent_model),
                                                            checker, max_steps=max_steps)
+        except InvalidRecord as exc:
+            if strategy != 'synth': return dict(report, status='checker_error', reason=str(exc)), None
+            report['synthesis']['final_checker_status'] = 'invalid'
+            return dict(report, status='repair_refused', reason=str(exc)), None
         except (ValueError, TypeError, KeyError) as exc:
             return dict(report, status='checker_error', reason=str(exc)), None
         attempt['repair'] = verdict
+        if strategy == 'synth': report['synthesis']['final_checker_status'] = verdict['status']
         if verdict['status'] == 'verified_repair' and successor is not None:
             return dict(report, status='found', repair=verdict), packet
         if verdict['status'] == 'incomplete':
@@ -184,5 +207,6 @@ def repair_search(raw, expected_machine, *, max_candidates=32, max_edges=256,
 
 def repair_exit_code(report):
     if report['status'] == 'found': return 0
-    if report['status'] in ('not_needed', 'neighborhood_exhausted'): return 4
+    if report['status'] in ('not_needed', 'neighborhood_exhausted', 'not_applicable', 'unrealizable',
+                            'not_certified', 'repair_refused'): return 4
     return 3 if report['status'] in ('search_incomplete', 'incomplete', 'checker_unavailable') else 1
