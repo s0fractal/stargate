@@ -117,7 +117,6 @@ Before the first named verdict, a `NO VERDICT` leaves room for another attempt.
 | C1 seal `named` only | `reject' = answered && answer_reject` | `verified_refutation` |
 | C2 seal `reject` only | `named' = answered` | `verified_refutation` |
 | C3 blind the observer | `sealed_reject' = false`, `sealed_adopt' = false` on `buggy` | as a model: `goal_unreachable` (safety holds vacuously, both goals unreached); as a repair of `buggy`: refused, `repair alters world rule` |
-| C4 retry after a named verdict allowed, NO VERDICT sealed-safe otherwise | `named' = answered`, `reject' = answered && answer_reject` only when `sealed_*` is false *and* the last attempt was named — not expressible without a further bit; **not run**, named here so its absence is visible | — |
 
 C3 is the reason the goals exist: without them, an observer that never seals certifies.
 
