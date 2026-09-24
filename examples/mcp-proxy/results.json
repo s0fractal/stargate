@@ -1,5 +1,5 @@
 {
-  "checker": "ab72a8025a564c067f6d3a8551775733a8153ef696d1942a1f1b80e4afe107cd",
+  "checker": "d425682ebb142a03021c13de63c8443dfd06c07f68ab1624a63df858e50b43fa",
   "chosen": {
     "model": "14cfbf8c906b36518bf1d7be689aeeaa7032e6fb03beb333d2697568f55b8234",
     "projection": "6235a212057f2ef360d30cb767f170a363311f20bfa18f00dbf4143c8d7ac321",
@@ -56,10 +56,10 @@
     ]
   },
   "machines": {
-    "current": "068d7c49a953136a6086531b2a0d6e2c3b6cb9a7842df289f10daaee87f2c8b8",
-    "fixed": "2ba0911d3738a34924540caef9889421e6c0a33a1c0e420c6a89fd31ee5ebcbc",
-    "historic": "fe36aaa10e2f657e0447a1c25134905ba26df7e4c39952ed8f90e3a7711bef04",
-    "naive-fix": "068d7c49a953136a6086531b2a0d6e2c3b6cb9a7842df289f10daaee87f2c8b8"
+    "current": "fba7b17a3e4c3b7628eb637473b3185f29491f928bc4b4fbda047c42376e6768",
+    "fixed": "dd42a71df53ab9406f438b7d49b6771ead8eeab8f0d76ca258464db1b8820633",
+    "historic": "03f2c6697a03a42168aaf2bf95bdd3023bc1342ac8688f411da7e26b669694c6",
+    "naive-fix": "fba7b17a3e4c3b7628eb637473b3185f29491f928bc4b4fbda047c42376e6768"
   },
   "search-one-edit": {
     "attempted": 3,
@@ -88,21 +88,32 @@
   "successors": {
     "fixed": {
       "conforms": "conforms",
-      "machine": "2ba0911d3738a34924540caef9889421e6c0a33a1c0e420c6a89fd31ee5ebcbc",
+      "machine": "dd42a71df53ab9406f438b7d49b6771ead8eeab8f0d76ca258464db1b8820633",
       "model": "14cfbf8c906b36518bf1d7be689aeeaa7032e6fb03beb333d2697568f55b8234",
       "projection": "6235a212057f2ef360d30cb767f170a363311f20bfa18f00dbf4143c8d7ac321"
     },
     "search-one-edit": {
       "conforms": "conforms",
-      "machine": "788c4bbaa6627de65dce397549094c37d0186554159a644daa13c97d56882b35",
+      "machine": "234c5b3ea0f33522ca980a6a5b3b0f3352a18087bfc36fdb0dd2300746b70a18",
       "model": "12d743af1d5abf4b3d96812db5814b4a5652c9f78f00c094647307962d888c16",
       "projection": "8700640f724d75c5fd46dce3c26cfd0be1075d745ed3c4e2d008574e5f2022ff"
     },
     "search-trace": {
       "conforms": "conforms",
-      "machine": "788c4bbaa6627de65dce397549094c37d0186554159a644daa13c97d56882b35",
+      "machine": "234c5b3ea0f33522ca980a6a5b3b0f3352a18087bfc36fdb0dd2300746b70a18",
       "model": "12d743af1d5abf4b3d96812db5814b4a5652c9f78f00c094647307962d888c16",
       "projection": "8700640f724d75c5fd46dce3c26cfd0be1075d745ed3c4e2d008574e5f2022ff"
+    }
+  },
+  "world_rerun": {
+    "hand-repair": "verified_repair",
+    "search-one-edit": {
+      "attempted": 21,
+      "status": "neighborhood_exhausted"
+    },
+    "search-trace": {
+      "attempted": 22,
+      "status": "neighborhood_exhausted"
     }
   }
 }

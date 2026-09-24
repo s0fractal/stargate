@@ -1,7 +1,7 @@
 {
   "lifecycle.as-is": {
     "exit": 0,
-    "machine": "3658a89fa6a238028169176dfbcbbbfe633e4dceeca654c04b41c6c5dec18025",
+    "machine": "1a3ce728be8718320402d0f49c0544bcb870999888c348bbcae404e0b76686eb",
     "measured": [
       "verified_certificate",
       5
@@ -9,7 +9,7 @@
   },
   "lifecycle.bad-round-closes": {
     "exit": 4,
-    "machine": "6b160597245827e3bf7b76912eb2b164710a423f0c5a4a90bdb7f6a0298420d0",
+    "machine": "d1aa6dc1004f4539d6d82c7a05e330767778f74ffbc7cefd758f49271de27608",
     "measured": [
       "verified_refutation",
       "unsafe",
@@ -18,7 +18,7 @@
   },
   "lifecycle.half-open-stuck": {
     "exit": 4,
-    "machine": "c57ab8bf7436bfe235ae6a4a61683f6238c9ffca2e2a22bedbd23856b54af460",
+    "machine": "65e3ee27669002bf23c21ea60fac0d834601d2d85d7c7d6b6056c5a2ba5fee8e",
     "measured": [
       "verified_refutation",
       "trap"
@@ -26,7 +26,7 @@
   },
   "lifecycle.open-skips-half-open": {
     "exit": 4,
-    "machine": "a6d50adde91a3167c7ded7793f4a600ec09ccbccee33536662663b6212dfa302",
+    "machine": "50e2a7b6226f3a3bb71b62383092741dc10696094dc843ac2a8f5e72671bf98b",
     "measured": [
       "verified_refutation",
       "unsafe",
@@ -35,7 +35,7 @@
   },
   "lifecycle.trip-ignored": {
     "exit": 4,
-    "machine": "0237c3d65b968a69f82416ef34e86acd53af029f2c2f43271dfa2a5163e071b0",
+    "machine": "5c9f1a99db59e0609748e4cbb4aa0708af20cccfe4a963f413c66029c52b2bec",
     "measured": [
       "verified_refutation",
       "unsafe",
@@ -51,7 +51,7 @@
   },
   "too-weak.as-is": {
     "exit": 0,
-    "machine": "50fc5676049c0df183b26bde449365bda7b7be779fcfbc31357c84d7f52d11e3",
+    "machine": "3f6910e705db59868b098aaf374dd9c2375ce03c5891a130e2aa5907ebeabcae",
     "measured": [
       "verified_certificate",
       3
@@ -59,7 +59,7 @@
   },
   "too-weak.bad-round-closes": {
     "exit": 0,
-    "machine": "d9f9f9b2696117693acc95b49025db9b0d82bc458e86f2750ac1ad12a9fd8278",
+    "machine": "62ff875d62250b6e790c4d5eec9b5e87fcdffa0508cf040291722d97d5efb3e2",
     "measured": [
       "verified_certificate",
       3
@@ -67,7 +67,7 @@
   },
   "too-weak.half-open-stuck": {
     "exit": 4,
-    "machine": "e77d903cd8d182a621ccf2ebe824a0809f0434dc930199783f47f06ad0ad93d5",
+    "machine": "1a6176d159a94131d5c6dcd9e91a4f904ef9233251e83f10b47ad8a03df3e859",
     "measured": [
       "verified_refutation",
       "trap"
@@ -75,7 +75,7 @@
   },
   "too-weak.open-skips-half-open": {
     "exit": 0,
-    "machine": "e45cb9128a4047656a9b7b7e9ec34cddab5a6f8702091b6b6a7371646a9f5979",
+    "machine": "fa9d28939d4eba032f80ba3199eb97189d314bd40f5d476f3c150612934904bb",
     "measured": [
       "verified_certificate",
       2
@@ -83,7 +83,7 @@
   },
   "too-weak.trip-ignored": {
     "exit": 0,
-    "machine": "e8551a54e1f0b2c8b0c2a338211698139c63617928f3da346c039e6cab4e7f99",
+    "machine": "48c492055be26a2e81b6bcde8b2fdd763a2b45210b02577d4c1f4a79450d4017",
     "measured": [
       "verified_certificate",
       1
