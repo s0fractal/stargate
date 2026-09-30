@@ -52,6 +52,29 @@ evidence, but an implementation author's own tests must not be labelled independ
 The model gate's scope is limited: it does not prove arbitrary implementation correctness.
 Policy changes, check results and actual merges must be reported separately.
 
+## Technical strategy completion
+
+P0–P3 are implemented and merged: owned examples and accurate claims (P0), actual
+Warrant adapter checks (P1), the Sokol delivery repair and bounded consumer checks
+(P2), and verified owned-only repair with a registered search comparison (P3).
+Stargate PRs [#90](https://github.com/s0fractal/stargate/pull/90),
+[#91](https://github.com/s0fractal/stargate/pull/91) and
+[#92](https://github.com/s0fractal/stargate/pull/92) add retry traces, queue semantics
+and frozen public evidence checks. Sokol PRs #96–98 add their live and frozen CI
+replays; #98 merged as `bfad6ad22a03ef243753575612c60f36885302fd`.
+
+The [reproduction handoff](REPRODUCE.md) provides explicit public/full profiles,
+a report with input hashes, and a blank observation template for a future user.
+A full run must reproduce all four frozen harness outputs byte for byte; missing
+sources, failed stages or incomplete evidence fail the run. Reports are unsigned
+observations, never admission credentials. Neither profile establishes independent
+adoption. The author-run fresh-environment check is a setup check, not a new pilot.
+
+This closes the technical implementation of the strategy. Further development is
+conditional on the evidence below, rather than additional demonstrations of the same
+bounded contracts. No larger solver, model domain or additional consumer integration
+is justified by the completed pilot alone.
+
 ## Next decision criteria
 
 The next user must reproduce a useful result without author assistance. Measure modelling
