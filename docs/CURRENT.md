@@ -14,10 +14,13 @@ bytes and describe what was measured then; they are not silently rewritten as ne
 - **Actual consumer:** Warrant `ac80aee` runs the pinned table (PRs #82–84 merged).
   Sigma-Glyph #59 and Black-Heart #99 repairs merged; that does not mean their runtimes
   execute Stargate tables. The original README's pending-adoption description was stale.
-- **Review policy:** on 2026-09-30 `protect-main` was updated and read back: one
-  approving review required, approvals dismissed on new pushes. No bypass actor was added.
-  This applies to all PRs; an author cannot supply their own GitHub approval. It is a
-  distinct-account review boundary, not a proof of reviewer competence.
+- **Admission policy:** on 2026-09-30 the operator removed mandatory GitHub approval
+  from `protect-main` (ruleset 23849266), including extra approval for unattributed
+  changes. Required Python checks, strict base freshness, the pinned model-gate App,
+  force-push/deletion protection and an empty bypass list remain. The live ruleset was
+  read back; this is a mutable configuration, not an immutable mathematical guarantee.
+- **Strategy integration:** [PR #88](https://github.com/s0fractal/stargate/pull/88) merged
+  as `5ed8aba3d2b32e8f352e9209517cfa664f444fb2`; its tree matches reviewed head `d7679d3`.
 - **Merge gate:** the GitHub App 5041755 publishes the required `stargate/model-gate` check;
   strict base freshness is enabled. The gate checks guarded model/projection changes.
   `untouched` does not certify arbitrary code or a change to the checker itself.
@@ -33,10 +36,13 @@ bytes and describe what was measured then; they are not silently rewritten as ne
 
 ## Review and acceptance
 
-Changing checker or admission code requires an independent review of the exact head.
-The implementation author's own mutation checks do not satisfy it. GitHub approval policy
-and actual PR states are recorded separately in the implementation report; this file must
-not claim a pending PR merged or an administrator setting immutable.
+Admission is controlled by the repository's required executable checks; a human GitHub
+approval is not a prerequisite. Changes to checker or admission code need exact-head
+regressions and adversarial controls that demonstrate rejected invalid inputs and prevent
+publication after incomplete or failed verification. Independent review remains useful
+evidence, but an implementation author's own tests must not be labelled independent.
+The model gate's scope is limited: it does not prove arbitrary implementation correctness.
+Policy changes, check results and actual merges must be reported separately.
 
 ## Next decision criteria
 

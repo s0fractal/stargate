@@ -55,3 +55,17 @@ The first Stargate consumer CI could not fetch Sokol (private repository, scoped
 The corrected topology runs actual private-source checks only in Sokol's own successful
 shadow job. Stargate's CI still exercises the model, while authorized local runs can
 compare the frozen results. No secret or private production source was copied into Stargate.
+
+## Operator policy amendment and integration — 2026-09-30
+
+The initial distinct-account approval requirement above was explicitly withdrawn by the
+operator for this single-maintainer repository. Ruleset 23849266 now requires zero
+approvals and no extra approval for unattributed changes. Required automatic checks,
+strict base freshness, the model-gate App identity and empty bypass list remain intact.
+The policy was read back after the update. CURRENT.md owns the resulting current policy;
+the original registration remains a dated record, superseded on this point.
+
+PR #88 merged as `5ed8aba3d2b32e8f352e9209517cfa664f444fb2` after successful checks
+on `d7679d30840792977ceb33d754a5a6524e07cafd`. Git ancestry and tree equality were
+verified. The operator supplied a review reporting no blocking findings on that head;
+this is distinct from the implementation-author checks recorded above.
