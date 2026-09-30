@@ -1,0 +1,42 @@
+{
+  "events": [
+    "known",
+    "reply"
+  ],
+  "goals": [
+    {
+      "ack": true,
+      "queued": false,
+      "settled": true
+    }
+  ],
+  "initial": [
+    {
+      "ack": false,
+      "queued": true,
+      "settled": false
+    }
+  ],
+  "invariant": "fact ack: bool\nfact queued: bool\nfact settled: bool\ncheck (!settled || ack) && (queued || settled)\n",
+  "live_goals": [
+    {
+      "ack": true,
+      "queued": false,
+      "settled": true
+    }
+  ],
+  "max_atp": 1000,
+  "next": {
+    "ack": "fact ack: bool\nfact known: bool\nfact queued: bool\nfact reply: bool\nfact settled: bool\ncheck ack || (known && reply)\n",
+    "queued": "fact ack: bool\nfact known: bool\nfact queued: bool\nfact reply: bool\nfact settled: bool\ncheck queued && !reply\n",
+    "settled": "fact ack: bool\nfact known: bool\nfact queued: bool\nfact reply: bool\nfact settled: bool\ncheck settled || reply\n"
+  },
+  "state": [
+    "ack",
+    "queued",
+    "settled"
+  ],
+  "world": [
+    "ack"
+  ]
+}

@@ -1,0 +1,83 @@
+{
+  "controls": {
+    "event_classification": [
+      "reverse_request"
+    ],
+    "id_selection": [
+      "two_ids",
+      "idless"
+    ],
+    "omitted_effect": [
+      "duplicate"
+    ]
+  },
+  "pins": {
+    "warrant_mcp.py": "caaaf1ce56c4caac39fe7107575955d7e1d32819f6992a2367be80be254ea1a4",
+    "warrant_mcp_table.py": "4ab9224fac3605bd150cb12764424e9b5c7147c72a0e5259c2d0861f94746b1a"
+  },
+  "scenarios": {
+    "duplicate": [
+      [
+        "unreturned",
+        "a"
+      ],
+      [
+        "unreturned",
+        "b"
+      ],
+      [
+        "unpaired",
+        1
+      ],
+      [
+        "unpaired",
+        1
+      ]
+    ],
+    "eof": [
+      [
+        "unreturned",
+        "a"
+      ]
+    ],
+    "idless": [
+      [
+        "unreturned",
+        "a"
+      ],
+      [
+        "unpaired",
+        null
+      ]
+    ],
+    "ordinary": [
+      [
+        "seal",
+        "a",
+        "A"
+      ]
+    ],
+    "reverse_request": [
+      [
+        "seal",
+        "a",
+        "A"
+      ]
+    ],
+    "two_ids": [
+      [
+        "seal",
+        "b",
+        "B"
+      ],
+      [
+        "seal",
+        "a",
+        "A"
+      ]
+    ]
+  },
+  "scope": "actual adapter with effect spy; not signing or arbitrary scheduling",
+  "source_commit": "ac80aeebfba09176e7dbf0b4a4eaaec3ee343b06",
+  "status": "traces_conform"
+}

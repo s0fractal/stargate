@@ -19,7 +19,7 @@ call it forwarded. Local setup, not run by the README check (CI installs the whe
 itself): `python -m pip install -e .`. Then, from this directory:
 
 ```sh
-W=$(mktemp -d); S=examples/mcp-proxy/specs
+W=$(mktemp -d); S=examples/mcp-owned
 field() { python -c "import json,sys; print(json.load(sys.stdin)$1)"; }
 expect() { test "$1" = "$2" || { echo "expected $2, got $1" >&2; exit 1; }; }
 CURRENT=$(sg machine-create $S/current.json --output $W/current.machine | field '["machine_id"]')
@@ -70,32 +70,36 @@ first = m.step(idle, {"host": True, "reply": False}); print(first)
 print(m.step(first, {"host": True, "reply": False}))')
 ```
 
-Running this table inside warrant is a **proposed integration, not adopted**: the
-change that pins it by digest in warrant's own source is under review there, split into
-three pull requests ([state](examples/mcp-proxy/RESULTS.md#the-warrant-side)); warrant's
-`master` still runs its old bookkeeping.
+Warrant's proxy **already runs a pinned Stargate table** on `master` `ac80aee`
+([merged integration](https://github.com/s0fractal/warrant/pull/84)). The stronger roots
+used above explicitly protect the world rules `calls.one` and `calls.two`; only the
+proxy's `pending` and `ambiguous` may be repaired. They are **new roots**, not a migration
+of Warrant's pinned model. The original experiment, `guarded/*` and consumer pins keep
+their exact bytes ([ownership example](examples/mcp-owned/README.md)).
 
-**Where the proof ends.** Two places, both found by this case:
+**Where the proof ends.** This is one request id, not the whole proxy. Id-less calls,
+event decoding, choosing the right id and recording the table's effects are code-level
+obligations. The [consumer checks](docs/CONSUMER_CONTRACTS.md) exercise actual adapters
+and deliberately broken ones; those traces are evidence, not model/code equivalence.
 
-* The model is one request id. The review of the warrant change found a `tools/call`
-  with **no** id — the server may run it, nothing can be paired with it — and the model
-  had no bit that could see it. A fix is proposed in warrant, not adopted; the model
-  did not change.
-* A repair may edit every rule, including the server's. The bounded search "repairs"
-  today's model by making the server owe nothing, and the checker accepts it:
+A live goal means **a path to the goal remains possible from every reachable state**.
+It does not promise eventual completion for every sequence of events, fairness, a
+schedule or a deadline. This matters for synthesis: the smallest safety repair sets
+`ambiguous` forever, and the checker refuses it because `idle` becomes unreachable:
 
 ```sh
-expect "$(sg repair-search $W/current.machine --expect-machine $CURRENT \
-  --output $W/search.json | field '["status"]')" found
-python -c 'import json,sys; n=json.load(open(sys.argv[1]))["candidate"]["model"]["next"]; print(n["calls.one"].split("check ")[1])' $W/search.json
+sg repair-search $W/current.machine --expect-machine $CURRENT --strategy synth \
+  --output $W/search.json > $W/search-report.json || expect $? 4
+expect "$(field '["status"]' < $W/search-report.json)" not_certified
+expect "$(field '["synthesis"]["candidate_claim"]' < $W/search-report.json)" trap
 rm -rf "$W"
 ```
 
-Sound for the contract the checker has, and a change to the wrong side of the system: a
-certificate does not say which rules are the world. Neither is fairness, time,
-concurrency or the correspondence between a model and code proved; that last one is
-evidence (tests on both sides), not proof. [RESULTS.md](examples/mcp-proxy/RESULTS.md)
-has every number, and `python integration/mcp_proxy_vertical.py` reruns them.
+The hand repair above does preserve that path. Ownership prevents the producer from
+"repairing" the server's obligations; it does not make every repair useful or findable.
+The frozen [original results](examples/mcp-proxy/RESULTS.md) retain the earlier weak-root
+counterexample. [Current status](docs/CURRENT.md) distinguishes proof, integration,
+adoption and outstanding review.
 
 ## More
 
