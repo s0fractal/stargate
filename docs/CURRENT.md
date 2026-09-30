@@ -27,8 +27,9 @@ bytes and describe what was measured then; they are not silently rewritten as ne
 - **Consumer boundary:** [actual adapter checks](CONSUMER_CONTRACTS.md) cover six Warrant
   scenarios/three mutants and eighteen Sokol socket observations/four mutants. Proof and
   code correspondence remain distinct claims.
-- **Sokol pilot:** Rust delivery protocol repair, native regressions and shadow model
-  comparison. See [results](../examples/sokol-delivery/RESULTS.md). The operator has direct
+- **Sokol pilot:** Sokol #95 merged as `b94f090`; Rust delivery protocol repair, native
+  regressions and shadow model comparison. The trace extension checks fifteen prefixes
+  across five sequences, including reconnect/retry and empty flushes after acknowledgement. See [results](../examples/sokol-delivery/RESULTS.md). The operator has direct
   influence; external demand and production qualification are not established.
 - **Synthesis:** the new delivery case yields a verified owned-only repair; one-edit
   exhausts. Existing sigma/semantic-seal successes and Warrant live-goal refusal remain

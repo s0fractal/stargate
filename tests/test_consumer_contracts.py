@@ -3,6 +3,8 @@ import importlib.util
 import json
 from pathlib import Path
 import unittest
+import sys
+from unittest.mock import patch
 
 from stargate import certificate, evidence, lab, machine, projection
 from stargate.canonical import decode
@@ -56,3 +58,27 @@ class ConsumerContracts(unittest.TestCase):
         self.assertEqual(harness.mismatches(rows, runtime), [])
         rows['unknown'] = dict(pending=0, done=1, lost=0, error=False)
         self.assertEqual(harness.mismatches(rows, runtime), ['unknown'])
+
+    def test_trace_oracle_checks_each_prefix_cumulative_effects_and_identity(self):
+        with patch.object(sys, 'path', [str(ROOT / 'integration'), *sys.path]):
+            harness = tool('sokol_traces')
+        _, table = harness.models()
+        rows = {}
+        for name, events in harness.TRACES.items():
+            settled = False
+            rows[name] = []
+            for event in events:
+                settled |= event in harness.KNOWN
+                rows[name].append(dict(event=event, pending=int(not settled), total=int(settled),
+                    lost=0, error=event not in harness.KNOWN and event != 'empty', identity=True))
+        self.assertEqual(harness.mismatches(rows, table), [])
+        rows['two_failures_duplicate'][1]['pending'] = 0
+        self.assertEqual(harness.mismatches(rows, table), ['two_failures_duplicate:1'])
+        rows['two_failures_duplicate'][1]['pending'] = 1
+        rows['applied_empty'][1]['total'] = 2
+        rows['unknown_duplicate'][1]['identity'] = False
+        self.assertEqual(set(harness.mismatches(rows, table)),
+                         {'applied_empty:1', 'unknown_duplicate:1'})
+        rows['eof_recorded'].pop()
+        with self.assertRaises(ValueError):
+            harness.mismatches(rows, table)
