@@ -50,8 +50,11 @@ code gains no Stargate dependency. This is offline/shadow testing, not XDP quali
 a deployment, a release or a proof of a whole queue, restart persistence or concurrency.
 
 The operator has direct influence on both projects. This demonstrates cross-language
-transfer, not independent demand or external maintainer adoption. The GitHub workflow
-runs exact pinned consumer sources; updating pins/results is an explicit experiment.
+transfer, not independent demand or external maintainer adoption. Warrant's workflow runs its exact public source pin. Sokol's source is private: the
+actual-source job runs inside Sokol's own repository, with a pinned public Stargate
+harness. Stargate CI checks the model without accessing private Rust source. An authorized
+local checkout can reproduce the frozen byte comparison. No private source is vendored
+and no cross-repository credential is required. Updating pins/results is explicit.
 
 ## Contract worksheet for another integration
 

@@ -29,7 +29,7 @@ Local full Stargate suite: 610 tests, Python 3.14.7, passed (pre-existing socket
 ResourceWarnings still appear). Architecture, anchors, vertical baseline, stronger-root
 README walkthrough, native Rust checks, formatting and Sokol retired-surface/claim checks
 passed. Existing vertical and installation regressions are also required by Python CI.
-The consumer workflow replays exact source pins. Sokol's own shadow job checks its live
+The Warrant consumer workflow replays its exact public source pin. Sokol's own shadow job checks its live
 checkout with a pinned Stargate harness; a source/hash change is reported, not silently
 called the old experiment. A compiler or process error fails without counting a mutant.
 
@@ -50,3 +50,8 @@ Consumer-side review found the first strict parser omitted five current retracti
 Sokol amendment `a0614ba` adds exact recognition and an eighth native test; eighteen
 observations now run. The original thirteen-case results.json is retained; results-v2.json
 is the final measurement. The model/checker are unchanged.
+
+The first Stargate consumer CI could not fetch Sokol (private repository, scoped CI token).
+The corrected topology runs actual private-source checks only in Sokol's own successful
+shadow job. Stargate's CI still exercises the model, while authorized local runs can
+compare the frozen results. No secret or private production source was copied into Stargate.
