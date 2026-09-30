@@ -99,7 +99,11 @@ The hand repair above does preserve that path. Ownership prevents the producer f
 "repairing" the server's obligations; it does not make every repair useful or findable.
 The frozen [original results](examples/mcp-proxy/RESULTS.md) retain the earlier weak-root
 counterexample. [Current status](docs/CURRENT.md) distinguishes proof, integration,
-adoption and outstanding review.
+adoption and outstanding evidence.
+
+[Reproduce the consumer pilot](docs/REPRODUCE.md) with one command after installation:
+`python integration/reproduce.py --profile public`. The full profile additionally replays
+the pinned Warrant and Sokol code when you provide their source checkouts.
 
 ## More
 

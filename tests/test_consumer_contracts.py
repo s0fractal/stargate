@@ -1,6 +1,5 @@
 """Contract boundaries: unchanged roots, live-goal meaning, real consumer oracles."""
 import importlib.util
-import hashlib
 import copy
 import json
 from pathlib import Path
@@ -115,31 +114,10 @@ class ConsumerContracts(unittest.TestCase):
             harness.mismatches(actual, expected)
 
     def test_frozen_sokol_evidence_matches_public_models_and_probes(self):
-        delivery = tool('sokol_delivery')
-        report, table = delivery.models()
-        frozen = json.loads((ROOT / 'examples/sokol-delivery/results-v2.json').read_text())
-        self.assertEqual(frozen['model'], report)
-        self.assertEqual(frozen['status'], 'shadow_conforms')
-        self.assertEqual(set(frozen['cases']), set(delivery.CASES))
-        self.assertEqual(delivery.mismatches(frozen['cases'], table), [])
-        source_hash = frozen['source_sha256']
         with patch.object(sys, 'path', [str(ROOT / 'integration'), *sys.path]):
-            traces = tool('sokol_traces')
-        frozen = json.loads((ROOT / 'examples/sokol-delivery/trace-results.json').read_text())
-        self.assertEqual(frozen['model'], report)
-        self.assertEqual(frozen['status'], 'bounded_traces_conform')
-        self.assertEqual(frozen['source_sha256'], source_hash)
-        self.assertEqual(frozen['probe_sha256'], hashlib.sha256(
-            (ROOT / 'integration/sokol_trace_probe.rs').read_bytes()).hexdigest())
-        self.assertEqual(frozen['prefix_count'], sum(map(len, traces.TRACES.values())))
-        self.assertEqual(traces.mismatches(frozen['traces'], table), [])
-        queue = tool('sokol_queue')
-        report, table = queue.model()
-        frozen = json.loads((ROOT / 'examples/sokol-queue/results.json').read_text())
-        self.assertEqual(frozen['model'], report)
-        self.assertEqual(frozen['status'], 'bounded_queue_conforms')
-        self.assertEqual(frozen['source_sha256'], source_hash)
-        self.assertEqual(frozen['probe_sha256'], hashlib.sha256(
-            (ROOT / 'integration/sokol_queue_probe.rs').read_bytes()).hexdigest())
-        self.assertEqual(frozen['prefix_count'], sum(map(len, queue.PLANS.values())))
-        self.assertEqual(queue.mismatches(frozen['traces'], queue.expected(table)), [])
+            runner = tool('reproduce')
+        result = runner.public_evidence()
+        self.assertEqual(result['delivery_cases'], 18)
+        self.assertEqual(result['retry_prefixes'], 15)
+        self.assertEqual(result['queue_prefixes'], 24)
+        self.assertEqual(result['queue_reference_transitions'], 56)
