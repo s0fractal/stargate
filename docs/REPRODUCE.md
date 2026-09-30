@@ -90,9 +90,9 @@ Rust/Python correctness, unbounded queues, concurrent producers, crash recovery,
 fairness or inevitable delivery. Additional count/order/loss oracles are checks outside
 the Boolean theorem. A successful author-run replay is not an independent participant.
 
-## First independent use: blank observation record
+## Next use by an agent or participant: blank observation record
 
-A future participant can record the following alongside their report. Leave unknown
+An agent or human participant can record the following alongside their report. Leave unknown
 fields unknown; this template is not a completed experiment or an invitation.
 
 - Participant's relationship to the operator and any author assistance received.
@@ -102,6 +102,7 @@ fields unknown; this template is not a completed experiment or an invitation.
 - Rejected mutations, unexpected refusals/false blocks and their reproducible inputs.
 - Whether the participant returned to use the tool for a second real decision.
 
-Independent usefulness remains an external criterion. Wider semantics require a named
+Independent usefulness is optional evidence. Internal agent utility is now the primary
+development criterion; see the [agent profile](AGENT_PROFILE.md). Wider semantics require a named
 contract that cannot be represented now; a new synthesizer requires repeated failures
 and a registered comparison. The completed technical pilot alone establishes neither.
