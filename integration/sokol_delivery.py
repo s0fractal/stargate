@@ -12,7 +12,7 @@ from pathlib import Path
 import subprocess
 import tempfile
 
-from stargate import certificate, evidence, lab, machine, projection, projection_check
+from stargate import boolean, certificate, evidence, lab, machine, projection, projection_check
 from stargate.canonical import decode
 from stargate.projection_runtime import ProjectionMachine
 
@@ -37,6 +37,7 @@ def models():
     if verdict['status'] != 'verified_repair' or successor is None:
         raise AssertionError(verdict)
     reports['hand_repair'] = verdict['status']
+    synth_model = None
     for strategy in ('one-edit', 'synth'):
         report, packet = evidence.repair_search(packets['current'], lab.identity(packets['current']),
                                                strategy=strategy)
@@ -45,6 +46,8 @@ def models():
             checked, tip = certificate.verify_repair(packet, reports['current']['model'], certificate.checker_id())
             if checked['status'] != 'verified_repair' or tip is None:
                 raise AssertionError(checked)
+            if strategy == 'synth':
+                synth_model = decode(tip)['model']
     report, table = projection.project(packets['fixed'], lab.identity(packets['fixed']))
     if table is None:
         raise AssertionError(report)
@@ -52,7 +55,26 @@ def models():
                                      certificate.checker_id(), projection_check.projection_checker_id())
     if checked['status'] != 'conforms':
         raise AssertionError(checked)
-    return reports, ProjectionMachine.from_bytes(table)
+    runtime = ProjectionMachine.from_bytes(table)
+    if synth_model is not None:
+        names = sorted(synth_model['state'] + synth_model['events'])
+        rules = {bit: boolean.program(text, names, allow_unused=True)
+                 for bit, text in synth_model['next'].items()}
+        rows = decode(table)['rows']
+        reachable = {tuple(sorted(decode(proofs['fixed'])['model']['initial'][0].items()))}
+        while True:
+            expanded = reachable | {tuple(sorted(row['next'].items())) for row in rows
+                                    if tuple(sorted(row['state'].items())) in reachable}
+            if expanded == reachable:
+                break
+            reachable = expanded
+        disagree = [row for row in rows if {bit: boolean.evaluate(code, dict(row['state'], **row['event']))
+                                            for bit, code in rules.items()} != row['next']]
+        reports['comparison'] = dict(total_rows=len(rows), unequal_rows=len(disagree),
+            reachable_states=len(reachable), unequal_reachable_rows=sum(
+                tuple(sorted(row['state'].items())) in reachable for row in disagree),
+            independent_agent_arm=False, labor_savings_measured=False)
+    return reports, runtime
 
 
 def observe(source, probe):

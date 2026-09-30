@@ -66,7 +66,7 @@ fail on a stale table.
 | `projection-checker` | identify the independent projection checker | 1 | 4 | 0 | 2 |
 | `projection-materialize` | write a projection next to the fixed table runtime; verify nothing | 3 | 2 | 0 | 1 |
 | `put` | store object bytes | 0 | 1 | 0 | 0 |
-| `record` | execute a check and store its signed decision | 10 | 3 | 0 | 0 |
+| `record` | execute a check and store its signed decision | 10 | 3 | 0 | 1 |
 | `refutation-check` | check a refutation claim against an expected model and checker | 1 | 0 | 0 | 0 |
 | `refutation-create` | check a supplied model and refutation claim before writing proof data | 1 | 0 | 0 | 0 |
 | `repair-search` | search a bounded neighborhood for a certified model repair | 2 | 3 | 0 | 6 |

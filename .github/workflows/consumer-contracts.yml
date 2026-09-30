@@ -1,0 +1,36 @@
+name: Consumer contracts
+on:
+  push:
+    branches: [main]
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  shadow:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - run: python -m pip install .
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          repository: s0fractal/warrant
+          ref: ac80aeebfba09176e7dbf0b4a4eaaec3ee343b06
+          path: consumers/warrant
+          persist-credentials: false
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          repository: ValkyrieSentinel/sokol-core
+          ref: 946b45178588e9f2e96f4cbd1da95d73ad694a84
+          path: consumers/sokol
+          persist-credentials: false
+      - name: Pinned Rust for the production delivery module
+        run: |
+          rustup toolchain install nightly-2026-09-24 --profile minimal
+          rustup default nightly-2026-09-24
+      - name: Actual Warrant adapter and semantic mutants
+        run: python integration/warrant_adapter.py --warrant-root consumers/warrant --expect-results examples/warrant-adapter/results.json
+      - name: Actual Sokol delivery, model correspondence and semantic mutants
+        run: python integration/sokol_delivery.py --sokol-root consumers/sokol --expect-results examples/sokol-delivery/results.json
