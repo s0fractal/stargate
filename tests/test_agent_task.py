@@ -79,3 +79,67 @@ class AgentTask(unittest.TestCase):
             with self.assertRaises(ValueError):
                 self.check_task(output)
             self.assertEqual((output/'sentinel').read_text(), 'keep')
+
+    def make_parent(self, tmp):
+        report, code = self.check_task(Path(tmp)/'parent', 'stale')
+        self.assertEqual(code, 4)
+        return dict(repair_parent=Path(tmp)/'parent/refutation.json', expected_parent=report['model_id'])
+
+    def test_repair_preserves_objection_and_replays_successor_offline(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            parent = self.make_parent(tmp)
+            out = Path(tmp)/'repair'
+            report, code = self.check_task(out, **parent)
+            self.assertEqual((report['status'], code), ('verified_repair', 0))
+            packet = json.loads((out/'repair.json').read_text())
+            self.assertEqual(canon(packet['refutation']), parent['repair_parent'].read_bytes())
+            self.assertEqual(hashlib.sha256((out/'replay.py').read_bytes()).hexdigest(), transport.replay_digest())
+            replay = subprocess.run([sys.executable, *report['replay_argv'][1:], '--output', 'replayed.json'],
+                                    cwd=out, capture_output=True, text=True)
+            self.assertEqual(replay.returncode, 0, replay.stderr)
+            self.assertEqual((out/'replayed.json').read_bytes(), (out/'successor.json').read_bytes())
+
+    def test_unsafe_candidate_wrong_parent_and_incomplete_repair_publish_nothing(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            parent = self.make_parent(tmp)
+            out = Path(tmp)/'repair'
+            report, code = self.check_task(out, 'stale', **parent)
+            self.assertEqual((report['status'], code), ('not_repaired', 4))
+            self.assertFalse(out.exists())
+            with self.assertRaises(ValueError):
+                self.check_task(out, **dict(parent, expected_parent='0'*64))
+            report, code = self.check_task(out, max_steps=0, **parent)
+            self.assertEqual((report['status'], code), ('incomplete', 3))
+            self.assertFalse(out.exists())
+            # Exercise a refusal at the last gate, after candidate production succeeds.
+            with patch.object(tool.certificate, 'verify_repair', return_value=(dict(status='incomplete'), None)):
+                report, code = self.check_task(out, **parent)
+            self.assertEqual((report['status'], code), ('incomplete', 3))
+            self.assertFalse(out.exists())
+
+    def test_certified_world_change_is_not_an_allowed_repair(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            parent = self.make_parent(tmp)
+            spec = json.loads((ROOT/'examples/agent-evidence/fixed.json').read_text())
+            spec['next']['fresh'] = spec['next']['fresh'].split('check ')[0] + 'check true\n'
+            path = Path(tmp)/'cheat.json'
+            path.write_text(json.dumps(spec))
+            out = Path(tmp)/'repair'
+            with self.assertRaisesRegex(ValueError, 'world rule'):
+                tool.run(path, hashlib.sha256(path.read_bytes()).hexdigest(), certificate.checker_id(), out, **parent)
+            self.assertFalse(out.exists())
+
+    def test_success_label_without_correct_successor_is_not_publishable(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            parent = self.make_parent(tmp)
+            out = Path(tmp)/'repair'
+            for successor in (None, parent['repair_parent'].read_bytes()):
+                with patch.object(tool.certificate, 'verify_repair',
+                                  return_value=(dict(status='verified_repair'), successor)):
+                    try:
+                        report, code = self.check_task(out, **parent)
+                    except ValueError:
+                        pass
+                    else:
+                        self.assertEqual((report['status'], code), ('checker_error', 1))
+                    self.assertFalse(out.exists())
