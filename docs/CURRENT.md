@@ -19,6 +19,8 @@ bytes and describe what was measured then; they are not silently rewritten as ne
   changes. Required Python checks, strict base freshness, the pinned model-gate App,
   force-push/deletion protection and an empty bypass list remain. The live ruleset was
   read back; this is a mutable configuration, not an immutable mathematical guarantee.
+  The consumer `shadow` check is also required, bound to GitHub Actions App 15368;
+  its successful check identity and the updated ruleset were read back.
 - **Strategy integration:** [PR #88](https://github.com/s0fractal/stargate/pull/88) merged
   as `5ed8aba3d2b32e8f352e9209517cfa664f444fb2`; its tree matches reviewed head `d7679d3`.
 - **Merge gate:** the GitHub App 5041755 publishes the required `stargate/model-gate` check;
