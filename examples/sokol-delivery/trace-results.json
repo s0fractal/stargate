@@ -1,0 +1,217 @@
+{
+  "controls": {
+    "accept_partial": [
+      "partial_applied:0"
+    ],
+    "consume_unknown": [
+      "unknown_duplicate:0",
+      "two_failures_duplicate:0",
+      "two_failures_duplicate:1"
+    ],
+    "drop_on_error": [
+      "unknown_duplicate:0",
+      "unknown_duplicate:1",
+      "unknown_duplicate:2",
+      "partial_applied:0",
+      "partial_applied:1",
+      "partial_applied:2",
+      "eof_recorded:0",
+      "eof_recorded:1",
+      "eof_recorded:2",
+      "two_failures_duplicate:0",
+      "two_failures_duplicate:1",
+      "two_failures_duplicate:2",
+      "two_failures_duplicate:3"
+    ],
+    "retain_after_ack": [
+      "unknown_duplicate:1",
+      "unknown_duplicate:2",
+      "partial_applied:1",
+      "partial_applied:2",
+      "eof_recorded:1",
+      "eof_recorded:2",
+      "two_failures_duplicate:2",
+      "two_failures_duplicate:3",
+      "applied_empty:0",
+      "applied_empty:1"
+    ]
+  },
+  "independent_demand": false,
+  "model": {
+    "comparison": {
+      "independent_agent_arm": false,
+      "labor_savings_measured": false,
+      "reachable_states": 2,
+      "total_rows": 32,
+      "unequal_reachable_rows": 0,
+      "unequal_rows": 5
+    },
+    "current": {
+      "model": "9568b88c85165225d57e4bcbb2ca50d018a776af467c7dd8fdaf6b24d09f8a79",
+      "status": "verified_refutation"
+    },
+    "fixed": {
+      "model": "1f1c58bc8471350432292968682924dbb7b7a857d7709d6e93e72ceb82994c38",
+      "status": "verified_certificate"
+    },
+    "hand_repair": "verified_repair",
+    "one-edit": {
+      "attempted": 11,
+      "status": "neighborhood_exhausted"
+    },
+    "synth": {
+      "attempted": 1,
+      "status": "found",
+      "synthesis": {
+        "changed_owned_rules": [
+          "queued",
+          "settled"
+        ],
+        "changed_rows": 1,
+        "emitted_rule_bytes": {
+          "queued": 245,
+          "settled": 245
+        },
+        "final_checker_status": "verified_repair",
+        "total_owned_hamming_delta": 2,
+        "winning_states": 4
+      }
+    }
+  },
+  "prefix_count": 15,
+  "probe_sha256": "c6d10811191aca2965656c35e7606bcfddfe7b00833feeb797276be5263b813a",
+  "source_sha256": "4becf82d8db9194d48be14d14684e3ea9ffd8ff598bc68205553a1327d4b7f0f",
+  "status": "bounded_traces_conform",
+  "traces": {
+    "applied_empty": [
+      {
+        "error": false,
+        "event": "applied",
+        "identity": true,
+        "lost": 0,
+        "pending": 0,
+        "total": 1
+      },
+      {
+        "error": false,
+        "event": "empty",
+        "identity": true,
+        "lost": 0,
+        "pending": 0,
+        "total": 1
+      }
+    ],
+    "eof_recorded": [
+      {
+        "error": true,
+        "event": "eof",
+        "identity": true,
+        "lost": 0,
+        "pending": 1,
+        "total": 0
+      },
+      {
+        "error": false,
+        "event": "recorded",
+        "identity": true,
+        "lost": 0,
+        "pending": 0,
+        "total": 1
+      },
+      {
+        "error": false,
+        "event": "empty",
+        "identity": true,
+        "lost": 0,
+        "pending": 0,
+        "total": 1
+      }
+    ],
+    "partial_applied": [
+      {
+        "error": true,
+        "event": "partial",
+        "identity": true,
+        "lost": 0,
+        "pending": 1,
+        "total": 0
+      },
+      {
+        "error": false,
+        "event": "applied",
+        "identity": true,
+        "lost": 0,
+        "pending": 0,
+        "total": 1
+      },
+      {
+        "error": false,
+        "event": "empty",
+        "identity": true,
+        "lost": 0,
+        "pending": 0,
+        "total": 1
+      }
+    ],
+    "two_failures_duplicate": [
+      {
+        "error": true,
+        "event": "unknown",
+        "identity": true,
+        "lost": 0,
+        "pending": 1,
+        "total": 0
+      },
+      {
+        "error": true,
+        "event": "eof",
+        "identity": true,
+        "lost": 0,
+        "pending": 1,
+        "total": 0
+      },
+      {
+        "error": false,
+        "event": "duplicate",
+        "identity": true,
+        "lost": 0,
+        "pending": 0,
+        "total": 1
+      },
+      {
+        "error": false,
+        "event": "empty",
+        "identity": true,
+        "lost": 0,
+        "pending": 0,
+        "total": 1
+      }
+    ],
+    "unknown_duplicate": [
+      {
+        "error": true,
+        "event": "unknown",
+        "identity": true,
+        "lost": 0,
+        "pending": 1,
+        "total": 0
+      },
+      {
+        "error": false,
+        "event": "duplicate",
+        "identity": true,
+        "lost": 0,
+        "pending": 0,
+        "total": 1
+      },
+      {
+        "error": false,
+        "event": "empty",
+        "identity": true,
+        "lost": 0,
+        "pending": 0,
+        "total": 1
+      }
+    ]
+  }
+}

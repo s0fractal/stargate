@@ -56,6 +56,31 @@ harness. Stargate CI checks the model without accessing private Rust source. An 
 local checkout can reproduce the frozen byte comparison. No private source is vendored
 and no cross-repository credential is required. Updating pins/results is explicit.
 
+## Sokol retry traces: compare every prefix
+
+After Sokol #95 merged as `b94f090c033e84338bf3fde87556a8f7b263b91c`, the
+[registered trace extension](SOKOL_TRACE_REGISTRY.md) checks the same certified table
+against five multi-step runs of the unmodified production Outbox:
+
+```sh
+python integration/sokol_traces.py --sokol-root /path/to/sokol-core \
+  --expect-results examples/sokol-delivery/trace-results.json
+```
+
+The public probe contains a synthetic socket peer, not private production source. It
+compiles the authorized checkout in a temporary directory and uses production retry
+backoff. Unknown/partial/EOF replies followed by terminal ACKs, two consecutive failures,
+and empty flushes after completion yield fifteen checked prefixes. Each prefix checks
+pending count, cumulative terminal outcomes, loss count, error status and returned subject
+identity against the projection. Four source mutants must disagree: consume unknown,
+accept partial, drop on error, retain after terminal ACK. The last control also detects
+repeated terminal effects after acknowledgement.
+
+The result is bounded to one subject, no further enqueues, and these event sequences.
+It does not prove all schedules, timer bounds, queue overflow or process-restart durability.
+The original one-step results-v2.json stays frozen and reproducible. See
+[trace results](../examples/sokol-delivery/TRACE_RESULTS.md) for reproduction evidence.
+
 ## Contract worksheet for another integration
 
 1. Name the subject and its lifetime (one id, one queue item, one decision round).
