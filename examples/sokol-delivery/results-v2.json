@@ -1,0 +1,181 @@
+{
+  "cases": {
+    "applied": {
+      "done": 1,
+      "error": false,
+      "lost": 0,
+      "pending": 0
+    },
+    "blank": {
+      "done": 0,
+      "error": true,
+      "lost": 0,
+      "pending": 1
+    },
+    "duplicate": {
+      "done": 1,
+      "error": false,
+      "lost": 0,
+      "pending": 0
+    },
+    "eof": {
+      "done": 0,
+      "error": true,
+      "lost": 0,
+      "pending": 1
+    },
+    "err_prefix": {
+      "done": 0,
+      "error": true,
+      "lost": 0,
+      "pending": 1
+    },
+    "missing_reason": {
+      "done": 0,
+      "error": true,
+      "lost": 0,
+      "pending": 1
+    },
+    "partial": {
+      "done": 0,
+      "error": true,
+      "lost": 0,
+      "pending": 1
+    },
+    "pending": {
+      "done": 1,
+      "error": false,
+      "lost": 0,
+      "pending": 0
+    },
+    "recorded": {
+      "done": 1,
+      "error": false,
+      "lost": 0,
+      "pending": 0
+    },
+    "refused": {
+      "done": 1,
+      "error": false,
+      "lost": 0,
+      "pending": 0
+    },
+    "refused_prefix": {
+      "done": 0,
+      "error": true,
+      "lost": 0,
+      "pending": 1
+    },
+    "rejected": {
+      "done": 1,
+      "error": false,
+      "lost": 0,
+      "pending": 0
+    },
+    "retract_before": {
+      "done": 1,
+      "error": false,
+      "lost": 0,
+      "pending": 0
+    },
+    "retract_held": {
+      "done": 1,
+      "error": false,
+      "lost": 0,
+      "pending": 0
+    },
+    "retract_lifted": {
+      "done": 1,
+      "error": false,
+      "lost": 0,
+      "pending": 0
+    },
+    "retract_nothing": {
+      "done": 1,
+      "error": false,
+      "lost": 0,
+      "pending": 0
+    },
+    "retract_shortened": {
+      "done": 1,
+      "error": false,
+      "lost": 0,
+      "pending": 0
+    },
+    "unknown": {
+      "done": 0,
+      "error": true,
+      "lost": 0,
+      "pending": 1
+    }
+  },
+  "controls": {
+    "consume_unknown": [
+      "unknown",
+      "blank",
+      "err_prefix",
+      "refused_prefix",
+      "missing_reason"
+    ],
+    "err_prefix": [
+      "err_prefix"
+    ],
+    "lose_on_error": [
+      "unknown",
+      "blank",
+      "err_prefix",
+      "refused_prefix",
+      "missing_reason",
+      "partial",
+      "eof"
+    ],
+    "partial_line": [
+      "partial"
+    ]
+  },
+  "independent_demand": false,
+  "model": {
+    "comparison": {
+      "independent_agent_arm": false,
+      "labor_savings_measured": false,
+      "reachable_states": 2,
+      "total_rows": 32,
+      "unequal_reachable_rows": 0,
+      "unequal_rows": 5
+    },
+    "current": {
+      "model": "9568b88c85165225d57e4bcbb2ca50d018a776af467c7dd8fdaf6b24d09f8a79",
+      "status": "verified_refutation"
+    },
+    "fixed": {
+      "model": "1f1c58bc8471350432292968682924dbb7b7a857d7709d6e93e72ceb82994c38",
+      "status": "verified_certificate"
+    },
+    "hand_repair": "verified_repair",
+    "one-edit": {
+      "attempted": 11,
+      "status": "neighborhood_exhausted"
+    },
+    "synth": {
+      "attempted": 1,
+      "status": "found",
+      "synthesis": {
+        "changed_owned_rules": [
+          "queued",
+          "settled"
+        ],
+        "changed_rows": 1,
+        "emitted_rule_bytes": {
+          "queued": 245,
+          "settled": 245
+        },
+        "final_checker_status": "verified_repair",
+        "total_owned_hamming_delta": 2,
+        "winning_states": 4
+      }
+    }
+  },
+  "probe_sha256": "5a6eaef0979a86b4cd890b494b20dfaed82b65251325b9c6b60c60a2022852d9",
+  "source_sha256": "4becf82d8db9194d48be14d14684e3ea9ffd8ff598bc68205553a1327d4b7f0f",
+  "status": "shadow_conforms"
+}

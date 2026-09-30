@@ -22,7 +22,7 @@ bytes and describe what was measured then; they are not silently rewritten as ne
   strict base freshness is enabled. The gate checks guarded model/projection changes.
   `untouched` does not certify arbitrary code or a change to the checker itself.
 - **Consumer boundary:** [actual adapter checks](CONSUMER_CONTRACTS.md) cover six Warrant
-  scenarios/three mutants and thirteen Sokol socket observations/four mutants. Proof and
+  scenarios/three mutants and eighteen Sokol socket observations/four mutants. Proof and
   code correspondence remain distinct claims.
 - **Sokol pilot:** Rust delivery protocol repair, native regressions and shadow model
   comparison. See [results](../examples/sokol-delivery/RESULTS.md). The operator has direct

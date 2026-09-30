@@ -11,10 +11,10 @@ runtime pins are unchanged. Registrations precede implementations and measured r
   live-goal semantic regression and worksheet for another integration.
 - P1: actual Warrant adapter, unchanged pinned table/runtime, six scenarios and three
   deliberately wrong adapters; all discriminated. Sealing is an effect spy, not signing.
-- P2: actual Rust outbox defect, regression-first repair, seven native tests, thirteen
+- P2: actual Rust outbox defect, regression-first repair, eight native tests, eighteen
   real socket observations and four semantic mutants. Both new regressions fail when
   added to the original module and pass on the repair. Sokol registration/repair commits
-  `a5ee3df` / `946b451`. Source code and fixture hashes are in the result JSON.
+  `a5ee3df` / `a0614ba`. Source code and fixture hashes are in the result JSON.
 - P3: one-edit exhausts after 11 candidates; safety synthesis checks one candidate and
   obtains verified_repair. Two owned rules change on one row (Hamming 2); world untouched.
   It agrees with the declared repair on all reachable rows, differs on 5/32 full-domain
@@ -45,3 +45,8 @@ existing deployment decision process. No message to external maintainers was sen
 Next evidence is a reviewer exercising the cases without implementation-author help and
 a consumer choosing continued use. Larger domains/solvers remain deferred pending a
 registered case that requires them.
+
+Consumer-side review found the first strict parser omitted five current retraction ACKs.
+Sokol amendment `a0614ba` adds exact recognition and an eighth native test; eighteen
+observations now run. The original thirteen-case results.json is retained; results-v2.json
+is the final measurement. The model/checker are unchanged.

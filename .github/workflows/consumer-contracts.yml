@@ -23,7 +23,7 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
           repository: ValkyrieSentinel/sokol-core
-          ref: 946b45178588e9f2e96f4cbd1da95d73ad694a84
+          ref: a0614ba26a94b1ec29a2648faf644caacdc71d63
           path: consumers/sokol
           persist-credentials: false
       - name: Pinned Rust for the production delivery module
@@ -33,4 +33,4 @@ jobs:
       - name: Actual Warrant adapter and semantic mutants
         run: python integration/warrant_adapter.py --warrant-root consumers/warrant --expect-results examples/warrant-adapter/results.json
       - name: Actual Sokol delivery, model correspondence and semantic mutants
-        run: python integration/sokol_delivery.py --sokol-root consumers/sokol --expect-results examples/sokol-delivery/results.json
+        run: python integration/sokol_delivery.py --sokol-root consumers/sokol --expect-results examples/sokol-delivery/results-v2.json

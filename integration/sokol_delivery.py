@@ -18,8 +18,9 @@ from stargate.projection_runtime import ProjectionMachine
 
 ROOT = Path(__file__).resolve().parents[1]
 CASES = ('applied', 'pending', 'recorded', 'duplicate', 'refused', 'rejected',
+         'retract_before', 'retract_nothing', 'retract_held', 'retract_lifted', 'retract_shortened',
          'unknown', 'blank', 'err_prefix', 'refused_prefix', 'missing_reason', 'partial', 'eof')
-KNOWN = set(CASES[:6])
+KNOWN = set(CASES[:11])
 
 
 def models():

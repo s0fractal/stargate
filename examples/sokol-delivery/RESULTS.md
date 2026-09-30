@@ -33,3 +33,17 @@ best repair. The full-domain and reachable-row comparison is in `model.compariso
 
 This is a cross-language engineering pilot under operator influence. Independent demand,
 maintainer acceptance, production adoption, NIC behavior and a release remain unestablished.
+
+## Extended consumer review: final measurement
+
+The first repair omitted five valid ADR-0019 retraction replies sent through the same
+outbox. A strict parser would retry them indefinitely. Sokol's separately registered
+amendment and correction `a0614ba` recognize those exact strings (not arbitrary `OK *`)
+and add an eighth native regression. This issue was found by reviewing the server's
+vocabulary, not by the three-bit model.
+
+`results-v2.json` is the final run: **18 socket cases, all four semantic mutants
+rejected**. The model and synthesis results are unchanged. The initial `results.json`
+is preserved. Reproduce with the final source and `--expect-results
+examples/sokol-delivery/results-v2.json`. This is evidence of why the adapter boundary
+must be reviewed on both sides before adoption.

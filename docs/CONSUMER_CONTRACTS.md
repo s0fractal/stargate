@@ -30,15 +30,15 @@ trace regressions, not a proof of model/code equivalence or new defects in curre
 ## Sokol-Core: a different language and a live protocol defect
 
 Source base: `2e82e1111795114cf99cddac0bfa73205d8b5574`; fixed delivery source and probe:
-`946b45178588e9f2e96f4cbd1da95d73ad694a84`. With a checkout containing those files and Rust:
+`a0614ba26a94b1ec29a2648faf644caacdc71d63`. With a checkout containing those files and Rust:
 
 ```sh
 python integration/sokol_delivery.py --sokol-root /path/to/sokol-core \
-  --expect-results examples/sokol-delivery/results.json
+  --expect-results examples/sokol-delivery/results-v2.json
 ```
 
 The harness compiles `orchestrator/src/delivery.rs` directly, runs Unix-socket exchanges
-through the actual public Outbox API, and compares thirteen observations with Stargate's
+through the actual public Outbox API, and compares eighteen observations with Stargate's
 certified table. A recognized terminal ACK may retire a signal; an unknown, prefix-lookalike,
 truncated or absent ACK must preserve it. `OK pending` retires delivery responsibility,
 not the node's application obligation; none of these ACKs certify durable storage.
