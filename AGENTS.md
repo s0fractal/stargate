@@ -8,6 +8,7 @@ adoption. Do not revive archived workspace projects from provenance references.
 For a relevant small state-machine decision, consider modelling the failure and
 checking a repair before changing production behavior. Do not force every coding task
 into a model. Start with `examples/agent-evidence/README.md` for a runnable agent task;
+for a custom model use `tools/agent_task.py` as documented in `docs/AGENT_TASK.md`;
 use the existing CLI, JSON evidence and replay instead of inventing a second protocol.
 
 Keep producer proposals separate from checker verdicts. Preserve expected identities,

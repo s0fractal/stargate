@@ -75,6 +75,11 @@ selected an [agent-use profile](AGENT_PROFILE.md), explicitly allowing zero inde
 users. The previous requirement to wait for an unassisted external user is superseded.
 Historical pilot results and their non-independence remain unchanged.
 
+The [custom agent task helper](AGENT_TASK.md) now packages arbitrary supported models
+into existing-format offline evidence. It pins the input and checker, rechecks producer
+output and preserves certificate/refutation exit semantics. This is an ergonomic
+producer extension; checker identities and admission authority remain unchanged.
+
 ## Current development criteria
 
 Primary consumers are agents performing operator-authorized work, including repository
