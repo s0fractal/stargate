@@ -79,6 +79,9 @@ The [custom agent task helper](AGENT_TASK.md) now packages arbitrary supported m
 into existing-format offline evidence. It pins the input and checker, rechecks producer
 output and preserves certificate/refutation exit semantics. This is an ergonomic
 producer extension; checker identities and admission authority remain unchanged.
+Its repair mode accepts a selected parent refutation, enforces the inherited contract
+and world rules, and retains the repair plus independently checked successor for offline
+replay. Incomplete checks and invalid repairs do not export a new handoff.
 
 ## Current development criteria
 
