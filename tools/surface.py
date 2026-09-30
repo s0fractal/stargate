@@ -1,7 +1,7 @@
 """Inventory of the command surface: what exists, and what mentions it.
 
 Outside every checked closure. It counts references; it does not judge. The
-judgement is in SURFACE.md, written by a person and reviewed by a person.
+handwritten interpretation is in SURFACE.md and must be checked against behavior.
 
     python tools/surface.py            # rewrite SURFACE.md's table
     python tools/surface.py --check    # 0 when the committed table is current, 4 when stale
@@ -35,7 +35,7 @@ def _help(action, name):
 
 
 def mentions(name, paths, *, quoted):
-    """Count invocations, not the English word: `'verify'` in code, `sg verify` in prose."""
+    """Count lexical mentions, not executed invocations: `'verify'` in code, `sg verify` in prose."""
     pattern = (re.compile(r'[\'"]' + re.escape(name) + r'[\'"]') if quoted
                else re.compile(r'(?<![\w-])sg\s+' + re.escape(name) + r'(?![\w-])'
                                + r'|`' + re.escape(name) + r'`'))
