@@ -1,0 +1,327 @@
+{
+  "controls": {
+    "drop_on_error": [
+      "partial_retry:2",
+      "partial_retry:3",
+      "partial_retry:4",
+      "partial_retry:5"
+    ],
+    "evict_newest": [
+      "overflow:3",
+      "overflow:4",
+      "repeated_overflow:4",
+      "repeated_overflow:5"
+    ],
+    "flush_extra": [
+      "fifo_limit:2",
+      "fifo_limit:3",
+      "fifo_limit:4",
+      "fifo_limit:5",
+      "repeated_overflow:4",
+      "repeated_overflow:5"
+    ],
+    "omit_loss": [
+      "overflow:2",
+      "overflow:3",
+      "overflow:4",
+      "repeated_overflow:2",
+      "repeated_overflow:3",
+      "repeated_overflow:4",
+      "repeated_overflow:5"
+    ],
+    "remove_newest_on_ack": [
+      "fifo_limit:5",
+      "fifo_limit:6",
+      "partial_retry:2",
+      "partial_retry:3",
+      "partial_retry:4",
+      "partial_retry:5",
+      "overflow:3",
+      "overflow:4",
+      "repeated_overflow:5"
+    ],
+    "reverse_insert": [
+      "fifo_limit:3",
+      "fifo_limit:4",
+      "fifo_limit:5",
+      "fifo_limit:6",
+      "partial_retry:2",
+      "partial_retry:3",
+      "partial_retry:4",
+      "partial_retry:5",
+      "overflow:3",
+      "overflow:4",
+      "repeated_overflow:4",
+      "repeated_overflow:5"
+    ]
+  },
+  "independent_demand": false,
+  "model": {
+    "checker": "d425682ebb142a03021c13de63c8443dfd06c07f68ab1624a63df858e50b43fa",
+    "model": "57b819b57ffe519d7f639a2dd71284b82c6da5e24d4be1ad5af82dbe9d88ee0b",
+    "reference_transitions": 56,
+    "status": "verified_certificate"
+  },
+  "prefix_count": 24,
+  "probe_sha256": "140b43eb7e4d01f09ed276a61a81a96eb243f830f4b03501377ed5b4aeb29617",
+  "source_sha256": "4becf82d8db9194d48be14d14684e3ea9ffd8ff598bc68205553a1327d4b7f0f",
+  "status": "bounded_queue_conforms",
+  "traces": {
+    "fifo_limit": [
+      {
+        "done": [],
+        "error": false,
+        "lost": 0,
+        "op": "push:A1",
+        "pending": 1,
+        "requests": []
+      },
+      {
+        "done": [],
+        "error": false,
+        "lost": 0,
+        "op": "push:B1",
+        "pending": 2,
+        "requests": []
+      },
+      {
+        "done": [],
+        "error": false,
+        "lost": 0,
+        "op": "flush:0",
+        "pending": 2,
+        "requests": []
+      },
+      {
+        "done": [
+          "A1"
+        ],
+        "error": false,
+        "lost": 0,
+        "op": "flush:1",
+        "pending": 1,
+        "requests": [
+          "A1"
+        ]
+      },
+      {
+        "done": [],
+        "error": false,
+        "lost": 0,
+        "op": "push:A2",
+        "pending": 2,
+        "requests": [
+          "A1"
+        ]
+      },
+      {
+        "done": [
+          "B1",
+          "A2"
+        ],
+        "error": false,
+        "lost": 0,
+        "op": "flush:8",
+        "pending": 0,
+        "requests": [
+          "A1",
+          "B1",
+          "A2"
+        ]
+      },
+      {
+        "done": [],
+        "error": false,
+        "lost": 0,
+        "op": "flush:8",
+        "pending": 0,
+        "requests": [
+          "A1",
+          "B1",
+          "A2"
+        ]
+      }
+    ],
+    "overflow": [
+      {
+        "done": [],
+        "error": false,
+        "lost": 0,
+        "op": "push:A1",
+        "pending": 1,
+        "requests": []
+      },
+      {
+        "done": [],
+        "error": false,
+        "lost": 0,
+        "op": "push:B1",
+        "pending": 2,
+        "requests": []
+      },
+      {
+        "done": [],
+        "error": false,
+        "lost": 1,
+        "op": "push:A2",
+        "pending": 2,
+        "requests": []
+      },
+      {
+        "done": [
+          "B1",
+          "A2"
+        ],
+        "error": false,
+        "lost": 1,
+        "op": "flush:8",
+        "pending": 0,
+        "requests": [
+          "B1",
+          "A2"
+        ]
+      },
+      {
+        "done": [],
+        "error": false,
+        "lost": 1,
+        "op": "flush:8",
+        "pending": 0,
+        "requests": [
+          "B1",
+          "A2"
+        ]
+      }
+    ],
+    "partial_retry": [
+      {
+        "done": [],
+        "error": false,
+        "lost": 0,
+        "op": "push:A1",
+        "pending": 1,
+        "requests": []
+      },
+      {
+        "done": [],
+        "error": false,
+        "lost": 0,
+        "op": "push:B1",
+        "pending": 2,
+        "requests": []
+      },
+      {
+        "done": [
+          "A1"
+        ],
+        "error": true,
+        "lost": 0,
+        "op": "flush:2",
+        "pending": 1,
+        "requests": [
+          "A1",
+          "B1"
+        ]
+      },
+      {
+        "done": [],
+        "error": false,
+        "lost": 0,
+        "op": "push:A2",
+        "pending": 2,
+        "requests": [
+          "A1",
+          "B1"
+        ]
+      },
+      {
+        "done": [
+          "B1",
+          "A2"
+        ],
+        "error": false,
+        "lost": 0,
+        "op": "retry:2",
+        "pending": 0,
+        "requests": [
+          "A1",
+          "B1",
+          "B1",
+          "A2"
+        ]
+      },
+      {
+        "done": [],
+        "error": false,
+        "lost": 0,
+        "op": "flush:8",
+        "pending": 0,
+        "requests": [
+          "A1",
+          "B1",
+          "B1",
+          "A2"
+        ]
+      }
+    ],
+    "repeated_overflow": [
+      {
+        "done": [],
+        "error": false,
+        "lost": 0,
+        "op": "push:A1",
+        "pending": 1,
+        "requests": []
+      },
+      {
+        "done": [],
+        "error": false,
+        "lost": 0,
+        "op": "push:B1",
+        "pending": 2,
+        "requests": []
+      },
+      {
+        "done": [],
+        "error": false,
+        "lost": 1,
+        "op": "push:A2",
+        "pending": 2,
+        "requests": []
+      },
+      {
+        "done": [],
+        "error": false,
+        "lost": 2,
+        "op": "push:B2",
+        "pending": 2,
+        "requests": []
+      },
+      {
+        "done": [
+          "A2"
+        ],
+        "error": false,
+        "lost": 2,
+        "op": "flush:1",
+        "pending": 1,
+        "requests": [
+          "A2"
+        ]
+      },
+      {
+        "done": [
+          "B2"
+        ],
+        "error": false,
+        "lost": 2,
+        "op": "flush:8",
+        "pending": 0,
+        "requests": [
+          "A2",
+          "B2"
+        ]
+      }
+    ]
+  }
+}

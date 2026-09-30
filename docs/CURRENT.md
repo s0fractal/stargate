@@ -31,7 +31,10 @@ bytes and describe what was measured then; they are not silently rewritten as ne
   code correspondence remain distinct claims.
 - **Sokol pilot:** Sokol #95 merged as `b94f090`; Rust delivery protocol repair, native
   regressions and shadow model comparison. The trace extension checks fifteen prefixes
-  across five sequences, including reconnect/retry and empty flushes after acknowledgement. See [results](../examples/sokol-delivery/RESULTS.md). The operator has direct
+  across five sequences, including reconnect/retry and empty flushes after acknowledgement.
+  The [capacity-two extension](../examples/sokol-queue/README.md) checks 56 reference
+  transitions and 24 actual operation prefixes with six semantic mutants.
+  See [initial results](../examples/sokol-delivery/RESULTS.md). The operator has direct
   influence; external demand and production qualification are not established.
 - **Synthesis:** the new delivery case yields a verified owned-only repair; one-edit
   exhausts. Existing sigma/semantic-seal successes and Warrant live-goal refusal remain

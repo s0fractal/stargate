@@ -81,6 +81,23 @@ It does not prove all schedules, timer bounds, queue overflow or process-restart
 The original one-step results-v2.json stays frozen and reproducible. See
 [trace results](../examples/sokol-delivery/TRACE_RESULTS.md) for reproduction evidence.
 
+## Sokol capacity-two queue
+
+The [bounded queue extension](../examples/sokol-queue/README.md) adds a new reference
+model within the existing checker limits. Its representation-safety certificate is
+supplemented by all 56 valid reference transitions and four actual socket scenarios:
+FIFO/flush bounds, partial batch success followed by retry, one overflow and repeated
+overflow. Twenty-four prefixes check counts, occurrence identity/order and wire effects.
+Six semantic Rust mutants must fail. Exact loss counts and occurrence identity remain
+explicit oracle obligations beyond the Boolean abstraction.
+
+```sh
+python integration/sokol_queue.py --sokol-root /path/to/sokol-core \
+  --expect-results examples/sokol-queue/results.json
+```
+
+No crash-recovery, arbitrary-capacity or concurrency claim follows from this result.
+
 ## Contract worksheet for another integration
 
 1. Name the subject and its lifetime (one id, one queue item, one decision round).

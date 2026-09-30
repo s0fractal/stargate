@@ -1,5 +1,6 @@
 """Contract boundaries: unchanged roots, live-goal meaning, real consumer oracles."""
 import importlib.util
+import copy
 import json
 from pathlib import Path
 import unittest
@@ -82,3 +83,32 @@ class ConsumerContracts(unittest.TestCase):
         rows['eof_recorded'].pop()
         with self.assertRaises(ValueError):
             harness.mismatches(rows, table)
+
+    def test_queue_reference_exhausts_valid_states_and_rejects_wrong_fifo(self):
+        harness = tool('sokol_queue')
+        report, table = harness.model()
+        self.assertEqual(report['reference_transitions'], 56)
+        class WrongFIFO:
+            def step(self, state, event):
+                result = table.step(state, event)
+                if state['rear'] and event == harness.EVENTS['ack']:
+                    result['front_b'] = state['front_b']
+                return result
+        # The wrong transition still has a structurally valid queue representation.
+        with self.assertRaises(AssertionError):
+            harness.check_reference(WrongFIFO())
+
+    def test_queue_oracle_distinguishes_identity_wire_effects_and_missing_operations(self):
+        harness = tool('sokol_queue')
+        _, table = harness.model()
+        expected = harness.expected(table)
+        actual = copy.deepcopy(expected)
+        self.assertEqual(harness.mismatches(actual, expected), [])
+        actual['overflow'][3]['done'] = ['A1', 'A2']
+        actual['fifo_limit'][2]['requests'] = ['A1']
+        actual['partial_retry'][2]['error'] = False
+        self.assertEqual(set(harness.mismatches(actual, expected)),
+                         {'overflow:3', 'fifo_limit:2', 'partial_retry:2'})
+        actual['repeated_overflow'].pop()
+        with self.assertRaises(ValueError):
+            harness.mismatches(actual, expected)
