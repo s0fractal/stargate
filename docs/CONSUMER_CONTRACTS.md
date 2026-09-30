@@ -50,11 +50,22 @@ code gains no Stargate dependency. This is offline/shadow testing, not XDP quali
 a deployment, a release or a proof of a whole queue, restart persistence or concurrency.
 
 The operator has direct influence on both projects. This demonstrates cross-language
-transfer, not independent demand or external maintainer adoption. Warrant's workflow runs its exact public source pin. Sokol's source is private: the
-actual-source job runs inside Sokol's own repository, with a pinned public Stargate
-harness. Stargate CI checks the model without accessing private Rust source. An authorized
-local checkout can reproduce the frozen byte comparison. No private source is vendored
-and no cross-repository credential is required. Updating pins/results is explicit.
+transfer, not independent demand or external maintainer adoption. Warrant's workflow runs
+its exact public source pin. Sokol's source is private: the actual-source job runs inside
+Sokol's own repository with a pinned public Stargate harness. Stargate CI checks the model
+without accessing private Rust source. The frozen replay in Sokol CI checks out only
+`delivery.rs` and the original probe from
+`5ffaf0854158f4674a470378279a4dd4d237f9fb`, then requires byte equality with all three
+current frozen result files (results-v2.json, trace-results.json and sokol-queue/results.json).
+The live-checkout steps remain separate and do not require old source hashes. This lets
+new source evolve while preserving reproduction of the recorded experiments.
+
+Stargate's public tests also compare the saved observations/model identities with the
+current public reference models and the saved public-probe hashes with actual file bytes.
+That check does not execute private source or independently validate the recorded mutant
+runs; the full private-source replay provides those checks. An authorized local checkout
+can run the same commands. No private source is vendored and no cross-repository credential
+is required. Updating pins/results is explicit; a new experiment retains old evidence.
 
 ## Sokol retry traces: compare every prefix
 
