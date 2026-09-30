@@ -28,7 +28,9 @@ bytes and describe what was measured then; they are not silently rewritten as ne
   `untouched` does not certify arbitrary code or a change to the checker itself.
 - **Consumer boundary:** [actual adapter checks](CONSUMER_CONTRACTS.md) cover six Warrant
   scenarios/three mutants and eighteen Sokol socket observations/four mutants. Proof and
-  code correspondence remain distinct claims.
+  code correspondence remain distinct claims. Frozen Sokol observations/model identities
+  and public-probe hashes are now checked by public tests. Sokol CI separately replays
+  all three frozen results on exact source `5ffaf08`, alongside live-checkout checks.
 - **Sokol pilot:** Sokol #95 merged as `b94f090`; Rust delivery protocol repair, native
   regressions and shadow model comparison. The trace extension checks fifteen prefixes
   across five sequences, including reconnect/retry and empty flushes after acknowledgement.
