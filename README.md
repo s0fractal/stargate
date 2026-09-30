@@ -9,6 +9,11 @@ that a fixed runtime executes by lookup.
 **Build 47 · 32K draft.** Contracts may change incompatibly. The checker digests are in
 [ANCHORS.md](ANCHORS.md); a tag records a source snapshot, not a certified checker.
 
+Agents are the primary intended users: use Stargate to challenge a small workflow,
+check a repair and hand verified artifacts to a later session. Start with the
+[agent profile](docs/AGENT_PROFILE.md) and [executable agent task](examples/agent-evidence/README.md).
+Useful internal agent work does not require an independent user base.
+
 ## One real case: warrant's MCP sealing proxy
 
 `warrant-mcp` sits between an MCP host and a server and seals every `tools/call` result

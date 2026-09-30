@@ -70,15 +70,22 @@ sources, failed stages or incomplete evidence fail the run. Reports are unsigned
 observations, never admission credentials. Neither profile establishes independent
 adoption. The author-run fresh-environment check is a setup check, not a new pilot.
 
-This closes the technical implementation of the strategy. Further development is
-conditional on the evidence below, rather than additional demonstrations of the same
-bounded contracts. No larger solver, model domain or additional consumer integration
-is justified by the completed pilot alone.
+This closes the technical implementation of P0–P3. On 2026-09-30 the operator
+selected an [agent-use profile](AGENT_PROFILE.md), explicitly allowing zero independent
+users. The previous requirement to wait for an unassisted external user is superseded.
+Historical pilot results and their non-independence remain unchanged.
 
-## Next decision criteria
+## Current development criteria
 
-The next user must reproduce a useful result without author assistance. Measure modelling
-and integration time, rejected mutations, false blocks and repeat use. A cross-language
-success does not establish independent demand. Wider semantics need a named contract that
-cannot be expressed today; a new synthesizer needs repeated failures with a registered
-comparison. Keep portable evidence and historical checker identities unchanged.
+Primary consumers are agents performing operator-authorized work, including repository
+maintenance. The first agent task models stale evidence after candidate changes, checks
+an owned repair, and retains replayable artifacts with refusal controls
+([exercise](../examples/agent-evidence/README.md)). It is a synthetic workflow exercise,
+not a production GitHub adapter or a new independent pilot.
+
+Prioritize useful internal decisions, reuse across sessions, clear refusals and low
+integration cost. Record concrete tasks where a counterexample or checked repair
+changed the outcome; count repeated fixtures as regressions, not adoption. Independent
+use remains optional evidence, not a development gate. Wider semantics still need a
+named contract that cannot be expressed today; new synthesis needs repeated failures
+and a registered comparison. Preserve portable evidence and historical checker IDs.
