@@ -1,8 +1,8 @@
 # Command surface
 
-An inventory, not a proposal to act. Step one of two: the table below is generated
-from the parser itself, the reading follows it, and **nothing is deleted here**. What
-to remove is a decision for a person, and this file ends by asking for it.
+The table is generated from the installed command parser and repository references.
+Use it to discover commands; use each command's `--help` for arguments. The reading
+below describes the current interface, not a pending proposal to remove commands.
 
 ```sh
 python tools/surface.py            # rewrite the table
@@ -85,62 +85,58 @@ A worked example of that caveat, from this very table: `init` shows one mention 
 state `'init'`. The counter sees a quoted string, not a command. Read the columns as
 "something here spells this name", never as coverage.
 
-## What the numbers say
+## Current inspection and export interface
 
-**69 commands in 24 families.** The test suite drives the command layer from
-**19 `cli.main(...)` call sites** in total. Everything else is tested through the
-Python functions underneath, which is where the logic lives — so what follows is
-about the command layer, not about the proofs.
+The public parser provides one `inspect` and one `unpack`. The caller must select an
+explicit `--expect-kind`; the packet does not choose its own reader. The old per-kind
+command spellings are not public aliases. For example:
 
-* **14 commands are never driven through the CLI by any test**: `certificate-checker`,
-  `certificate-inspect`, `composition-inspect`, `composition-unpack`,
-  `experiment-controller`, `experiment-create`, `experiment-inspect`,
-  `experiment-unpack`, `lab-task-unpack`, `lab-unpack`, `machine-unpack`, `put`,
-  `refutation-inspect`, `runtime-pack`. Thirteen of them appear nowhere in `tests/`
-  or `integration/` at all; `put` appears only as an English word.
-* **42 of 69 are never named in `README.md`, `VISION.md`, `SPEC.md` or
-  `ANCHORS.md`** — not as `sg NAME`, not in backticks.
-* **38 commands share their one-line help with at least one other command.** The
-  parser builds families in loops and gives the whole loop one help string, so all
-  nine `machine-*` commands advertise themselves as "check a finite synchronous
-  machine on all reachable states", including `machine-create` and `machine-unpack`,
-  which do not check anything. Someone reading `sg --help` cannot tell these
-  commands apart, which is a defect independent of how many commands there are.
-* The two most uniform families are eight `*-inspect` and eight `*-unpack`
-  commands; nine of those sixteen have no CLI test and thirteen are undocumented.
+```text
+sg inspect machine.json --expect-kind machine
+sg inspect proof.json --expect-kind certificate
+sg unpack proof.json --expect-kind evidence --output new-offline-directory
+sg unpack projection.json --expect-kind projection --certificate certificate.json --output new-projection-directory
+```
 
-## Three candidates, and what each would cost
+`inspect --help` lists the supported inspection kinds; `unpack --help` lists the
+export kinds. They are different lists: `evidence` export covers certificates,
+refutations and compound proof packets, while `projection` export requires a separate
+certificate. `--certificate` is refused for other export kinds.
 
-Ranked by how much surface goes away per unit of risk. None is applied.
+Inspection checks a packet's structure and describes it; it does not establish its
+claims. Export writes the packet and replay material into a new directory; it does
+not verify the proof. Use the matching evidence/repair/projection check with selected
+identities to establish a result. Follow the exported launcher's authentication
+instructions before executing captured source.
 
-1. **One `unpack` instead of eight.** `case-unpack`, `composition-unpack`,
-   `evidence-unpack`, `experiment-unpack`, `lab-task-unpack`, `lab-unpack`,
-   `lineage-unpack`, `machine-unpack` all materialize a self-describing packet into
-   a directory. *Lost:* the command name currently states what the caller believes
-   the packet is, and a mismatch is caught by choosing the wrong command. A single
-   command would dispatch on the packet's own type field, which means the packet
-   picks its own reader — a small step in the direction this repository usually
-   refuses. That trade is the decision, and it is not mine to make.
-2. **One `inspect` instead of eight.** Same shape, same trade, and four of the eight
-   (`certificate-inspect`, `composition-inspect`, `experiment-inspect`,
-   `refutation-inspect`) have no test and no mention anywhere, so they are the
-   cheapest to remove outright if nobody uses them.
-3. **Distinct help lines, no deletion at all.** The cheapest change in the list:
-   give each command its own sentence. It removes no surface, and it is the only
-   item here that makes `sg --help` honest. If exactly one thing is done, this is
-   the one I would do.
+## Choosing an operation
 
-## What this inventory does not establish
+Command help distinguishes operations within a family. In particular:
 
-That any command is unused. It counts mentions in this repository — nobody's shell
-history is in the table, and a command with no test may still be the one command a
-user runs every day. It also does not establish that the untested fourteen are
-broken: their logic is covered through the Python API, and the gap is at the command
-layer only.
+| Need | Operation | Meaning of completion |
+| --- | --- | --- |
+| Build model bytes from a specification | `machine-create` | A model was produced, not certified |
+| Check reachable states | `machine-check` | A bounded exploration result; read its status and budget |
+| Produce reusable proof data | `machine-evidence` | Checked certificate or refutation, or an incomplete/error result |
+| Replay existing proof data | `evidence-check` | Recheck against recipient-selected model and checker identities |
+| Package a proposed repair | `certificate-repair-pack` | An unchecked packet; packing is not verification |
+| Check the proposed repair | `certificate-repair-check` | Verify the original defect and inherited candidate obligations |
+| Export a model table | `model-project` | Produced transition data; check it with `projection-check` |
 
-## The decision I am asking for
+For an agent's complete workflow, use the [agent profile](docs/AGENT_PROFILE.md) and
+[task helper](docs/AGENT_TASK.md). These compose the existing operations rather than
+expanding what a checker verdict proves. They do not apply changes or grant authority.
 
-Which of the three, if any. I have not removed a command, renamed one, or changed a
-help string in this pull request, because the task says to stop here — and because
-the difference between "nothing references it" and "nobody uses it" is exactly the
-kind of gap a table like this hides.
+## Limits of this inventory
+
+The number of commands comes from the generated table. Reference counts are lexical
+mentions in its stated file set, not usage telemetry, executed CLI call sites or test
+coverage. A command with no mentions may still be used outside this checkout. A mention
+may name data instead of invoking a command, as the `init` example above illustrates.
+The `docs` column deliberately scans only the files named in the generated footer;
+it is not an index of every document, including the newer agent guides.
+
+A stale generated table is rejected by `tools/surface.py --check`; the handwritten
+explanation still needs to be checked against the parser and behavior when it changes.
+Use concrete missing behavior or repeated task friction to justify a new command or
+removal. Do not infer either decision from mention counts alone.
