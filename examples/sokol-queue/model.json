@@ -1,0 +1,32 @@
+{
+  "events": [
+    "x",
+    "y"
+  ],
+  "goals": [],
+  "initial": [
+    {
+      "dropped": false,
+      "front": false,
+      "front_b": false,
+      "rear": false,
+      "rear_b": false
+    }
+  ],
+  "invariant": "fact dropped: bool\nfact front: bool\nfact front_b: bool\nfact rear: bool\nfact rear_b: bool\ncheck (!rear || front) && (!front_b || front) && (!rear_b || rear)\n",
+  "max_atp": 1000,
+  "next": {
+    "dropped": "fact dropped: bool\nfact front: bool\nfact front_b: bool\nfact rear: bool\nfact rear_b: bool\nfact x: bool\nfact y: bool\ncheck dropped || (!x && rear)\n",
+    "front": "fact dropped: bool\nfact front: bool\nfact front_b: bool\nfact rear: bool\nfact rear_b: bool\nfact x: bool\nfact y: bool\ncheck !x || (!y && rear) || (x && y && front)\n",
+    "front_b": "fact dropped: bool\nfact front: bool\nfact front_b: bool\nfact rear: bool\nfact rear_b: bool\nfact x: bool\nfact y: bool\ncheck (!x && rear && rear_b) || (!x && front && !rear && front_b) || (!x && !front && y) || (x && !y && rear_b) || (x && y && front_b)\n",
+    "rear": "fact dropped: bool\nfact front: bool\nfact front_b: bool\nfact rear: bool\nfact rear_b: bool\nfact x: bool\nfact y: bool\ncheck (!x && front) || (x && y && rear)\n",
+    "rear_b": "fact dropped: bool\nfact front: bool\nfact front_b: bool\nfact rear: bool\nfact rear_b: bool\nfact x: bool\nfact y: bool\ncheck (!x && front && y) || (x && y && rear_b)\n"
+  },
+  "state": [
+    "dropped",
+    "front",
+    "front_b",
+    "rear",
+    "rear_b"
+  ]
+}
