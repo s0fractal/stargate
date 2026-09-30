@@ -27,6 +27,9 @@ The current machine domain has at most six Boolean state bits and two event bits
 Do not compress an unbounded identity, counter, deadline or concurrency problem into a
 Boolean and then claim the full problem is proved. State the abstraction explicitly.
 
+For a new model, the [task helper](AGENT_TASK.md) produces a checked certificate or
+refutation and an offline handoff in one command, using the existing formats.
+
 ## A working loop for an agent's own task
 
 1. Name the decision and the failure to prevent. Write the concrete code/input mapping,
