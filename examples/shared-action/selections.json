@@ -1,0 +1,13 @@
+{
+  "candidates": {
+    "guarded": "b5b3adbeaa7a386b6f7cb3c42bb3a848d1ed5ad99996411954008965cef49027",
+    "hoard": "a29ff946ef6cb1b371e1e455591c0b147c0a6812971b8735e9d84888f8d71f0c",
+    "premature": "1a0d776c805e1f17ca30caf834af35e02fc81df02b4f8273d8b48c6287f1b658"
+  },
+  "checker": "d425682ebb142a03021c13de63c8443dfd06c07f68ab1624a63df858e50b43fa",
+  "contracts": {
+    "custodian": "1ae8e57065b3afbbf62b3282db0a75a2c21c5232dcac646fcc07dd72cb8bd192",
+    "reclaimer": "44ddca63ad52ffcfa509230bf050354de6af4fda3d93d4bdf519711abf90ba88"
+  },
+  "world": "f8597c01210ef3f5584e3de89730f16bc2f3538c9ec71b569e46a09bdf62e266"
+}

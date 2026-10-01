@@ -1,0 +1,15 @@
+{
+  "goals": [
+    {
+      "ack": true,
+      "held": false
+    }
+  ],
+  "invariant": "fact ack: bool\nfact held: bool\ncheck true\n",
+  "live_goals": [
+    {
+      "ack": true,
+      "held": false
+    }
+  ]
+}

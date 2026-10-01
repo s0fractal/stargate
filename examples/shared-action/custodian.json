@@ -1,0 +1,5 @@
+{
+  "goals": [],
+  "invariant": "fact ack: bool\nfact held: bool\ncheck held || ack\n",
+  "live_goals": []
+}
