@@ -102,3 +102,20 @@ Success is useful decisions and reusable verified artifacts at an acceptable cos
 Independent reviewers/users can add evidence but are not a product viability gate.
 There are no adoption, productivity or defect-prevention numbers until measured. If
 modelling repeatedly costs more than the decision is worth, narrow the use case.
+
+
+## Next loop: agent and membrane
+
+The operator-selected direction is a recoverable agent workflow: propose a bounded
+action, check inherited obligations, apply within existing permissions, then reconcile
+the observed result after interruption. Protecting an agent's work means preserving
+those obligations and recovering its state; it does not mean expanding its authority.
+
+The [local actuator](../examples/shared-action/ACTUATOR.md) now retains an atomic
+operation receipt. A later session retries the exact operation and learns whether it
+already committed, without repeating its effect or confusing historical success with
+current permission. This is implemented for one toy SQLite resource, not arbitrary
+tools. The next integration boundary is Sokol delivery: bind request identity, actual
+effect and acknowledgement without treating transport success as durable execution.
+Operator cancellation, resource limits and the supported storage lifetime must remain
+explicit when moving from this experiment to an agent task adapter.

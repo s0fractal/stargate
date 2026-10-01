@@ -25,9 +25,11 @@ The actuator performs these steps:
    the same transition rules. A projector's `projected` label is insufficient.
 5. Evaluate the release request (`a=false`, `b=true`) using the existing table runtime.
    If no held resource would be released, return `no_release` without a write.
-6. Execute one autocommitted `UPDATE ... WHERE revision = expected_revision`, writing
-   the computed successor and advancing the revision. Zero updated rows means
-   `stale_revision`; only a successful update reports `applied`.
+6. Begin a short SQLite write transaction and execute
+   `UPDATE ... WHERE revision = expected_revision`, writing the computed successor
+   and advancing the revision. Zero updated rows means `stale_revision`. With an
+   operation identifier, insert its receipt in the same transaction. Only a
+   successful commit reports `applied`.
 
 The projection check is row-by-row against the verified model. The SQL binding and
 revision protocol are exercised with ordinary integration tests, not proved by the
@@ -80,13 +82,55 @@ external obligation. Direct schema changes, row deletion/recreation, backup rest
 or replacing the database can invalidate revision uniqueness; these are excluded.
 Revisions are local to this database incarnation, not global operation identities.
 
-Atomicity covers this SQLite update only. It does not cover a later file deletion,
-network request, Git push or any other external effect. A crash after commit but before
-the response can leave the caller uncertain: an old-revision retry is refused, but no
-receipt here distinguishes an earlier successful release from another intervening
-change. This is not a distributed exactly-once protocol or a crash-durability study.
+Atomicity covers this SQLite state update and its optional receipt only. It does not cover a later file deletion,
+network request, Git push or any other external effect. Without an operation identifier, an old-revision retry remains ambiguous. With
+an identifier, the recovery path below distinguishes the recorded operation from
+another intervening change. This is not a distributed exactly-once protocol or
+a power-loss durability study.
 
 Progress remains available rather than inevitable; the system does not provide
 fair scheduling, incentives, identity federation or automatic permission expansion.
 The joint proof budget is per verification, not a wall-clock limit; the separate
 projection checker uses its existing bounded certificate-check defaults.
+
+
+## Recover a lost response
+
+An agent may supply `operation='agent.release.1'` to `release`. The identifier is
+local to the operator-selected database incarnation. The receipt binds the action,
+expected revision and SHA-256 of every submitted world/candidate/contract/proof
+byte string. Verification budget is not part of a committed request's identity.
+
+Before new verification and again under the commit lock, the actuator looks up
+that identifier. Identical input returns `already_applied`, with `applied=false`
+and the original committed observation in `receipt`. Different input or revision
+returns `operation_conflict`. Neither path changes state. A receipt is historical:
+it can be read after requirements change and does not grant permission for a new
+operation. Current state must not be inferred from its historical successor.
+
+A new operation still passes every existing proof, projection and live-state gate.
+Its state update and receipt insert commit together. An insert failure rolls both
+back. An incomplete check writes neither and may be retried within the original
+selected revision. Two simultaneous identical operations produce one committed
+effect and one matching historical receipt. Different operation identifiers still
+compete through the revision check.
+
+The runnable experiment now closes and reopens the database between application
+and retry. Regression tests additionally terminate a real child process immediately
+before and after commit. Before commit, recovery finds neither effect nor receipt;
+after commit it finds both. A control denying receipt insertion proves that a
+receipt-storage error cannot leave a committed effect without its receipt.
+
+This is the local part of an agent/membrane loop: propose, verify, apply, reconcile.
+Sokol's delivery outbox already retains unknown/incomplete acknowledgements and
+retries, but its `Applied`, `Pending`, `Recorded` and `Duplicate` outcomes remain
+distinct and do not establish durable storage. No Sokol runtime is connected to
+this SQLite experiment yet. A future transport adapter must bind its operation
+identity to the actual effect and acknowledgement, retain uncertainty on missing
+responses, and preserve operator-selected permissions and revocation checks.
+
+Receipts are kept indefinitely; ordinary SQL updates/deletes are refused. There
+is no receipt garbage collection, cross-database recovery, schema migration or
+production storage quota in this experiment. Database replacement, rollback to a
+backup, direct schema changes and privileged tampering remain outside its contract.
+The process-exit tests assume a functioning local SQLite/filesystem stack.
