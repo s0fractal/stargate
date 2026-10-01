@@ -20,6 +20,8 @@ jobs:
         run: python integration/shared_action.py --output "$RUNNER_TEMP/shared-action"
       - name: Shared-action SQLite effect and stale-revision controls
         run: python integration/shared_action_store.py
+      - name: Retained local agent intent and receipt recovery
+        run: python integration/agent_intents.py
       - name: Public pilot reproduction report
         run: python integration/reproduce.py --profile public --output "$RUNNER_TEMP/stargate-public-replay.json"
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262

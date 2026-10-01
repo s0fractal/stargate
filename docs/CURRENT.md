@@ -113,6 +113,11 @@ the actual Rust outbox to this toy receiver. Six socket scenarios check retained
 requests, acknowledged local effects, conflicting reuse and changed conditions;
 two semantic mutants must fail by observed mismatches. The sender remains an
 in-memory queue, and the fixture is not the production Sokol node endpoint.
+A separate [retained local intent journal](RETAINED_INTENTS.md) now preserves exact
+inputs and finite attempt budgets across sender process loss. It reconciles receipts
+before spending another attempt and fences cancelled local releases through the
+existing revision check. It shares the actuator database; remote Sokol queue recovery
+and unattended scheduling are not implemented.
 
 ## Current development criteria
 
