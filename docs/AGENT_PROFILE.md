@@ -119,6 +119,8 @@ tools. The [Sokol transport experiment](../examples/sokol-receipts/README.md) co
 actual delivery to that receiver without treating all transport success as durable
 execution. The [local intent journal](RETAINED_INTENTS.md) now retains inputs,
 attempt budgets and cancellation across process loss in the shared SQLite scope.
-Its next boundary is connecting that retained intent to the actual sender lifecycle.
+The [retained Sokol sender](../examples/sokol-intents/README.md) now reconstructs the
+actual outbox for one reserved flush and recovers across sender process exits. Its
+next boundary is a production task adapter with explicit endpoint and receipt trust.
 Operator cancellation, resource limits and the supported storage lifetime must remain
 explicit when moving from this experiment to an agent task adapter.

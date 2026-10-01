@@ -1,0 +1,90 @@
+{
+  "actuator_sha256": "a6d5a6b66bb786e365f3f1f1f384b13c8b0e2d254edef22985c48e00162dd909",
+  "adapter_sha256": "7c349c0a48ccf56212e5dcfd9244a3a2a302f65e530578592bdea126e12b6b87",
+  "authority": "observation_only",
+  "cases": {
+    "before": {
+      "attempts": 2,
+      "receipts": 1,
+      "receiver": [
+        "applied"
+      ],
+      "revision": 2,
+      "state": {
+        "ack": true,
+        "held": false
+      },
+      "status": "completed"
+    },
+    "cancelled": {
+      "attempts": 1,
+      "receipts": 0,
+      "receiver": [
+        "stale_revision"
+      ],
+      "revision": 2,
+      "state": {
+        "ack": true,
+        "held": true
+      },
+      "status": "cancelled"
+    },
+    "exhausted": {
+      "attempts": 1,
+      "receipts": 0,
+      "receiver": [],
+      "revision": 1,
+      "state": {
+        "ack": true,
+        "held": true
+      },
+      "status": "budget_exhausted"
+    },
+    "false_ack": {
+      "attempts": 1,
+      "receipts": 0,
+      "receiver": [
+        "not_admitted"
+      ],
+      "revision": 1,
+      "state": {
+        "ack": true,
+        "held": true
+      },
+      "status": "budget_exhausted"
+    },
+    "incomplete": {
+      "attempts": 2,
+      "receipts": 1,
+      "receiver": [
+        "not_admitted",
+        "applied"
+      ],
+      "revision": 2,
+      "state": {
+        "ack": true,
+        "held": false
+      },
+      "status": "completed"
+    },
+    "lost": {
+      "attempts": 1,
+      "receipts": 1,
+      "receiver": [
+        "applied"
+      ],
+      "revision": 2,
+      "state": {
+        "ack": true,
+        "held": false
+      },
+      "status": "completed"
+    }
+  },
+  "delivery_sha256": "4becf82d8db9194d48be14d14684e3ea9ffd8ff598bc68205553a1327d4b7f0f",
+  "driver_sha256": "be9c4132fcfa72268d9f3b256ccb9dfa2ee152bced46703388c674e14a9e3a71",
+  "intent_sha256": "cc0f62739dd4f74767a545be6ed626bca58143b2cc1a264224d34a07abc3fbca",
+  "receiver_sha256": "6dbfa60a3ae63a47f5246f411ca1673559fbbeb1e1213e3b53884a7cce1efc71",
+  "scope": "actual_outbox_retained_local_intent",
+  "status": "passed"
+}

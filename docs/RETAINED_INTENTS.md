@@ -37,6 +37,8 @@ child processes after reservation, with and without a subsequent committed effec
 by the Sokol-receipt experiment. This journal's current `attempt()` invokes the
 local actuator directly. It is not yet a persistent replacement for Sokol's
 in-memory Outbox, and it does not schedule or repeatedly run tasks unattended.
+The [Sokol sender adapter](../examples/sokol-intents/README.md) uses the same
+reservation/reconciliation operations around an actual one-flush Outbox process.
 
 ## Cancellation and races
 
