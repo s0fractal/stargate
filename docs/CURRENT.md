@@ -103,6 +103,12 @@ Its [SQLite extension](../examples/shared-action/ACTUATOR.md) exercises one atom
 state update after joint verification, live-state membership and projection checking;
 stale revisions, changed selections and competing attempts withhold duplicate effects.
 This does not make external side effects atomic or prove distributed exactly-once behavior.
+The optional operation receipt now commits with the local effect and lets another
+agent session reconcile a lost response without repeating the effect. Exact request
+replays return a historical observation; conflicting reuse refuses. Tests terminate
+processes before/after commit, deny receipt storage and race identical operations.
+This closes a local propose/check/apply/reconcile loop, not a Sokol transport adapter
+or a power-loss guarantee.
 
 ## Current development criteria
 

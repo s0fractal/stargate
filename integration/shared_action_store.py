@@ -4,6 +4,7 @@ The only effect is updating a toy database row. No real resource is deleted.
 The operator chooses the database and its selections; proofs grant no permissions.
 """
 import argparse
+import hashlib
 import importlib.util
 import json
 from pathlib import Path
@@ -33,6 +34,15 @@ def initialize(connection, selection):
             ack INTEGER NOT NULL CHECK(ack IN (0,1)),
             selection TEXT NOT NULL
         );
+        CREATE TABLE receipt (
+            operation TEXT PRIMARY KEY,
+            request TEXT NOT NULL,
+            result TEXT NOT NULL
+        );
+        CREATE TRIGGER immutable_receipt_update BEFORE UPDATE ON receipt
+        BEGIN SELECT RAISE(ABORT, 'receipts are immutable'); END;
+        CREATE TRIGGER immutable_receipt_delete BEFORE DELETE ON receipt
+        BEGIN SELECT RAISE(ABORT, 'receipts are immutable'); END;
         CREATE TRIGGER advance_revision BEFORE UPDATE ON resource
         WHEN NEW.revision != OLD.revision + 1 OR typeof(NEW.revision) != 'integer'
         BEGIN SELECT RAISE(ABORT, 'revision must advance exactly once'); END;
@@ -66,21 +76,51 @@ def revise(connection, *, held=None, ack=None, selection=None):
     return snapshot(connection)
 
 
-def release(connection, payload, expected_revision, *, max_steps=certificate.MAX_STEPS):
+def recorded(connection, operation, request):
+    """Read a prior observation, never permission for a new effect."""
+    row = connection.execute('SELECT request,result FROM receipt WHERE operation=?', (operation,)).fetchone()
+    if row is None:
+        return None
+    if row[0] != request:
+        return dict(status='operation_conflict', applied=False, authority='observation_only')
+    return dict(status='already_applied', applied=False, authority='observation_only',
+                receipt=json.loads(row[1]))
+
+
+def release(connection, payload, expected_revision, *, operation=None, max_steps=certificate.MAX_STEPS):
     if type(expected_revision) is not int or expected_revision < 0:
         raise ValueError('expected revision must be a nonnegative integer')
     if connection.isolation_level is not None or connection.in_transaction:
         raise ValueError('actuator requires an idle autocommit connection')
-    before = snapshot(connection)
-    result = dict(applied=False, revision=expected_revision, authority='observation_only')
-    if before['revision'] != expected_revision:
-        return dict(result, status='stale_revision')
     # Freeze the mappings; proof/specification values must be immutable bytes.
     shared.exact(payload, ('world', 'candidate', 'contracts', 'proofs'))
     world, candidate = payload['world'], payload['candidate']
     contracts, proofs = dict(payload['contracts']), dict(payload['proofs'])
     if not all(type(raw) is bytes for raw in (world, candidate, *contracts.values(), *proofs.values())):
         raise ValueError('actuator inputs must be immutable bytes')
+    request = None
+    if operation is not None:
+        if type(operation) is not str or not 1 <= len(operation) <= 128 or not operation.isascii() or not all(
+                c.isalnum() or c in '-_.' for c in operation):
+            raise ValueError('operation must be 1..128 ASCII letters, digits, dots, underscores or hyphens')
+        # Bind exact submitted bytes and revision. Budget is an execution limit,
+        # not part of the identity of an already committed operation.
+        identity = dict(revision=expected_revision, action='release',
+                        world=hashlib.sha256(world).hexdigest(),
+                        candidate=hashlib.sha256(candidate).hexdigest(),
+                        contracts={k: hashlib.sha256(v).hexdigest() for k, v in contracts.items()},
+                        proofs={k: hashlib.sha256(v).hexdigest() for k, v in proofs.items()})
+        request = hashlib.sha256(certificate.canon(identity)).hexdigest()
+        previous = recorded(connection, operation, request)
+        if previous is not None:
+            return previous
+    before = snapshot(connection)
+    result = dict(applied=False, revision=expected_revision, authority='observation_only')
+    if before['revision'] != expected_revision:
+        # A duplicate may have committed after the first receipt lookup but
+        # before this snapshot. Its receipt became visible with the new state.
+        previous = recorded(connection, operation, request) if operation is not None else None
+        return previous if previous is not None else dict(result, status='stale_revision')
     selected = dict(before['selection'])
     projection_anchor = selected.pop('expected_projection_checker')
     checked = shared.check(world, candidate, contracts, proofs, **selected, max_steps=max_steps)
@@ -104,15 +144,32 @@ def release(connection, payload, expected_revision, *, max_steps=certificate.MAX
     target = ProjectionMachine.from_bytes(table).step(state, dict(a=False, b=True))
     if not state['held'] or target['held']:
         return dict(result, status='no_release')
-    # One SQLite statement is the only effect. Every relevant operator mutation
-    # advances this revision, including an ABA return to identical field values.
-    cursor = connection.execute('UPDATE resource SET revision=revision+1,held=?,ack=? '
-                                'WHERE id=1 AND revision=?',
-                                (int(target['held']), int(target['ack']), expected_revision))
-    if cursor.rowcount != 1:
-        return dict(result, status='stale_revision')
-    return dict(result, status='applied', applied=True, successor_revision=expected_revision+1,
-                state=target, projection=projected)
+    # Serialize only the commit boundary, not expensive proof checking. Re-read
+    # receipts after acquiring the write lock to cover concurrent duplicate calls.
+    connection.execute('BEGIN IMMEDIATE')
+    try:
+        if operation is not None:
+            previous = recorded(connection, operation, request)
+            if previous is not None:
+                connection.rollback()
+                return previous
+        cursor = connection.execute('UPDATE resource SET revision=revision+1,held=?,ack=? '
+                                    'WHERE id=1 AND revision=?',
+                                    (int(target['held']), int(target['ack']), expected_revision))
+        if cursor.rowcount != 1:
+            connection.rollback()
+            return dict(result, status='stale_revision')
+        outcome = dict(result, status='applied', applied=True, successor_revision=expected_revision+1,
+                       state=target, projection=projected)
+        if operation is not None:
+            outcome.update(operation=operation, request=request)
+            connection.execute('INSERT INTO receipt VALUES (?,?,?)',
+                               (operation, request, json.dumps(outcome, sort_keys=True)))
+        connection.commit()
+        return outcome
+    except BaseException:
+        connection.rollback()
+        raise
 
 
 def fixture():
@@ -156,7 +213,34 @@ def run():
         finally:
             connection.close()
     return dict(status='passed', scope='toy_sqlite_actuator', authority='observation_only',
-                cases=results, final=final)
+                cases=results, final=final, recovery=run_recovery())
+
+
+def run_recovery():
+    """A later agent session reconciles an effect whose response was lost."""
+    selection, payload = fixture()
+    with tempfile.TemporaryDirectory(prefix='stargate-operation-') as tmp:
+        path = Path(tmp)/'resource.sqlite'
+        connection = connect(path)
+        try:
+            initialize(connection, selection)
+            revision = revise(connection, ack=True)['revision']
+            committed = release(connection, payload, revision, operation='agent.release.1')
+        finally:
+            connection.close()
+        connection = connect(path)
+        try:
+            recovered = release(connection, payload, revision, operation='agent.release.1')
+            final = snapshot(connection)
+            conflict = release(connection, payload, final['revision'], operation='agent.release.1')
+            if (committed['status'] != 'applied' or recovered['status'] != 'already_applied'
+                    or recovered['applied'] is not False or recovered['receipt'] != committed
+                    or conflict['status'] != 'operation_conflict'
+                    or snapshot(connection) != final or final['revision'] != revision+1):
+                raise ValueError('unexpected operation recovery outcome')
+            return dict(committed=committed, recovered=recovered, conflict=conflict, final=final)
+        finally:
+            connection.close()
 
 
 def main():

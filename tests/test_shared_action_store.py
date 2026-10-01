@@ -4,6 +4,8 @@ import copy
 import importlib.util
 from pathlib import Path
 import sqlite3
+import subprocess
+import sys
 import tempfile
 import threading
 import unittest
@@ -173,3 +175,146 @@ class SharedActionStore(unittest.TestCase):
         with self.assertRaises(sqlite3.IntegrityError):
             self.connection.execute('UPDATE resource SET ack=1 WHERE id=1')
         self.assertEqual(tool.snapshot(self.connection), before)
+
+    def test_receipt_survives_reopen_and_does_not_authorize_new_generation(self):
+        revision = self.acknowledge()
+        first = tool.release(self.connection, self.payload, revision, operation='agent.release.1')
+        self.assertTrue(first['applied'])
+        # A later operator change is not undone or treated as permission by replay.
+        current = tool.revise(self.connection, held=True, ack=False)
+        other = tool.connect(self.path)
+        try:
+            replay = tool.release(other, self.payload, revision, operation='agent.release.1', max_steps=0)
+            self.assertEqual(replay['status'], 'already_applied')
+            self.assertFalse(replay['applied'])
+            self.assertEqual(replay['receipt'], first)
+            self.assertEqual(tool.snapshot(other), current)
+            self.assertEqual(tool.release(other, self.payload, current['revision'],
+                                         operation='agent.release.1')['status'], 'operation_conflict')
+        finally:
+            other.close()
+
+    def test_operation_identity_binds_every_payload_component(self):
+        revision = self.acknowledge()
+        tool.release(self.connection, self.payload, revision, operation='bound')
+        before = tool.snapshot(self.connection)
+        for field in ('world', 'candidate', 'contracts', 'proofs'):
+            payload = copy.deepcopy(self.payload)
+            if field in ('contracts', 'proofs'):
+                payload[field]['custodian'] += b' '
+            else:
+                payload[field] += b' '
+            with self.subTest(field=field):
+                result = tool.release(self.connection, payload, revision, operation='bound')
+                self.assertEqual(result['status'], 'operation_conflict')
+                self.assertFalse(result['applied'])
+                self.assertEqual(tool.snapshot(self.connection), before)
+
+    def test_receipt_insert_failure_rolls_back_effect(self):
+        revision = self.acknowledge()
+        before = tool.snapshot(self.connection)
+        def deny_receipt(action, table, *unused):
+            return (sqlite3.SQLITE_DENY if action == sqlite3.SQLITE_INSERT and table == 'receipt'
+                    else sqlite3.SQLITE_OK)
+        self.connection.set_authorizer(deny_receipt)
+        try:
+            with self.assertRaises(sqlite3.DatabaseError):
+                tool.release(self.connection, self.payload, revision, operation='write-failure')
+        finally:
+            self.connection.set_authorizer(None)
+        self.assertFalse(self.connection.in_transaction)
+        self.assertEqual(tool.snapshot(self.connection), before)
+        self.assertEqual(self.connection.execute('SELECT COUNT(*) FROM receipt').fetchone()[0], 0)
+
+    def test_incomplete_check_cannot_create_receipt(self):
+        revision = self.acknowledge()
+        before = tool.snapshot(self.connection)
+        result = tool.release(self.connection, self.payload, revision, operation='retry', max_steps=0)
+        self.assertEqual(result['status'], 'not_admitted')
+        self.assertEqual(tool.snapshot(self.connection), before)
+        self.assertEqual(self.connection.execute('SELECT COUNT(*) FROM receipt').fetchone()[0], 0)
+        self.assertTrue(tool.release(self.connection, self.payload, revision, operation='retry')['applied'])
+
+    def test_concurrent_same_operation_returns_one_effect_and_one_receipt(self):
+        revision = self.acknowledge()
+        rendezvous = threading.Barrier(2, timeout=20)
+        original = tool.shared.check
+        def together(*args, **kwargs):
+            result = original(*args, **kwargs)
+            rendezvous.wait()
+            return result
+        def attempt():
+            connection = tool.connect(self.path)
+            try:
+                return tool.release(connection, self.payload, revision, operation='same')
+            finally:
+                connection.close()
+        with patch.object(tool.shared, 'check', together), ThreadPoolExecutor(max_workers=2) as pool:
+            results = list(pool.map(lambda _: attempt(), range(2)))
+        self.assertEqual(sorted(r['status'] for r in results), ['already_applied', 'applied'])
+        committed = next(r for r in results if r['applied'])
+        replay = next(r for r in results if not r['applied'])
+        self.assertEqual(replay['receipt'], committed)
+        self.assertEqual(tool.snapshot(self.connection)['revision'], revision+1)
+        self.assertEqual(self.connection.execute('SELECT COUNT(*) FROM receipt').fetchone()[0], 1)
+
+    def test_process_exit_before_and_after_commit(self):
+        # Actual process loss, not just a simulated timeout response. Parent
+        # reopens the file and retries exactly the same operation in both cases.
+        script = r"""
+import importlib.util, os, sqlite3, sys
+spec = importlib.util.spec_from_file_location('actuator', sys.argv[1])
+tool = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(tool)
+class LostProcess(sqlite3.Connection):
+    def commit(self):
+        if sys.argv[3] == 'before':
+            os._exit(71)
+        super().commit()
+        os._exit(72)
+connection = sqlite3.connect(sys.argv[2], isolation_level=None, factory=LostProcess)
+_, payload = tool.fixture()
+tool.release(connection, payload, 1, operation='lost-response')
+"""
+        for phase, code in (('before', 71), ('after', 72)):
+            path = Path(self.tmp.name)/(phase+'.sqlite')
+            connection = tool.connect(path)
+            tool.initialize(connection, self.selection)
+            tool.revise(connection, ack=True)
+            connection.close()
+            result = subprocess.run([sys.executable, '-c', script,
+                                     str(ROOT/'integration/shared_action_store.py'), str(path), phase],
+                                    capture_output=True, text=True, timeout=30)
+            self.assertEqual(result.returncode, code, result.stderr)
+            connection = tool.connect(path)
+            try:
+                with self.subTest(phase=phase):
+                    before = tool.snapshot(connection)
+                    self.assertEqual(before['revision'], 1 if phase == 'before' else 2)
+                    recovered = tool.release(connection, self.payload, 1, operation='lost-response')
+                    self.assertEqual(recovered['status'], 'applied' if phase == 'before' else 'already_applied')
+                    self.assertEqual(tool.snapshot(connection)['revision'], 2)
+                    self.assertEqual(connection.execute('SELECT COUNT(*) FROM receipt').fetchone()[0], 1)
+            finally:
+                connection.close()
+
+    def test_duplicate_commit_between_receipt_lookup_and_snapshot_is_recovered(self):
+        revision = self.acknowledge()
+        original = tool.recorded
+        intervened = []
+        def race(*args):
+            previous = original(*args)
+            if not intervened:
+                intervened.append(True)
+                other = tool.connect(self.path)
+                try:
+                    self.assertTrue(tool.release(other, self.payload, revision, operation='race')['applied'])
+                finally:
+                    other.close()
+            return previous
+        with patch.object(tool, 'recorded', race):
+            recovered = tool.release(self.connection, self.payload, revision, operation='race')
+        self.assertEqual(recovered['status'], 'already_applied')
+        self.assertFalse(recovered['applied'])
+        self.assertEqual(tool.snapshot(self.connection)['revision'], revision+1)
+        self.assertEqual(self.connection.execute('SELECT COUNT(*) FROM receipt').fetchone()[0], 1)
