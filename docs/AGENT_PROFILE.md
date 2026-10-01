@@ -30,7 +30,9 @@ Boolean and then claim the full problem is proved. State the abstraction explici
 For a new model, the [task helper](AGENT_TASK.md) produces a checked certificate or
 refutation and an offline handoff in one command, using the existing formats. Its
 repair mode continues from a selected parent refutation, preserving the objection
-and verifying the candidate before exporting a successor.
+and verifying the candidate before exporting a successor. With explicit `--search`
+and `--max-candidates`, the same helper can propose the candidate itself; it stops at
+the selected budget and exports only after independent repair verification.
 
 ## A working loop for an agent's own task
 

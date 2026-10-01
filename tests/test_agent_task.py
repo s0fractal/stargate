@@ -143,3 +143,71 @@ class AgentTask(unittest.TestCase):
                     else:
                         self.assertEqual((report['status'], code), ('checker_error', 1))
                     self.assertFalse(out.exists())
+
+    def test_search_finds_repair_and_exports_editable_candidate_for_offline_replay(self):
+        from stargate import machine
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp)/'search'
+            report, code = self.check_task(out, 'stale', search='synth', max_candidates=1)
+            self.assertEqual((report['status'], code), ('verified_repair', 0))
+            self.assertEqual(report['search']['attempted'], 1)
+            candidate = (out/'candidate-spec.json').read_bytes()
+            self.assertEqual(hashlib.sha256(candidate).hexdigest(), report['candidate_spec_sha256'])
+            raw = machine.create(json.loads(candidate))
+            self.assertEqual(certificate.identity(certificate.model_from_machine(json.loads(raw))),
+                             report['successor_model'])
+            self.assertEqual(hashlib.sha256((out/'replay.py').read_bytes()).hexdigest(), transport.replay_digest())
+            replay = subprocess.run([sys.executable, *report['replay_argv'][1:], '--output', 'replayed.json'],
+                                    cwd=out, capture_output=True, text=True)
+            self.assertEqual(replay.returncode, 0, replay.stderr)
+            self.assertEqual((out/'replayed.json').read_bytes(), (out/'successor.json').read_bytes())
+
+    def test_search_stops_at_explicit_budget_without_export_or_escalation(self):
+        cases = [('stale', 'one-edit', 1, 'search_incomplete', 3),
+                 ('stale', 'one-edit', 256, 'neighborhood_exhausted', 4),
+                 ('fixed', 'synth', 1, 'not_needed', 4)]
+        for name, strategy, quota, status, expected in cases:
+            with self.subTest(status=status), tempfile.TemporaryDirectory() as tmp:
+                out = Path(tmp)/'search'
+                report, code = self.check_task(out, name, search=strategy, max_candidates=quota)
+                self.assertEqual((report['status'], code), (status, expected))
+                self.assertLessEqual(report['search']['attempted'], quota)
+                self.assertEqual(report['search']['strategy'], strategy)
+                self.assertFalse(out.exists())
+        with tempfile.TemporaryDirectory() as tmp:
+            for kwargs in (dict(search='synth'), dict(max_candidates=1),
+                           dict(search='synth', max_candidates=0),
+                           dict(search='synth', max_candidates=257),
+                           dict(search='synth', max_candidates=1, repair_parent=Path('/unused'), expected_parent='0'*64)):
+                with self.subTest(kwargs=kwargs), self.assertRaises(ValueError):
+                    self.check_task(Path(tmp)/'none', 'stale', **kwargs)
+
+    def test_search_success_label_does_not_replace_evidence_or_parent_binding(self):
+        from stargate import evidence, lab, machine
+        foreign = machine.create(json.loads((ROOT/'examples/publisher-binding/stale.json').read_text()))
+        _, foreign_proof = evidence.repair_search(foreign, lab.identity(foreign), strategy='synth', max_candidates=1)
+        for result in ((dict(status='found'), None), (dict(status='found'), b'{}'),
+                       (dict(status='found'), foreign_proof), (None, None)):
+            with self.subTest(result=result[0]), tempfile.TemporaryDirectory() as tmp:
+                out = Path(tmp)/'search'
+                with patch.object(tool.evidence, 'repair_search', return_value=result):
+                    try:
+                        report, code = self.check_task(out, 'stale', search='synth', max_candidates=1)
+                    except ValueError:
+                        pass
+                    else:
+                        self.assertEqual(code, 1)
+                self.assertFalse(out.exists())
+
+    def test_search_final_refusal_and_missing_successor_block_export(self):
+        from stargate import evidence, lab, machine
+        raw = machine.create(json.loads((ROOT/'examples/agent-evidence/stale.json').read_text()))
+        produced, proof = evidence.repair_search(raw, lab.identity(raw), strategy='synth', max_candidates=1)
+        for verdict, code in ((dict(status='incomplete'), 3), (dict(status='verified_repair'), 1)):
+            with tempfile.TemporaryDirectory() as tmp:
+                out = Path(tmp)/'search'
+                with patch.object(tool.evidence, 'repair_search', return_value=(produced, proof)), \
+                     patch.object(tool.certificate, 'verify_repair', return_value=(verdict, None)):
+                    report, actual = self.check_task(out, 'stale', search='synth', max_candidates=1)
+                self.assertEqual(actual, code)
+                self.assertFalse(out.exists())

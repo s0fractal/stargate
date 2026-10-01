@@ -86,6 +86,9 @@ producer extension; checker identities and admission authority remain unchanged.
 Its repair mode accepts a selected parent refutation, enforces the inherited contract
 and world rules, and retains the repair plus independently checked successor for offline
 replay. Incomplete checks and invalid repairs do not export a new handoff.
+Explicit bounded search can now propose the candidate through the same helper, using
+the existing strategies. It rechecks repairs and materialized candidate identities,
+preserves stop reasons and does not escalate budgets or apply code automatically.
 
 ## Current development criteria
 
