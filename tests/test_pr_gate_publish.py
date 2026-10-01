@@ -9,6 +9,8 @@ import sys
 import tempfile
 import threading
 import unittest
+from unittest.mock import patch
+from urllib.parse import urlsplit, parse_qs
 
 ROOT = Path(__file__).resolve().parent.parent
 PUBLISH = ROOT / 'tools' / 'pr_gate_publish.py'
@@ -42,7 +44,12 @@ class FakeGitHub:
 
             def do_GET(self):
                 fake.requests.append(('GET', self.path, None))
-                parts = self.path.strip('/').split('/')
+                parsed = urlsplit(self.path)
+                parts = parsed.path.strip('/').split('/')
+                if parts[3:] == ['pulls']:
+                    page = int(parse_qs(parsed.query)['page'][0])
+                    opened = [p for p in fake.pulls if p['state'] == 'open']
+                    return self.reply(200, opened[(page-1)*100:page*100])
                 if parts[3:4] == ['commits'] and parts[5:6] == ['pulls']:
                     return self.reply(200, [p for p in fake.pulls if p['head']['sha'] == parts[4] and p['state'] == 'open'])
                 if parts[3:4] == ['pulls']:
@@ -66,6 +73,7 @@ class FakeGitHub:
 
     def close(self):
         self.server.shutdown()
+        self.server.server_close()
 
     def statuses(self):
         return [(path.rsplit('/', 1)[1], body['state'], body.get('description', ''), body.get('context'))
@@ -235,3 +243,98 @@ class AdmissionEntry(unittest.TestCase):
                                     capture_output=True, text=True, cwd='/')
             verdicts[name] = (result.returncode, [st for s, st, d, c in fake.statuses()])
         self.assertEqual(verdicts, {'good': (0, ['pending', 'success']), 'bad': (4, ['pending', 'failure'])})
+
+
+class BindingRefresh(Base):
+    def invoke(self, fake, publisher=None):
+        return (publisher or module().publish)(api=fake.api, token='t', repository=REPO,
+            head=self.v['good'], event_pulls=[1], clone=str(self.tmp/'clone'),
+            model_path='model.json', projection_path='projection.json',
+            evidence_path='.stargate/evidence.json', expect_checker=self.v['checker'],
+            expect_projection_checker=self.v['projection_checker'])
+
+    def test_event_subset_cannot_hide_another_pr_even_on_a_later_page(self):
+        pulls = [self.pull(1, self.v['good'])]
+        pulls += [self.pull(n, self.v['bad']) for n in range(2, 101)]
+        pulls += [self.pull(101, self.v['good'], base='other')]
+        fake = FakeGitHub(pulls, {'main': self.v['base']}); self.addCleanup(fake.close)
+        self.assertEqual(self.invoke(fake), 1)
+        self.assertEqual(fake.writes(), [])
+        self.assertTrue(any('page=2' in path for _, path, _ in fake.requests))
+
+    def test_changes_during_the_real_gate_never_publish_success(self):
+        for change in ('head', 'base_ref', 'base_tip', 'closed', 'ambiguous'):
+            with self.subTest(change=change):
+                fake = FakeGitHub([self.pull(1, self.v['good'])], {'main': self.v['base']})
+                self.addCleanup(fake.close)
+                publisher = module(); gate = publisher._gate_module(); original = gate.gate
+                def changed(*args, **kwargs):
+                    result = original(*args, **kwargs)
+                    self.assertEqual(result[0], 0)
+                    if change == 'head': fake.pulls[0]['head']['sha'] = self.v['bad']
+                    if change == 'base_ref': fake.pulls[0]['base']['ref'] = 'other'
+                    if change == 'base_tip': fake.refs['main'] = self.v['bad']
+                    if change == 'closed': fake.pulls[0]['state'] = 'closed'
+                    if change == 'ambiguous': fake.pulls.append(self.pull(2, self.v['good']))
+                    return result
+                with patch.object(publisher, '_gate_module', return_value=gate), patch.object(gate, 'gate', side_effect=changed):
+                    self.assertEqual(self.invoke(fake, publisher.publish), 4)
+                self.assertEqual([s[1] for s in fake.statuses()], ['pending', 'failure'])
+                self.assertIn('binding_changed', fake.statuses()[-1][2])
+                self.assertEqual({s[0] for s in fake.statuses()}, {self.v['good']})
+
+    def test_ignoring_binding_refresh_reproduces_stale_success(self):
+        source = PUBLISH.read_text()
+        site = '        if not same:\n'
+        self.assertIn(site, source)
+        namespace = {'__name__': 'refresh_mutant', '__file__': str(PUBLISH)}
+        exec(compile(source.replace(site, '        if False:\n'), 'refresh_mutant', 'exec'), namespace)
+        fake = FakeGitHub([self.pull(1, self.v['good'])], {'main': self.v['base']})
+        self.addCleanup(fake.close)
+        gate = namespace['_gate_module'](); original = gate.gate
+        def changed(*args, **kwargs):
+            result = original(*args, **kwargs)
+            fake.pulls[0]['base']['ref'] = 'other'
+            return result
+        namespace['_gate_module'] = lambda: gate
+        with patch.object(gate, 'gate', side_effect=changed):
+            self.assertEqual(self.invoke(fake, namespace['publish']), 0)
+        self.assertEqual(fake.statuses()[-1][1], 'success')
+
+    def test_incomplete_listing_never_establishes_unique_binding(self):
+        class Endless:
+            def call(inner, *args):
+                return [self.pull(1, self.v['good'])] * 100
+        self.assertIsNone(module().pull_request(Endless(), self.v['good'], [1]))
+
+    def test_inconsistent_or_incomplete_gate_reports_cannot_publish_success(self):
+        for result in ((0, {}), (0, dict(status='incomplete')), (4, dict(status='verified'))):
+            with self.subTest(result=result):
+                fake = FakeGitHub([self.pull(1, self.v['good'])], {'main': self.v['base']})
+                self.addCleanup(fake.close)
+                publisher = module(); gate = publisher._gate_module()
+                with patch.object(publisher, '_gate_module', return_value=gate), patch.object(gate, 'gate', return_value=result):
+                    self.assertEqual(self.invoke(fake, publisher.publish), 1)
+                self.assertEqual([s[1] for s in fake.statuses()], ['pending', 'error'])
+
+
+class BindingModel(unittest.TestCase):
+    def test_observed_binding_model_refutes_old_rule_and_checks_owned_repair(self):
+        from stargate import certificate, evidence, lab, machine, projection
+        from stargate.canonical import decode
+        from stargate.projection_runtime import ProjectionMachine
+        proofs = {}
+        for name, status in [('stale', 'verified_refutation'), ('fixed', 'verified_certificate')]:
+            raw = machine.create(json.loads((ROOT/'examples/publisher-binding'/f'{name}.json').read_text()))
+            report, proofs[name] = evidence.produce(raw, lab.identity(raw))
+            self.assertEqual(report['status'], status)
+            _, table = projection.project(raw, lab.identity(raw))
+            runtime = ProjectionMachine.from_bytes(table)
+            changed = runtime.step(dict(fresh=True, published=False), dict(a=False, b=True))
+            published = runtime.step(changed, dict(a=True, b=True))
+            self.assertEqual(published, dict(fresh=False, published=name == 'stale'))
+        parent = certificate.identity(decode(proofs['stale'])['model'])
+        report, successor = certificate.verify_repair(certificate.pack_repair(proofs['stale'], proofs['fixed']),
+                                                       parent, certificate.checker_id())
+        self.assertEqual(report['status'], 'verified_repair')
+        self.assertEqual(successor, proofs['fixed'])

@@ -5,7 +5,9 @@ Outside every checked closure. Run by .github/workflows/model-gate.yml on
 The head is the event's `workflow_run.head_sha` — for a pull_request source run, the pull
 request's head commit (GITHUB_SHA, the merge ref, is a different field and is not read).
 Nothing is written until exactly one open pull request whose API head equals that commit
-is found; the base is the current tip of its base branch. The
+is found from a bounded paginated listing of open PRs; the base is the current tip
+of its base branch. The binding is read again before posting a final verdict. This
+is not an atomic read-and-publish transaction. The
 verdict is tools/pr_gate.py's gate and finish, run in-process. The only write is
 `POST /repos/{repo}/statuses/{head}` with context `stargate/model-gate`: pending, then
 success (exit 0), failure (2, 3, 4) or error (1 or anything unexpected).
@@ -54,14 +56,30 @@ class Api:
 
 def pull_request(api, head, event_pulls):
     """The one open pull request whose head is this commit, or None."""
-    candidates = [api.call('GET', f'pulls/{number}') for number in event_pulls]
-    if not candidates:
-        candidates = api.call('GET', f'commits/{head}/pulls') or []
-    # one pull request, open, whose head is this commit: two sharing it cannot both be judged
-    matching = [p for p in candidates if p.get('state') == 'open' and p.get('head', {}).get('sha') == head]
+    # Event payloads name the triggering PR, not every PR sharing this commit.
+    # Scan open PRs, rather than commit/pulls (which may omit open PRs for a
+    # commit already on the default branch). Refuse if bounded pagination cannot finish.
+    candidates = []
+    for page in range(1, 11):
+        batch = api.call('GET', f'pulls?state=open&per_page=100&page={page}')
+        if not isinstance(batch, list):
+            raise ValueError('invalid open pull request listing')
+        candidates.extend(batch)
+        if len(batch) < 100:
+            break
+    else:
+        return None
+    matching = list({p['number']: p for p in candidates
+                     if p.get('state') == 'open' and p.get('head', {}).get('sha') == head}.values())
     if len(matching) != 1:
         return None
-    return matching[0]
+    number = matching[0]['number']
+    if event_pulls and number not in event_pulls:
+        return None
+    current = api.call('GET', f'pulls/{number}')
+    if current.get('state') != 'open' or current.get('head', {}).get('sha') != head:
+        return None
+    return current
 
 
 def publish(*, api, token, repository, head, event_pulls, clone, model_path, projection_path,
@@ -89,6 +107,15 @@ def publish(*, api, token, repository, head, event_pulls, clone, model_path, pro
         except ValueError as exc:
             code, report = 2, dict(status='invalid', error=str(exc))
         final = gate.finish(code, json.dumps(report))
+        # The expensive check used immutable objects, but its PR binding is mutable.
+        # Never publish its verdict after observing a changed or ambiguous binding.
+        current = pull_request(github, head, event_pulls)
+        same = (current is not None and current['number'] == pr['number']
+                and current['base']['ref'] == pr['base']['ref'])
+        if same:
+            same = github.call('GET', f'git/ref/heads/{current["base"]["ref"]}')['object']['sha'] == base
+        if not same:
+            final, report = 4, dict(status='binding_changed', gate_report=report)
         print(json.dumps(dict(report, pull_request=pr['number'], base=base, head=head), sort_keys=True))
     except Exception as exc:  # anything unexpected is an error status, never a pass
         github.status(head, 'error', 'stargate: ' + type(exc).__name__, target_url)
