@@ -1,0 +1,194 @@
+{
+  "actuator_sha256": "f3ba05af1c1d8ca99535fdfb849ca97fa6fad3d81b5ef0f36731936e0104826b",
+  "adapter_sha256": "6dbfa60a3ae63a47f5246f411ca1673559fbbeb1e1213e3b53884a7cce1efc71",
+  "authority": "observation_only",
+  "cases": {
+    "conflict": {
+      "delivery": [
+        [
+          "0",
+          "0",
+          "1",
+          "0",
+          "false",
+          "refused"
+        ],
+        [
+          "1",
+          "0",
+          "0",
+          "0",
+          "false",
+          "none"
+        ]
+      ],
+      "final": {
+        "ack": true,
+        "held": false
+      },
+      "receipts": 1,
+      "receiver": [
+        "operation_conflict"
+      ],
+      "revision": 2
+    },
+    "incomplete": {
+      "delivery": [
+        [
+          "0",
+          "1",
+          "0",
+          "0",
+          "true",
+          "none"
+        ],
+        [
+          "1",
+          "0",
+          "1",
+          "0",
+          "false",
+          "applied"
+        ]
+      ],
+      "final": {
+        "ack": true,
+        "held": false
+      },
+      "receipts": 1,
+      "receiver": [
+        "not_admitted",
+        "applied"
+      ],
+      "revision": 2
+    },
+    "lost": {
+      "delivery": [
+        [
+          "0",
+          "1",
+          "0",
+          "0",
+          "true",
+          "none"
+        ],
+        [
+          "1",
+          "0",
+          "1",
+          "0",
+          "false",
+          "duplicate"
+        ]
+      ],
+      "final": {
+        "ack": true,
+        "held": false
+      },
+      "receipts": 1,
+      "receiver": [
+        "applied",
+        "already_applied"
+      ],
+      "revision": 2
+    },
+    "partial": {
+      "delivery": [
+        [
+          "0",
+          "1",
+          "0",
+          "0",
+          "true",
+          "none"
+        ],
+        [
+          "1",
+          "0",
+          "1",
+          "0",
+          "false",
+          "duplicate"
+        ]
+      ],
+      "final": {
+        "ack": true,
+        "held": false
+      },
+      "receipts": 1,
+      "receiver": [
+        "applied",
+        "already_applied"
+      ],
+      "revision": 2
+    },
+    "revoked": {
+      "delivery": [
+        [
+          "0",
+          "1",
+          "0",
+          "0",
+          "true",
+          "none"
+        ],
+        [
+          "1",
+          "0",
+          "1",
+          "0",
+          "false",
+          "refused"
+        ]
+      ],
+      "final": {
+        "ack": false,
+        "held": true
+      },
+      "receipts": 0,
+      "receiver": [
+        "not_admitted",
+        "stale_revision"
+      ],
+      "revision": 2
+    },
+    "unknown": {
+      "delivery": [
+        [
+          "0",
+          "1",
+          "0",
+          "0",
+          "true",
+          "none"
+        ],
+        [
+          "1",
+          "0",
+          "1",
+          "0",
+          "false",
+          "duplicate"
+        ]
+      ],
+      "final": {
+        "ack": true,
+        "held": false
+      },
+      "receipts": 1,
+      "receiver": [
+        "applied",
+        "already_applied"
+      ],
+      "revision": 2
+    }
+  },
+  "delivery_sha256": "4becf82d8db9194d48be14d14684e3ea9ffd8ff598bc68205553a1327d4b7f0f",
+  "driver_sha256": "483c7b04ee14e361989cc9b8d25fd86e313dfbafe52d89fad7b156cc0542e401",
+  "mutation_controls": {
+    "ack_incomplete_verification": "detected_observation_mismatch",
+    "drop_uncertain_request": "detected_observation_mismatch"
+  },
+  "scope": "actual_outbox_toy_receiver",
+  "status": "passed"
+}
