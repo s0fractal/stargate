@@ -17,7 +17,10 @@ Effective protocol: `d2da43a9aca36532721e40e810fff9fe047ea63e`, [PLAN.md](PLAN.m
 [Second review](plan-review-2.json): `pass`, with limitations retained below.
 The [screening record](screening.json) contains the exact protocol/source hashes,
 repository revision, UTC retrieval timestamps and exclusions. These timestamps
-measure record generation only, not the implementer's labour. Earlier backlog
+measure record generation only, not the implementer's labour. **Protocol deviation:**
+the required start/end of the actual screening work were not captured. Screening
+cost is unknown; do not reconstruct it from these 10 ms or infer efficiency.
+Earlier backlog
 preview is disclosed in the plan; selection is not blind.
 
 ## Screened in owner order
@@ -69,10 +72,25 @@ review usefulness in this instance, **not** a positive Stargate case.
 - The sequential TLC attempt would inherit the mapping and findings. It can test
   replication, not independent discovery or relative speed; later cases would have
   no TLC comparison unless a future protocol explicitly adds one.
-- A single positive could support its named local use while the overall pilot
-  remains INCONCLUSIVE. No positive or mixed-outcome rule was exercised here.
+- The reviewers flagged an ambiguity between permitting a single named positive
+  and requiring two completions for an overall conclusion. No positive or mixed
+  outcome occurred. This report does not resolve that ambiguity after the fact;
+  a future protocol must settle it before such cases are run.
 - Exclusions are owner-document assessments, not formal impossibility results.
 - Setup cost includes two Claude plan-review calls, protocol/report writing and
   repository review/CI. Model tokens, monetary cost and active labour were not
   captured, so no savings or ROI are reported. No new executable framework,
   model, runtime adapter or recurring check was added by this pilot.
+
+Public readers can check the protocol file binding locally, but cannot establish
+the private roadmap's contents from its hash alone:
+
+```sh
+python3 - <<'PY_CHECK'
+import hashlib, json
+from pathlib import Path
+root = Path('research/utility')
+record = json.loads((root / 'screening.json').read_text())
+assert hashlib.sha256((root / 'PLAN.md').read_bytes()).hexdigest() == record['protocol_sha256']
+PY_CHECK
+```
