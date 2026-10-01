@@ -61,6 +61,11 @@ The [agent evidence exercise](../examples/agent-evidence/README.md) executes thi
 loop for stale publication eligibility, including refusal controls. It is a fixture
 for agent workflow design. It does not replace this repository's real merge gate.
 
+The [shared-action experiment](../examples/shared-action/README.md) extends this loop
+to two separately selected requirements over the same candidate. It preserves each
+party's certificate or objection and requires both current checks for joint eligibility.
+The roles are synthetic; no production federation or incentive mechanism is claimed.
+
 ## Session handoff
 
 Retain a small task directory or repository commit containing:

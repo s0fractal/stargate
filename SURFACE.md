@@ -73,7 +73,7 @@ fail on a stale table.
 | `require` | require a verified accept for the recipient's rule and facts | 4 | 1 | 0 | 0 |
 | `runtime-pack` | snapshot the compiler source closure; never execute it | 0 | 1 | 0 | 0 |
 | `unpack` | write a packet of a stated kind and an offline launcher into a directory | 17 | 4 | 0 | 0 |
-| `verify` | verify a stored signed record by independent re-execution | 35 | 4 | 0 | 0 |
+| `verify` | verify a stored signed record by independent re-execution | 36 | 4 | 0 | 0 |
 | `verify-bundle` | verify a file without any local object store | 1 | 0 | 0 | 0 |
 
 59 commands. `tests`, `examples` and `integration` count the quoted command name in those files; `docs` counts `sg NAME` or `NAME` in backticks across README, VISION, SPEC, ANCHORS and docs/WALKTHROUGHS. These are mentions, not coverage.

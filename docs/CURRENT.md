@@ -93,6 +93,13 @@ The read-only `--check-handoff` mode binds saved input/machine/evidence and repa
 successors using the installed checker, without executing packet code or trusting the
 old task report. Recipient-selected anchors remain required.
 
+The [shared-action experiment](../examples/shared-action/README.md) checks a resource
+release candidate against separate custodian and reclaimer requirements. Premature
+release and permanent retention each receive a different checked objection; guarded
+release satisfies both. Selected world/candidate/contract identities and complete
+checks are required for model eligibility. This is a synthetic two-role experiment,
+not a production actuator, federation, economic mechanism or impossibility result.
+
 ## Current development criteria
 
 Primary consumers are agents performing operator-authorized work, including repository

@@ -1,0 +1,23 @@
+{
+  "events": [
+    "a",
+    "b"
+  ],
+  "initial": [
+    {
+      "ack": false,
+      "held": true
+    }
+  ],
+  "max_atp": 1000,
+  "next": {
+    "ack": "fact a: bool\nfact ack: bool\nfact b: bool\nfact held: bool\ncheck ack || a\n"
+  },
+  "state": [
+    "ack",
+    "held"
+  ],
+  "world": [
+    "ack"
+  ]
+}
