@@ -119,3 +119,54 @@ under a successful repair label. Refusal never means no other repair exists.
 
 A repair establishes the bounded model transition. It does not select the best fix,
 apply source code, update a branch, or extend the agent's permission to act.
+
+## Let the bounded producer propose a repair
+
+When the task supplies a defective specification but no candidate, select a strategy
+and candidate quota explicitly:
+
+```text
+python tools/agent_task.py defective-spec.json \
+  --expect-spec SELECTED_INPUT_SPEC_SHA256 \
+  --expect-checker SELECTED_CHECKER_SHA256 \
+  --search synth --max-candidates 1 \
+  --max-edges 256 --max-steps 8384 \
+  --output /absolute/path/new-search-handoff
+```
+
+Strategies are the existing `one-edit`, `trace` and `synth` producers. The candidate
+quota must be 1–256; there is no automatic strategy fallback or budget increase.
+Search mode cannot be combined with `--repair-parent` or `--expect-parent`: the pinned
+input specification defines the defective parent. Quotas bound candidates, explored
+edges and checker steps per operation; they are not a total wall-clock deadline.
+
+A producer's `found` is insufficient. The helper rechecks the returned repair against
+the input-derived parent and selected checker, requires the exact candidate certificate
+as successor, verifies that certificate and reconstructs the candidate specification
+before exporting anything. Existing contract/world preservation rules still apply.
+
+On success, exit 0 reports `verified_repair` and exports the same offline repair format
+as manual repair. It also writes `candidate-spec.json`, with its hash in the report,
+so another agent can inspect or continue from the discovered next-rules. `input-spec.json`
+and `input.machine` retain the defective input. In search mode `model_id` and
+`parent_model` identify that input; `successor_model` identifies the found candidate.
+The report retains the producer's attempts, strategy and budget under `search`/`budget`.
+No source patch, Git operation or publication action is performed.
+
+Without a checked repair there is no handoff directory:
+
+- Exit 3: `search_incomplete`, `incomplete` or `checker_unavailable`.
+- Exit 4: `not_needed`, `neighborhood_exhausted`, `not_applicable`, `unrealizable`,
+  `not_certified` or `repair_refused`, preserving the producer's precise meaning.
+- Exit 1/2: checker/operation error or invalid input/evidence.
+
+Save stdout/stderr and the exit code as task observations when a search stops. An
+exhausted neighborhood does not establish that no repair exists. `synth` currently
+handles bounded safety synthesis with explicit world ownership; it still must pass
+all inherited goals, so a synthesized safety candidate can be refused. A result is
+not necessarily minimal, desirable or a correct change to a real implementation.
+
+This is bounded autonomy over model proposals: an agent can choose the next-rules,
+while the existing checker decides whether the inherited obligations hold. The agent
+must still review the concrete code mapping and use the repository's authorized merge
+workflow for an implementation change.
