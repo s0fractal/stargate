@@ -85,6 +85,122 @@ class AgentTask(unittest.TestCase):
         self.assertEqual(code, 4)
         return dict(repair_parent=Path(tmp)/'parent/refutation.json', expected_parent=report['model_id'])
 
+    def recheck(self, output, name='fixed', **kwargs):
+        source = ROOT/'examples/agent-evidence'/(name+'.json')
+        return tool.check_handoff(output, hashlib.sha256(source.read_bytes()).hexdigest(),
+                                  certificate.checker_id(), **kwargs)
+
+    def test_handoff_recheck_all_modes_without_trusting_or_executing_packet_code(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            parent = self.make_parent(tmp)
+            for mode, name, options, code in [
+                    ('certificate', 'fixed', {}, 0), ('refutation', 'stale', {}, 4),
+                    ('repair', 'fixed', parent, 0),
+                    ('search', 'stale', dict(search='synth', max_candidates=1), 0)]:
+                with self.subTest(mode=mode):
+                    out = Path(tmp)/mode
+                    self.check_task(out, name, **options)
+                    # Neither code nor a forged success/command in the packet is authority.
+                    (out/'replay.py').write_text('raise RuntimeError("must not execute")')
+                    (out/'checker.json').write_bytes(b'not a checker')
+                    (out/'task-report.json').write_bytes(b'not even JSON')
+                    before = {p.name: p.read_bytes() for p in out.iterdir()}
+                    anchors = dict(expected_parent=parent['expected_parent']) if mode in ('repair', 'search') else {}
+                    report, actual = self.recheck(out, name, **anchors)
+                    self.assertEqual(actual, code)
+                    self.assertEqual(report['authority'], 'observation_only')
+                    self.assertEqual(before, {p.name: p.read_bytes() for p in out.iterdir()})
+                    if anchors:
+                        self.assertEqual(report['input_role'], 'parent' if mode == 'search' else 'candidate')
+
+    def test_handoff_recheck_refuses_changed_data_and_ambiguous_proofs(self):
+        for filename, replacement in [('input-spec.json', b'{}'), ('input.machine', b'{}'),
+                                       ('certificate.json', b'{}'), ('refutation.json', b'{}')]:
+            with self.subTest(filename=filename), tempfile.TemporaryDirectory() as tmp:
+                out = Path(tmp)/'handoff'
+                self.check_task(out)
+                (out/filename).write_bytes(replacement)
+                with self.assertRaises(ValueError):
+                    self.recheck(out)
+        with tempfile.TemporaryDirectory() as tmp:
+            out, foreign = Path(tmp)/'handoff', Path(tmp)/'foreign'
+            self.check_task(out)
+            self.check_task(foreign, 'stale')
+            (out/'certificate.json').unlink()
+            (out/'refutation.json').write_bytes((foreign/'refutation.json').read_bytes())
+            with self.assertRaises(ValueError):
+                self.recheck(out)
+
+    def test_repair_handoff_recheck_refuses_missing_or_changed_successor_and_candidate(self):
+        for filename in ('successor.json', 'candidate-spec.json'):
+            for content in (None, b'{}'):
+                with self.subTest(filename=filename, content=content), tempfile.TemporaryDirectory() as tmp:
+                    out = Path(tmp)/'search'
+                    report, _ = self.check_task(out, 'stale', search='synth', max_candidates=1)
+                    if content is None:
+                        (out/filename).unlink()
+                    else:
+                        (out/filename).write_bytes(content)
+                    with self.assertRaises((ValueError, OSError)):
+                        self.recheck(out, 'stale', expected_parent=report['parent_model'])
+
+    def test_handoff_recheck_requires_selected_parent_and_honors_refusal_and_budget(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp)/'search'
+            report, _ = self.check_task(out, 'stale', search='synth', max_candidates=1)
+            for parent in (None, '0'*64):
+                with self.assertRaises(ValueError):
+                    self.recheck(out, 'stale', expected_parent=parent)
+            result, code = self.recheck(out, 'stale', expected_parent=report['parent_model'], max_steps=0)
+            self.assertEqual((result['status'], code), ('incomplete', 3))
+            for checked, successor in [(dict(status='incomplete'), None),
+                                       (dict(status='verified_repair'), None)]:
+                with patch.object(certificate, 'verify_repair', return_value=(checked, successor)):
+                    if successor is None and checked['status'] == 'verified_repair':
+                        with self.assertRaises(ValueError):
+                            self.recheck(out, 'stale', expected_parent=report['parent_model'])
+                    else:
+                        result, code = self.recheck(out, 'stale', expected_parent=report['parent_model'])
+                        self.assertEqual((result['status'], code), ('incomplete', 3))
+
+    def test_handoff_recheck_binds_valid_specifications_to_the_actual_repair(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp)/'search'
+            report, _ = self.check_task(out, 'stale', search='synth', max_candidates=1)
+            candidate_path = out/'candidate-spec.json'
+            original = candidate_path.read_bytes()
+            changed = json.loads(original)
+            changed['invariant'] += ' '
+            changed_bytes = json.dumps(changed).encode()
+            changed_machine = tool.machine.create(changed)
+            candidate_path.write_bytes(changed_bytes)
+            with self.assertRaisesRegex(ValueError, 'candidate specification differs'):
+                self.recheck(out, 'stale', expected_parent=report['parent_model'])
+            candidate_path.write_bytes(original)
+            # Even a matching spec/machine pair selected by the recipient must be
+            # related to the actual repair; valid syntax and hashes are insufficient.
+            (out/'input-spec.json').write_bytes(changed_bytes)
+            (out/'input.machine').write_bytes(changed_machine)
+            with self.assertRaisesRegex(ValueError, 'neither repair parent nor candidate'):
+                tool.check_handoff(out, hashlib.sha256(changed_bytes).hexdigest(),
+                                   certificate.checker_id(), expected_parent=report['parent_model'])
+
+    def test_handoff_cli_recheck_and_invalid_option_combination(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp)/'handoff'
+            report, _ = self.check_task(out)
+            command = [sys.executable, str(ROOT/'tools/agent_task.py'), str(out),
+                       '--check-handoff', '--expect-spec', report['spec_sha256'],
+                       '--expect-checker', report['checker']]
+            result = subprocess.run(command, capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(json.loads(result.stdout)['status'], 'verified_certificate')
+            result = subprocess.run(command + ['--output', str(Path(tmp)/'new')],
+                                    capture_output=True, text=True)
+            self.assertEqual(result.returncode, 2)
+            self.assertEqual(json.loads(result.stdout)['status'], 'invalid')
+            self.assertFalse((Path(tmp)/'new').exists())
+
     def test_failed_export_is_removed_and_same_task_can_retry(self):
         original_open = Path.open
         for filename, failure in [('input.machine', OSError),

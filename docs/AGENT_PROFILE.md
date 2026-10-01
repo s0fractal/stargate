@@ -33,6 +33,8 @@ repair mode continues from a selected parent refutation, preserving the objectio
 and verifying the candidate before exporting a successor. With explicit `--search`
 and `--max-candidates`, the same helper can propose the candidate itself; it stops at
 the selected budget and exports only after independent repair verification.
+A later session can use `--check-handoff` with selected input/checker anchors (and the
+parent for repairs) to recheck saved data without executing any code from the packet.
 
 ## A working loop for an agent's own task
 
