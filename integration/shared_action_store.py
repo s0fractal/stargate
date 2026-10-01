@@ -76,6 +76,16 @@ def revise(connection, *, held=None, ack=None, selection=None):
     return snapshot(connection)
 
 
+def request_identity(world, candidate, contracts, proofs, expected_revision):
+    """The exact request binding shared by receipt lookup and retained intent."""
+    identity = dict(revision=expected_revision, action='release',
+                    world=hashlib.sha256(world).hexdigest(),
+                    candidate=hashlib.sha256(candidate).hexdigest(),
+                    contracts={k: hashlib.sha256(v).hexdigest() for k, v in contracts.items()},
+                    proofs={k: hashlib.sha256(v).hexdigest() for k, v in proofs.items()})
+    return hashlib.sha256(certificate.canon(identity)).hexdigest()
+
+
 def recorded(connection, operation, request):
     """Read a prior observation, never permission for a new effect."""
     row = connection.execute('SELECT request,result FROM receipt WHERE operation=?', (operation,)).fetchone()
@@ -105,12 +115,7 @@ def release(connection, payload, expected_revision, *, operation=None, max_steps
             raise ValueError('operation must be 1..128 ASCII letters, digits, dots, underscores or hyphens')
         # Bind exact submitted bytes and revision. Budget is an execution limit,
         # not part of the identity of an already committed operation.
-        identity = dict(revision=expected_revision, action='release',
-                        world=hashlib.sha256(world).hexdigest(),
-                        candidate=hashlib.sha256(candidate).hexdigest(),
-                        contracts={k: hashlib.sha256(v).hexdigest() for k, v in contracts.items()},
-                        proofs={k: hashlib.sha256(v).hexdigest() for k, v in proofs.items()})
-        request = hashlib.sha256(certificate.canon(identity)).hexdigest()
+        request = request_identity(world, candidate, contracts, proofs, expected_revision)
         previous = recorded(connection, operation, request)
         if previous is not None:
             return previous

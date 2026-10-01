@@ -117,6 +117,8 @@ already committed, without repeating its effect or confusing historical success 
 current permission. This is implemented for one toy SQLite resource, not arbitrary
 tools. The [Sokol transport experiment](../examples/sokol-receipts/README.md) connects
 actual delivery to that receiver without treating all transport success as durable
-execution. Its next boundary is retained sender intent across process loss.
+execution. The [local intent journal](RETAINED_INTENTS.md) now retains inputs,
+attempt budgets and cancellation across process loss in the shared SQLite scope.
+Its next boundary is connecting that retained intent to the actual sender lifecycle.
 Operator cancellation, resource limits and the supported storage lifetime must remain
 explicit when moving from this experiment to an agent task adapter.
