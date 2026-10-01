@@ -12,9 +12,12 @@ import sys
 import tempfile
 import unittest
 
-from tests.test_pr_gate_publish import FakeGitHub, FIXTURE, REPO
-
 ROOT = Path(__file__).resolve().parent.parent
+# CI runs these tests from outside the checkout with -I, so `tests` is not a package there.
+_spec = importlib.util.spec_from_file_location('_pr_gate_publish_tests', ROOT / 'tests' / 'test_pr_gate_publish.py')
+_shared = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(_shared)
+FakeGitHub, FIXTURE, REPO = _shared.FakeGitHub, _shared.FIXTURE, _shared.REPO
 REVIEW = ROOT / 'tools' / 'agent_review.py'
 SECRET = 'oauth-test-credential-0123456789'
 CONTEXT = 'stargate/agent-review'
