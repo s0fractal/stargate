@@ -29,6 +29,8 @@ bytes and describe what was measured then; they are not silently rewritten as ne
 - **Agent review (shadow):** `stargate/agent-review` is published by a separate Claude
   session that reads only the head export and diff ([registration](AGENT_REVIEW.md)).
   It is not required: it uses the GitHub Actions token, which a pull request also holds.
+  [Pilot observations](AGENT_REVIEW_RESULTS.md) retain the first exact-head verdict,
+  finding assessments, timing and limits; one run does not establish review accuracy.
 - **Consumer boundary:** [actual adapter checks](CONSUMER_CONTRACTS.md) cover six Warrant
   scenarios/three mutants and eighteen Sokol socket observations/four mutants. Proof and
   code correspondence remain distinct claims. Frozen Sokol observations/model identities
