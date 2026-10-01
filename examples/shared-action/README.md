@@ -105,3 +105,7 @@ This experiment tests a narrow hypothesis: agents can retain different explicit
 requirements while sharing a mechanically checked candidate decision. It does not
 establish truthful preference revelation, incentive compatibility, reputation, economic
 incentives or independent adoption.
+
+The [SQLite actuator extension](ACTUATOR.md) applies a checked release to a temporary
+database row with revision comparison, state-set membership and independently checked
+projection. Its effects and concurrency guarantees are limited to that local row.
