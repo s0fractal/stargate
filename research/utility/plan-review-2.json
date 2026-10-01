@@ -1,0 +1,34 @@
+{
+  "head": "d2da43a9aca36532721e40e810fff9fe047ea63e",
+  "verdict": {
+    "verdict": "pass",
+    "summary": "PLAN.md is adequate for its explicitly local claim: an operator-run pilot deciding whether to keep named Stargate uses. Selection is fixed in advance and capped at three items, which cannot be replaced. Prior exposure to the sources is disclosed, and the plan says the sample must not be called unbiased. The denominator keeps OUT_OF_DOMAIN, NOT_RUN and INCONCLUSIVE cases, and completed eligible cases are counted separately. Stopping rules are hard 20-minute limits per phase, with INCONCLUSIVE kept if a phase is unfinished. Cost accounting separates elapsed time from labour and tokens, treats existing framework work as sunk cost rather than zero cost, and records maintained lines and recurring checks. The plan guards against circular evidence: certificates and model verdicts are not counted as findings, and a decision change needs a failing command reproduced against the frozen real code. The TLC comparison is honestly framed as a replication attempt, not independent discovery, and an equal TLC result removes any Stargate-specific claim. The remaining issues are ambiguities and confounds that should be noted but do not block the bounded conclusions. I read the plan only and did not execute anything.",
+    "findings": [
+      {
+        "severity": "minor",
+        "location": "PLAN.md:36-47, 99-102 (Execution steps 1-3; continuation threshold)",
+        "claim": "Extra time is confounded with the tool. The Stargate phase gets up to 20 more minutes after the baseline is frozen, but there is no equal-time control using ordinary tests and inspection. So a decision change shows that Stargate-assisted work found a real defect; it does not show that ordinary work would have missed it. The TLC comparison checks whether the result is specific to Stargate's tooling, not whether formal modelling was needed at all. This is acceptable for a local decision to keep a named use, but each positive should record whether the defect falls under one of the baseline's own named unresolved questions, or could have been found by a plain test. Without that, the result should not be cited as evidence that modelling is necessary."
+      },
+      {
+        "severity": "minor",
+        "location": "PLAN.md:99-106 (Decisions fixed before results: continuation and stopping rules)",
+        "claim": "Two decision rules can clash. 'One or more qualifying positives: permit only those named uses' and 'Fewer than two completions: overall INCONCLUSIVE, even if one case is positive' give different answers when exactly one case completes and it is positive. With only three items screened and exclusions likely, that outcome is plausible. The plan should say in advance whether the named use is permitted in that case, so the operator cannot resolve it after seeing the result."
+      },
+      {
+        "severity": "minor",
+        "location": "PLAN.md:22-24 (Selection and denominator: exclusions)",
+        "claim": "Exclusion criteria are vague and judged by the operator. 'already-known defects' and 'only notices' are not defined, and many open issues describe known defects. Because exclusions stay in the denominator and are never replaced, this cannot inflate positives; it only reduces completions. Still, each exclusion should cite the owner's wording or the specific prior evidence so a reader can audit it."
+      },
+      {
+        "severity": "minor",
+        "location": "PLAN.md:111-112 (Decisions fixed before results: omitted-failure rule)",
+        "claim": "'Any important real failure omitted by the abstraction' gives no criterion or arbiter for 'important'. The same operator who built the model would judge it. Linking 'important' to the frozen failure/success condition chosen during screening would make this rule checkable."
+      },
+      {
+        "severity": "minor",
+        "location": "PLAN.md:47-54 (Execution step 4: TLC comparator)",
+        "claim": "TLC is attempted only for the first eligible model and sees the Stargate model and its findings. A positive on any later case therefore has no comparator, and the 'no Stargate-specific advantage' check covers at most one case. The plan's own framing permits this, but the final report should say that later positives went untested against TLC."
+      }
+    ]
+  }
+}

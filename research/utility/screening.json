@@ -1,0 +1,52 @@
+{
+  "protocol_commit": "d2da43a9aca36532721e40e810fff9fe047ea63e",
+  "protocol_sha256": "41de56b697e3b91d9e742d20a41158b5e7228d8260119144e2163d8c464dd607",
+  "screening_started_utc": "2026-10-01T15:03:20.058472+00:00",
+  "source": {
+    "repository": "ValkyrieSentinel/sokol-core",
+    "commit": "60e25015769b87239764301f37d360654a8ab59d",
+    "path": "ROADMAP.md",
+    "sha256": "6087c316333cfb9748dbd074e737a76faf28a5f502c370b8eb09f76fe1c99ce4"
+  },
+  "prior_exposure": true,
+  "cases": [
+    {
+      "id": "U1",
+      "source_item": "Next steps 1: native NIC qualification",
+      "required_result": "Measure throughput, latency, CPU and auto-mode behavior on the target physical NIC.",
+      "eligibility": "EXCLUDED_EXTERNAL_PREREQUISITE",
+      "reason": "Owner requires a physical Linux host with a specified XDP-native NIC and traffic source. No target hardware or deployment profile is supplied for this pilot.",
+      "baseline": "NOT_RUN",
+      "stargate": "NOT_RUN",
+      "tlc": "NOT_RUN"
+    },
+    {
+      "id": "U2",
+      "source_item": "Next steps 2: pilot owner decisions",
+      "required_result": "Select an operator, accepted SLO/RPO/RTO and false-positive harm, evidence/data policy, licence and support.",
+      "eligibility": "EXCLUDED_OWNER_DECISION",
+      "reason": "The owner document explicitly reserves these choices to deployment owners. A checker cannot select acceptable harm or constitute that decision.",
+      "baseline": "NOT_RUN",
+      "stargate": "NOT_RUN",
+      "tlc": "NOT_RUN"
+    },
+    {
+      "id": "U3",
+      "source_item": "Next steps 3: post-pilot-baseline adaptation",
+      "required_result": "Evaluate bounded shadow adaptation against a separately measured pilot baseline, with rollback and accepted limits.",
+      "eligibility": "EXCLUDED_EXTERNAL_PREREQUISITE",
+      "reason": "The task is explicitly conditional on the pilot baseline. The owner document says field pilot and owner choices remain pending. No archived proposal or payload was retrieved.",
+      "baseline": "NOT_RUN",
+      "stargate": "NOT_RUN",
+      "tlc": "NOT_RUN"
+    }
+  ],
+  "screening_completed_utc": "2026-10-01T15:03:20.068890+00:00",
+  "screened": 3,
+  "eligible": 0,
+  "completed_baselines": 0,
+  "completed_stargate": 0,
+  "completed_tlc": 0,
+  "utility": "INCONCLUSIVE",
+  "decision": "Do not expand generic agent integrations on this evidence; preserve existing consumers and seek future independently arising tasks without retroactively replacing this sample."
+}
