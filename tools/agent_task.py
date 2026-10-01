@@ -175,12 +175,74 @@ def search_task(spec, raw, parent_model, checker, output, strategy, quota, max_e
                        successor, {'candidate-spec.json': candidate_bytes})
 
 
+def check_handoff(directory, expected_spec, expected_checker, *, expected_parent=None,
+                  max_steps=certificate.MAX_STEPS):
+    """Recheck saved data with the installed checker; never execute packet code."""
+    record_hash(expected_spec)
+    record_hash(expected_checker)
+    if expected_parent is not None:
+        record_hash(expected_parent)
+    if certificate.checker_id() != expected_checker:
+        return dict(status='checker_unavailable', checker=expected_checker), 3
+    directory = Path(directory)
+    spec = certificate.read(directory/'input-spec.json')
+    if hashlib.sha256(spec).hexdigest() != expected_spec:
+        raise ValueError('specification differs from the selected input hash')
+    raw = machine.create(json.loads(spec, object_pairs_hook=unique_object))
+    if certificate.read(directory/'input.machine') != raw:
+        raise ValueError('saved machine differs from the selected specification')
+    model_id = certificate.identity(certificate.model_from_machine(decode(raw)))
+    names = [name for name in ('certificate.json', 'refutation.json', 'repair.json')
+             if (directory/name).exists() or (directory/name).is_symlink()]
+    if len(names) != 1:
+        raise ValueError('handoff must contain exactly one evidence file')
+    name = names[0]
+    proof = certificate.read(directory/name)
+    report = dict(authority='observation_only', spec_sha256=expected_spec,
+                  machine_id=lab.identity(raw), model_id=model_id, checker=expected_checker,
+                  proof_sha256=hashlib.sha256(proof).hexdigest(),
+                  budget=dict(max_steps=max_steps))
+    if name != 'repair.json':
+        if expected_parent is not None:
+            raise ValueError('selected repair parent requires repair evidence')
+        if evidence.kind(proof) + '.json' != name:
+            raise ValueError('evidence kind differs from its filename')
+        checked = evidence.verify(proof, model_id, expected_checker, max_steps=max_steps)
+    else:
+        if expected_parent is None:
+            raise ValueError('repair handoff requires an independently selected parent')
+        checked, successor = certificate.verify_repair(
+            proof, expected_parent, expected_checker, max_steps=max_steps)
+        if checked.get('status') == 'verified_repair':
+            candidate = certificate.inspect_repair(proof)['candidate']
+            candidate_id = certificate.identity(candidate['model'])
+            if successor is None or successor != canon(candidate):
+                raise ValueError('repair checker omitted the exact candidate successor')
+            if certificate.read(directory/'successor.json') != successor:
+                raise ValueError('saved successor differs from the verified repair')
+            if model_id not in (expected_parent, candidate_id):
+                raise ValueError('selected input is neither repair parent nor candidate')
+            role = 'parent' if model_id == expected_parent else 'candidate'
+            candidate_path = directory/'candidate-spec.json'
+            if role == 'parent' or candidate_path.exists() or candidate_path.is_symlink():
+                candidate_spec = certificate.read(candidate_path)
+                candidate_raw = machine.create(json.loads(candidate_spec, object_pairs_hook=unique_object))
+                if certificate.identity(certificate.model_from_machine(decode(candidate_raw))) != candidate_id:
+                    raise ValueError('saved candidate specification differs from the verified successor')
+                report['candidate_spec_sha256'] = hashlib.sha256(candidate_spec).hexdigest()
+            report.update(parent_model=expected_parent, successor_model=candidate_id, input_role=role)
+    report.update(status=checked['status'], check=checked)
+    return report, certificate.exit_code(report)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__, allow_abbrev=False)
-    parser.add_argument('spec', type=Path)
+    parser.add_argument('spec', type=Path, help='input specification, or directory with --check-handoff')
     parser.add_argument('--expect-spec', required=True)
     parser.add_argument('--expect-checker', required=True)
-    parser.add_argument('--output', type=Path, required=True)
+    parser.add_argument('--output', type=Path)
+    parser.add_argument('--check-handoff', action='store_true',
+                        help='recheck the positional handoff directory using the installed checker')
     parser.add_argument('--repair-parent', type=Path)
     parser.add_argument('--expect-parent')
     parser.add_argument('--search', choices=('one-edit', 'trace', 'synth'))
@@ -189,10 +251,19 @@ def main():
     parser.add_argument('--max-steps', type=int, default=certificate.MAX_STEPS)
     args = parser.parse_args()
     try:
-        report, code = run(args.spec, args.expect_spec, args.expect_checker, args.output,
-                           max_edges=args.max_edges, max_steps=args.max_steps,
-                           repair_parent=args.repair_parent, expected_parent=args.expect_parent,
-                           search=args.search, max_candidates=args.max_candidates)
+        if args.check_handoff:
+            if (args.output is not None or args.repair_parent is not None or
+                    args.search is not None or args.max_candidates is not None or args.max_edges != 256):
+                raise ValueError('handoff checking does not accept production options')
+            report, code = check_handoff(args.spec, args.expect_spec, args.expect_checker,
+                                        expected_parent=args.expect_parent, max_steps=args.max_steps)
+        else:
+            if args.output is None:
+                raise ValueError('production requires an output directory')
+            report, code = run(args.spec, args.expect_spec, args.expect_checker, args.output,
+                               max_edges=args.max_edges, max_steps=args.max_steps,
+                               repair_parent=args.repair_parent, expected_parent=args.expect_parent,
+                               search=args.search, max_candidates=args.max_candidates)
     except (ValueError, TypeError, RecursionError) as error:
         report, code = dict(status='invalid', error=str(error)), 2
     except (OSError, certificate.CheckerError) as error:

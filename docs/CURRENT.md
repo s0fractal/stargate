@@ -89,6 +89,9 @@ replay. Incomplete checks and invalid repairs do not export a new handoff.
 Explicit bounded search can now propose the candidate through the same helper, using
 the existing strategies. It rechecks repairs and materialized candidate identities,
 preserves stop reasons and does not escalate budgets or apply code automatically.
+The read-only `--check-handoff` mode binds saved input/machine/evidence and repair
+successors using the installed checker, without executing packet code or trusting the
+old task report. Recipient-selected anchors remain required.
 
 ## Current development criteria
 

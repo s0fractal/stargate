@@ -71,6 +71,45 @@ The report's `replay_digest` is inventory for a trusted handoff, not an independ
 trust anchor. Rehash and recheck after transport. The CLI can also recheck the proof
 with an independently installed Stargate instead of executing the supplied launcher.
 
+## Recheck a handoff with an installed Stargate
+
+When the recipient has an independently trusted installation, the same helper can
+recheck the saved data without running the packet's launcher:
+
+```text
+python tools/agent_task.py /absolute/path/handoff --check-handoff \
+  --expect-spec SELECTED_INPUT_SPEC_SHA256 \
+  --expect-checker SELECTED_CHECKER_SHA256 --max-steps 8384
+```
+
+For either manual or searched repairs, also pass `--expect-parent SELECTED_PARENT_MODEL`.
+Choose these anchors from the task's trusted record, not the received report. In manual
+repair mode the selected specification is the candidate; in search mode it is the
+original defective input. The fresh report identifies that relationship as `input_role`.
+
+The helper reads each required file within 1 MiB, checks the input's exact hash,
+recreates and byte-compares `input.machine`, requires exactly one proof file and
+rechecks it with the installed checker. Repairs must retain the exact verified
+`successor.json`; the selected input must identify either the parent or candidate.
+Search handoffs additionally require `candidate-spec.json` to reconstruct the verified
+candidate model. If a manual repair includes that file, it is checked too. Candidate
+specification metadata outside the proof model is not certified; its actual byte hash
+is included in the fresh report for a later task to pin explicitly.
+
+This mode is read-only and performs no search. It ignores `task-report.json`,
+`replay.py` and `checker.json`, including their commands and claimed verdicts. A success
+therefore verifies the selected saved model/evidence data, not the integrity of every
+file, historical completion of the producer, or the supplied offline launcher. The
+required data can be rechecked even if the unsigned old report is missing or damaged.
+Use the authenticated offline route above when no trusted installation is available.
+
+Exit 0 means a verified certificate/repair, 4 a verified refutation, 3 incomplete or
+checker unavailable, 2 invalid data/options, and 1 an operation/checker error (including
+missing required files). No error or incomplete result authorizes continuation.
+Production options such as `--output`, `--search` and `--repair-parent` are refused.
+Keep the directory stable during reading: this is not an atomic filesystem snapshot.
+The helper grants no permission to execute a candidate or apply source changes.
+
 ## Why this helper exists
 
 The agent profile initially supplied a fixed exercise. Applying it to a different
