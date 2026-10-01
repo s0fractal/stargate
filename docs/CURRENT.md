@@ -26,6 +26,9 @@ bytes and describe what was measured then; they are not silently rewritten as ne
 - **Merge gate:** the GitHub App 5041755 publishes the required `stargate/model-gate` check;
   strict base freshness is enabled. The gate checks guarded model/projection changes.
   `untouched` does not certify arbitrary code or a change to the checker itself.
+- **Agent review (shadow):** `stargate/agent-review` is published by a separate Claude
+  session that reads only the head export and diff ([registration](AGENT_REVIEW.md)).
+  It is not required: it uses the GitHub Actions token, which a pull request also holds.
 - **Consumer boundary:** [actual adapter checks](CONSUMER_CONTRACTS.md) cover six Warrant
   scenarios/three mutants and eighteen Sokol socket observations/four mutants. Proof and
   code correspondence remain distinct claims. Frozen Sokol observations/model identities
