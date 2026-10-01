@@ -6,6 +6,7 @@ import argparse
 import hashlib
 import json
 from pathlib import Path
+import shutil
 import sys
 
 from stargate import certificate, evidence, lab, machine, transport
@@ -106,21 +107,32 @@ def run(spec_path, expected_spec, expected_checker, output, *, max_edges=256,
 def export_task(output, report, proof, spec, raw, filename, mode, replay_model, successor=None, extra=None):
     # Existing offline proof format, exported only after all checks succeed.
     exported = transport.unpack_certificate(proof, output, license_text=lab.LICENSE)
-    replay = ['python', '-I', '-S', 'replay.py', filename, *mode,
-              '--expect-model', replay_model, '--expect-checker', report['checker'],
-              '--max-steps', str(report['budget']['max_steps'])]
-    report.update(proof_sha256=hashlib.sha256(proof).hexdigest(),
-                  replay_digest=exported['replay_digest'], replay_argv=replay)
-    files = {'input-spec.json': spec, 'input.machine': raw}
-    if successor is not None:
-        files['successor.json'] = successor
-    files.update(extra or {})
-    # The report is written last; partial filesystem failure is never success.
-    files['task-report.json'] = (json.dumps(report, sort_keys=True, indent=2)+'\n').encode()
-    for name, data in files.items():
-        with (output / name).open('xb') as stream:
-            stream.write(data)
-    return report, certificate.exit_code(report)
+    # unpack owns cleanup until it returns. Never remove a destination whose
+    # exclusive creation failed (another writer may have created it).
+    try:
+        replay = ['python', '-I', '-S', 'replay.py', filename, *mode,
+                  '--expect-model', replay_model, '--expect-checker', report['checker'],
+                  '--max-steps', str(report['budget']['max_steps'])]
+        report.update(proof_sha256=hashlib.sha256(proof).hexdigest(),
+                      replay_digest=exported['replay_digest'], replay_argv=replay)
+        files = {'input-spec.json': spec, 'input.machine': raw}
+        if successor is not None:
+            files['successor.json'] = successor
+        files.update(extra or {})
+        # The report is written last; partial filesystem failure is never success.
+        files['task-report.json'] = (json.dumps(report, sort_keys=True, indent=2)+'\n').encode()
+        for name, data in files.items():
+            with (output / name).open('xb') as stream:
+                stream.write(data)
+        return report, certificate.exit_code(report)
+    except BaseException as error:
+        # Includes an ordinary KeyboardInterrupt, but cannot recover from SIGKILL
+        # or machine failure. The caller must control the destination's parent.
+        try:
+            shutil.rmtree(output)
+        except OSError as cleanup_error:
+            error.add_note('handoff cleanup failed: ' + str(cleanup_error))
+        raise
 
 
 def search_task(spec, raw, parent_model, checker, output, strategy, quota, max_edges, max_steps):

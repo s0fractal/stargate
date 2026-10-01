@@ -29,12 +29,19 @@ existing bounded WPL compiler/evaluator.
 | 4 | `verified_refutation` | Existing refutation format and counterexample/exclusion evidence |
 | 3 | Incomplete or selected checker unavailable | No directory created |
 | 2 | Invalid input or rejected evidence | No directory created before validation succeeds |
-| 1 | Checker/operation error | No usable success; a write failure may leave a partial directory |
+| 1 | Checker/operation error | No usable success; failed exports are cleaned up when possible |
 
 Both 0 and 4 are useful completed tasks; only 0 certifies the model. A producer's
 positive verdict is rechecked against identities derived from the selected input and
 checker before export. Unknown statuses, absent proof and mismatching evidence cannot
 create a successful handoff. A report is written last; failed writes are not completion.
+If an export raises an exception (including an ordinary keyboard interrupt), the helper
+removes its new directory so the same command can be retried. It never cleans up a
+pre-existing destination or one whose exclusive creation failed. Use a parent directory
+controlled by the caller: concurrent replacement of files/directories is unsupported.
+This is exception recovery, not atomic publication or durable storage. Readers must wait
+for command completion. Forced process termination, machine failure, or failed cleanup
+can still leave partial output; inspect it and choose a fresh output path before retrying.
 
 The directory retains the original specification, machine bytes, certificate or
 refutation, captured checker sources, offline launcher, license and an unsigned

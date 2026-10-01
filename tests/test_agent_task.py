@@ -85,6 +85,63 @@ class AgentTask(unittest.TestCase):
         self.assertEqual(code, 4)
         return dict(repair_parent=Path(tmp)/'parent/refutation.json', expected_parent=report['model_id'])
 
+    def test_failed_export_is_removed_and_same_task_can_retry(self):
+        original_open = Path.open
+        for filename, failure in [('input.machine', OSError),
+                                  ('task-report.json', OSError),
+                                  ('candidate-spec.json', KeyboardInterrupt)]:
+            with self.subTest(filename=filename), tempfile.TemporaryDirectory() as tmp:
+                output = Path(tmp)/'handoff'
+                # Search exercises successor and candidate export as well as the report.
+                options = dict(search='synth', max_candidates=1)
+                def interrupted_open(path, *args, **kwargs):
+                    if path.name == filename:
+                        # Leave a real partially written file, not just a failed open.
+                        with original_open(path, 'xb') as stream:
+                            stream.write(b'partial')
+                        raise failure('injected write interruption')
+                    return original_open(path, *args, **kwargs)
+                with patch.object(Path, 'open', interrupted_open):
+                    with self.assertRaises(failure):
+                        self.check_task(output, 'stale', **options)
+                self.assertFalse(output.exists())
+                report, code = self.check_task(output, 'stale', **options)
+                self.assertEqual(code, 0)
+                replay = subprocess.run([sys.executable, *report['replay_argv'][1:]],
+                                        cwd=output, capture_output=True, text=True)
+                self.assertEqual(replay.returncode, 0, replay.stderr)
+
+    def test_destination_created_during_verification_is_preserved(self):
+        original_unpack = transport.unpack_certificate
+        with tempfile.TemporaryDirectory() as tmp:
+            output = Path(tmp)/'handoff'
+            def competing_export(*args, **kwargs):
+                output.mkdir()
+                (output/'sentinel').write_bytes(b'another writer')
+                return original_unpack(*args, **kwargs)
+            with patch.object(transport, 'unpack_certificate', competing_export):
+                with self.assertRaises(FileExistsError):
+                    self.check_task(output)
+            self.assertEqual(list(output.iterdir()), [output/'sentinel'])
+            self.assertEqual((output/'sentinel').read_bytes(), b'another writer')
+
+    def test_cleanup_failure_preserves_original_error_and_never_returns_success(self):
+        original_open = Path.open
+        with tempfile.TemporaryDirectory() as tmp:
+            output = Path(tmp)/'handoff'
+            def failed_open(path, *args, **kwargs):
+                if path.name == 'task-report.json':
+                    raise OSError('original export failure')
+                return original_open(path, *args, **kwargs)
+            with patch.object(Path, 'open', failed_open), \
+                 patch.object(tool.shutil, 'rmtree', side_effect=OSError('cleanup denied')):
+                with self.assertRaisesRegex(OSError, 'original export failure') as caught:
+                    self.check_task(output)
+            self.assertIn('cleanup denied', caught.exception.__notes__[0])
+            self.assertFalse((output/'task-report.json').exists())
+            with self.assertRaises(ValueError):
+                self.check_task(output)
+
     def test_repair_preserves_objection_and_replays_successor_offline(self):
         with tempfile.TemporaryDirectory() as tmp:
             parent = self.make_parent(tmp)
