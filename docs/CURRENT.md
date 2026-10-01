@@ -120,7 +120,10 @@ A separate [retained local intent journal](RETAINED_INTENTS.md) now preserves ex
 inputs and finite attempt budgets across sender process loss. It reconciles receipts
 before spending another attempt and fences cancelled local releases through the
 existing revision check. It shares the actuator database; remote Sokol queue recovery
-and unattended scheduling are not implemented.
+and unattended scheduling are not implemented. A [local retained sender
+experiment](../examples/sokol-intents/README.md) now drives the actual Sokol Outbox
+with one flush per reservation; six process-exit/socket cases cover retained budgets,
+receipt-first recovery, cancellation and a false transport acknowledgement.
 
 ## Current development criteria
 
