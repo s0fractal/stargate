@@ -3,7 +3,9 @@
 The reviewer CLI is replaced by a fake executable; what is tested is what surrounds it:
 binding, isolation of the reviewer, the verdict contract and the status it yields.
 """
+import contextlib
 import importlib.util
+import io
 import json
 from pathlib import Path
 import shutil
@@ -48,14 +50,15 @@ class Base(unittest.TestCase):
         subprocess.run(['git', 'clone', '-q', str(self.tmp / 'origin'), str(self.tmp / 'clone')], check=True)
         self.seen = self.tmp / 'seen.json'
 
-    def fake_claude(self, stdout):
-        """An executable that records what the reviewer would see, then prints `stdout`."""
+    def fake_claude(self, stdout, exit_code=0):
+        """An executable that records what the reviewer would see, prints `stdout`, exits."""
         path = self.tmp / 'claude'
         path.write_text(f'''#!{sys.executable}
 import json, os, sys
 json.dump(dict(argv=sys.argv[1:], env=sorted(os.environ), cwd=sorted(os.listdir('.')),
                diff=open('review.diff').read()), open({str(self.seen)!r}, 'w'))
 sys.stdout.write({stdout!r})
+sys.exit({exit_code})
 ''')
         path.chmod(0o755)
         return str(path)
@@ -67,16 +70,20 @@ sys.stdout.write({stdout!r})
     def pull(self, number, head):
         return dict(number=number, state='open', head=dict(sha=head), base=dict(ref='main'))
 
-    def run_review(self, stdout, head=None, pulls=None, source=None):
+    def run_review(self, stdout, head=None, pulls=None, source=None, exit_code=0, summary_path=None):
         head = head or self.v['good']
         pulls = [self.pull(1, head)] if pulls is None else pulls
         fake = FakeGitHub(pulls, {'main': self.v['base']}); self.addCleanup(fake.close)
+        printed = io.StringIO()
         try:
-            code = module(source).publish(api=fake.api, token='github-token', repository=REPO, head=head,
-                                          event_pulls=[p['number'] for p in pulls], clone=str(self.tmp / 'clone'),
-                                          model='claude-opus-5-5', secret=SECRET, claude=self.fake_claude(stdout))
+            with contextlib.redirect_stdout(printed), contextlib.redirect_stderr(printed):
+                code = module(source).publish(api=fake.api, token='github-token', repository=REPO, head=head,
+                                              event_pulls=[p['number'] for p in pulls], clone=str(self.tmp / 'clone'),
+                                              model='claude-opus-5-5', secret=SECRET, summary_path=summary_path,
+                                              claude=self.fake_claude(stdout, exit_code))
         except Exception:
             code = 'raised'
+        self.printed = printed.getvalue()
         return code, [(st, d) for s, st, d, c in fake.statuses() if c == CONTEXT and s == head], fake
 
 
@@ -130,6 +137,31 @@ class Publisher(Base):
         code, statuses, fake = self.run_review(self.result(answer('pass', summary='token ' + SECRET)))
         self.assertEqual(statuses[-1][0], 'error')
         self.assertFalse(any(SECRET in json.dumps(body) for m, p, body in fake.requests if body))
+
+    def test_a_failed_process_is_an_error_even_with_a_valid_pass_on_stdout(self):
+        """Review of #107: exit 7 after printing a valid pass was published as success."""
+        code, statuses, _ = self.run_review(self.result(answer('pass')), exit_code=7)
+        self.assertEqual(statuses[-1][0], 'error')
+        self.assertIn('exited 7', statuses[-1][1])
+        self.assertNotEqual(code, 0)
+
+    def test_an_escaped_credential_is_caught_after_decoding_and_never_published(self):
+        """Review of #107: a \\uXXXX-escaped credential passed the raw-text check."""
+        escaped = ''.join(f'\\u{ord(c):04x}' for c in SECRET)
+        stdouts = {
+            'in the summary': self.result(answer('pass')).replace('"summary": "s"', f'"summary": "{escaped}"'),
+            'in an error message': json.dumps(dict(subtype='success', is_error=True)).replace(
+                '"is_error": true', f'"is_error": true, "result": "{escaped}"'),
+        }
+        for name, stdout in stdouts.items():
+            with self.subTest(name):
+                self.assertNotIn(SECRET, stdout)
+                summary = self.tmp / 'summary.md'
+                code, statuses, fake = self.run_review(stdout, summary_path=str(summary))
+                self.assertEqual(statuses[-1][0], 'error')
+                self.assertFalse(any(SECRET in json.dumps(body) for m, p, body in fake.requests if body))
+                self.assertFalse(summary.exists() and SECRET in summary.read_text())
+                self.assertNotIn(SECRET, self.printed)
 
     def test_unbound_or_moved_heads_write_nothing(self):
         for pulls in ([], [self.pull(1, self.v['bad'])], [self.pull(1, self.v['good']), self.pull(2, self.v['good'])]):

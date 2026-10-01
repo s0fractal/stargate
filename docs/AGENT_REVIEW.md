@@ -26,7 +26,11 @@ a reviewer that is not the author: a separate model session that sees only the c
   environment holds `PATH`, a scratch `HOME` and `CLAUDE_CODE_OAUTH_TOKEN`; the status
   token is never passed to it.
 * Its answer must match a JSON schema and be self-consistent: `pass` has no blocker or
-  major finding, `deny` has a blocker. Output containing the credential is refused.
+  major finding, `deny` has a blocker. A nonzero exit is an error whatever was printed.
+  Output containing the credential, raw or after JSON decoding, is refused before any of
+  it is published. This filter is defence in depth, not the boundary: another encoding
+  (base64, split strings) would pass it. The boundary is that the reviewer cannot read the
+  credential (no shell, reads confined to the scratch directory).
 * Status `stargate/agent-review` on the head: `pass` → success, `hold`/`deny` → failure,
   anything else (CLI or API failure, schema or consistency violation, timeout) → error.
   The findings are written to the run's step summary.

@@ -90,6 +90,10 @@ def parse(stdout, secret):
         result = json.loads(stdout)
     except ValueError:
         raise ReviewError('reviewer output is not JSON') from None
+    # JSON escapes (\\uXXXX) hide the credential from the raw check: check the decoded values
+    # too, before any of them (including an error message) can be published.
+    if secret and secret in json.dumps(result, ensure_ascii=False):
+        raise ReviewError('reviewer output contains the model credential')
     if not isinstance(result, dict):
         raise ReviewError('reviewer output is not an object')
     if result.get('is_error') or result.get('subtype') != 'success':
@@ -125,7 +129,8 @@ def review(clone, base, head, *, claude='claude', model, secret, timeout=1500):
                               '--tools', 'Read,Grep,Glob', '--settings', json.dumps(settings),
                               '--json-schema', json.dumps(SCHEMA), prompt],
                              cwd=work, env=env, capture_output=True, text=True, timeout=timeout)
-    if run.returncode and not run.stdout:
+    # A failed process is never a verdict, whatever it printed first.
+    if run.returncode:
         raise ReviewError(f'reviewer exited {run.returncode}')
     return parse(run.stdout, secret)
 
