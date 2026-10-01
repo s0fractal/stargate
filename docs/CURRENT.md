@@ -99,6 +99,10 @@ release and permanent retention each receive a different checked objection; guar
 release satisfies both. Selected world/candidate/contract identities and complete
 checks are required for model eligibility. This is a synthetic two-role experiment,
 not a production actuator, federation, economic mechanism or impossibility result.
+Its [SQLite extension](../examples/shared-action/ACTUATOR.md) exercises one atomic toy
+state update after joint verification, live-state membership and projection checking;
+stale revisions, changed selections and competing attempts withhold duplicate effects.
+This does not make external side effects atomic or prove distributed exactly-once behavior.
 
 ## Current development criteria
 
