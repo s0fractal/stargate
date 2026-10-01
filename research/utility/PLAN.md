@@ -1,6 +1,6 @@
 # Utility comparison: prospective pilot
 
-Registered before task selection and execution. This file is not amended after a
+Protocol committed before implementation investigation and model execution. This file is not amended after a
 run starts; amendments receive a separate file and apply only to future cases.
 
 ## Question
@@ -11,16 +11,25 @@ Correct certificates and passing fixtures alone do not answer this question.
 
 ## Selection and denominator
 
-Screen at most three current tasks from active Sokol or Warrant owner documents or
-open issues. Read the owner backlog in its recorded order; take the first three
-unfinished concrete engineering obligations, with a named target and observable
-failure/success condition. Record owner commit/path and the task statement before
+Screen at most three unfinished obligations in this fixed source order: Sokol
+ROADMAP.md numbered "next" list, Sokol open issues by ascending issue number,
+Warrant open issues by ascending number, then Warrant README-linked current work.
+Within a numbered roadmap item, dependent subitems belong to the same obligation.
+Take the first three unfinished obligations, including externally blocked ones;
+classify their eligibility, with a named target and observable failure/success
+condition, without replacing excluded cases. Record owner commit/path and the task statement before
 looking at its implementation. Do not select for fitting six Boolean bits.
-Exclude archived projects, previous Stargate fixtures, already-known defects and
-requests whose owner says they are only notices or await an external prerequisite.
+Do not execute archived projects, previous Stargate fixtures, already-known defects
+or requests whose owner says they are only notices or await an external prerequisite.
+These exclusions remain in the three screened records and are not replaced.
 Keep every screened item and exclusion reason; do not replace an inconvenient result
 with a fourth task. If fewer than three eligible tasks exist, report that shortage.
 This is an operator-controlled convenience sample, not independent demand.
+Disclosure: open-issue listings were read before the first protocol commit; owner
+roadmap/README documents were previewed during plan review, before acceptance of
+this revision. The source order is therefore not blind or pre-registered against
+all source exposure. No implementation baseline or model run has started. Preserve
+this limitation rather than calling the eventual sample unbiased.
 
 ## Execution
 
@@ -36,7 +45,11 @@ For each selected task, freeze the contract and repository revision first.
    it against the frozen implementation. A rejected bad repair or a reusable
    checked obligation counts separately from defect discovery.
 4. For the first eligible model, also attempt the same bounded obligation with
-   TLC, using the official existing CLI if available. Retain specification,
+   TLC, using the official existing CLI if available. TLC sees the baseline,
+   mapping, Stargate model and findings. This is a portability/replication attempt,
+   not independent discovery or a fair speed race. Charge the shared modelling
+   effort to both routes; report additional translation time separately. The same
+   useful result from TLC means the benefit is not established as Stargate-specific. Retain specification,
    invocation and verdict. If unavailable, record NOT_RUN, never an automatic win
    for Stargate. No claim that agents cannot use standard tools.
 
@@ -55,6 +68,10 @@ Do not install a new service, create a new adapter framework, or change a checke
 for this pilot. Correctness/safety problems found in ordinary work may still be
 fixed, but repair/CI/merge time is a separate cost and does not reset a phase budget.
 
+Record UTC start/end for screening too, and retain protocol commit and file digest
+before screening. OUT_OF_DOMAIN requires an explanation tied to the frozen failure
+mode before any model run; a second model may challenge but cannot validate it alone.
+
 Each case record retains task provenance, exact revisions, eligibility, commands,
 outputs or their retained paths/digests, baseline findings, incremental findings,
 limitations and time. Credential material and private source are not published.
@@ -68,12 +85,29 @@ artifacts remain in the corresponding private repository or local experiment fol
 - OUT_OF_DOMAIN, NOT_RUN and INCONCLUSIVE stay in the screened denominator, but are
   not failed proof attempts or evidence of correctness. Count completed eligible
   cases separately. Infrastructure failures receive no correctness verdict.
-- If at least two completed eligible cases show no decision change or reusable
-  checked obligation beyond baseline, stop expanding this integration and prefer
-  the simpler path. One positive case supports only that named use case.
-- If fewer than two eligible cases complete, utility remains INCONCLUSIVE; do not
-  advertise productivity or general superiority. A shortage of fitting tasks is
-  itself a reason not to add general agent infrastructure now.
+- Before the Stargate phase, baseline must name its proposed action: merge a named
+  repair, refuse it, keep the code, or investigate a specific unresolved question.
+  A decision change is a different action justified by a newly reproduced failing
+  regression on baseline code, or a counterexample to the proposed repair that is
+  reproduced in actual code. A new certificate/test alone does not qualify. The
+  named failing command and before/after action must let another reader check it;
+  a model verdict or the implementer's satisfaction is insufficient.
+- Record modelling, mapping validation, dependency setup, integration, review and
+  subsequent repair/CI time separately when observable. Unknown token/monetary
+  cost remains unknown. Existing framework development is sunk cost, not zero cost.
+  Record added maintained files/lines and every required future recurring check.
+- Continue only a named use case with a validated decision change within the
+  20-minute added Stargate phase, no new maintained adapter/dependency/service,
+  and a replay command runnable by the existing consumer. This is an operator
+  engineering threshold, not a measured financial return or general superiority.
+- Zero positives among two or more completed eligible cases: stop expanding this
+  integration. One or more qualifying positives: permit only those named uses;
+  no general expansion. Fewer than two completions: overall INCONCLUSIVE, even if
+  one case is positive. Out-of-domain/excluded cases never create a positive.
+  Equal results from TLC establish no Stargate-specific advantage; prefer the
+  route needing less added maintained integration, or report an unresolved tie.
+- A shortage of fitting tasks is a reason not to add general agent infrastructure
+  now, not evidence that Stargate is universally useless.
 - Any important real failure omitted by the abstraction voids its application to
   that obligation. Keep the failed mapping; no post-hoc replacement of the task.
 - A pass from another model is review evidence, not ground truth about utility.

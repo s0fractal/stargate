@@ -1,0 +1,49 @@
+{
+  "head": "242675a52f0a5f3a40485edcf769071f503929d7",
+  "verdict": {
+    "verdict": "hold",
+    "summary": "The plan is strong on selection, denominators and honesty. It fixes the backlog order in advance, keeps every screened item, forbids swapping in a replacement task, and keeps OUT_OF_DOMAIN, NOT_RUN and INCONCLUSIVE in the denominator. It admits Stargate sees the baseline findings, sets equal 20-minute time limits, requires reproducing a defect before crediting it, and does not treat another model's pass as ground truth. Its claims are suitably local. One material defect remains: the continue/stop rule cannot answer the stated question. That question is whether Stargate changes a real maintenance decision enough to justify its cost. 'Decision change' is never defined, there is no rule for who judges it, and the rule never weighs benefit against cost. Also, a 'reusable checked obligation' alone avoids the stop condition, so a certificate with no decision impact counts as a positive result. That reopens the certificate-equals-utility shortcut the plan otherwise rejects. The TLC comparison also has no fixed rule for interpreting it and is run in an order that favours one tool. These should be fixed in the plan before any task is selected; none of them needs a larger study.",
+    "findings": [
+      {
+        "severity": "major",
+        "location": "PLAN.md:71-73 (Decisions fixed before results, stop rule)",
+        "claim": "The rule to stop expanding the integration is avoided if a case shows 'decision change OR reusable checked obligation'. A reusable checked obligation is just a successful model and certificate. Stargate can produce one in nearly any in-domain case even when no maintenance decision changes. So the rule credits formal coverage as utility, against line 67 ('Do not convert a certificate into a bug found') and the question at lines 8-10. Fix: only a decision change should avoid the stop rule. Report added coverage separately, or require evidence that the obligation will actually be reused, such as an existing consumer or a CI hook, recorded before results."
+      },
+      {
+        "severity": "major",
+        "location": "PLAN.md:8-10, 66-73 (Question / Decisions)",
+        "claim": "'Change a real maintenance decision' is never defined, and no one is named to judge it. Examples of what could count: a merge refused, a different repair chosen, a task re-scoped, or a test added that would otherwise be absent. The person who built Stargate, with the baseline already in mind, judges the outcome Stargate is scored on. That is circular evidence. Fix: before results, define decision change as a recorded difference between the frozen baseline's proposed action and the action after Stargate. Have it confirmed by the task owner or by the reproduced failing test, not by the operator's or a model's opinion alone."
+      },
+      {
+        "severity": "major",
+        "location": "PLAN.md:8-9, 50-56, 71-73 (cost vs. benefit)",
+        "claim": "The question asks whether the change is large enough to 'justify modelling and integration work'. Elapsed time is recorded, but no rule compares benefit with cost. Missing are the size of the modelling and integration effort and how a positive case is weighed against it. As written, any single decision change in a 20-minute case would count as justified. Fix: state in advance which cost items are counted (per-case modelling time, ongoing integration and maintenance) and what level of benefit justifies continuing. A qualitative rule is enough for a local pilot."
+      },
+      {
+        "severity": "major",
+        "location": "PLAN.md:37-41 (TLC comparator)",
+        "claim": "The TLC run only happens on the first eligible model and comes after the Stargate phase. It is not stated whether the TLC attempt may see the Stargate model, its state and event mapping, or its findings. If it may, TLC inherits the modelling work and the comparison is tilted. No rule is fixed for what each TLC outcome means for the decision. If TLC finds the same thing, the increment comes from formal modelling in general, not from Stargate, and the 'prefer the simpler path' rule should apply. Fix: record TLC's access to the Stargate material and fix the interpretation in advance. Same result from TLC within its time limit means the benefit is not Stargate-specific."
+      },
+      {
+        "severity": "minor",
+        "location": "PLAN.md:14-17 (Selection)",
+        "claim": "Tasks come from 'Sokol or Warrant' backlogs, but the plan does not say which backlog is read first or how the two are merged. Choosing the source after seeing them is a selection lever. Whether an item is 'concrete', has a 'named target' and has an 'observable failure/success condition' is also the operator's call. Fix: fix the backlog order and merge rule now, and record the reason for each eligibility call while screening (keeping all screened items, which the plan already requires, helps)."
+      },
+      {
+        "severity": "minor",
+        "location": "PLAN.md:71-74 (mixed outcomes)",
+        "claim": "Mixed outcomes are not covered. Example: one negative, one positive and one OUT_OF_DOMAIN or INCONCLUSIVE case. Then 'at least two completed' cases exist but not two negatives. The plan does not say whether expansion stops, continues for the named use case only, or stays INCONCLUSIVE. Fix: list the outcomes for the possible mixes of three cases in advance."
+      },
+      {
+        "severity": "minor",
+        "location": "PLAN.md:3-4 (registration)",
+        "claim": "The plan says it is frozen once a run starts but does not record its own hash or commit, or a UTC registration time. Without that, nobody can check later that it was registered before task selection. Fix: record a hash of PLAN.md and a timestamp before screening begins."
+      },
+      {
+        "severity": "minor",
+        "location": "PLAN.md:33-36, 76-77 (domain/mapping judgements)",
+        "claim": "The OUT_OF_DOMAIN decision and the 'important real failure omitted by the abstraction' test are made by the operator. These calls decide whether a case counts. Fix: give the reason for each call against the frozen baseline's failure modes, and record these calls before running any Stargate check."
+      }
+    ]
+  }
+}
