@@ -1,0 +1,75 @@
+{
+  "controls": {
+    "duplicate_not_ambiguous": {
+      "different_rows": 4,
+      "failed_scenarios": [
+        "duplicate"
+      ],
+      "first_witness": {
+        "event": {
+          "host": true,
+          "reply": false
+        },
+        "state": {
+          "ambiguous": false,
+          "calls.one": false,
+          "calls.two": false,
+          "pending": true
+        }
+      }
+    },
+    "end_does_not_reset": {
+      "different_rows": 15,
+      "failed_scenarios": [],
+      "first_witness": {
+        "event": {
+          "host": true,
+          "reply": true
+        },
+        "state": {
+          "ambiguous": false,
+          "calls.one": false,
+          "calls.two": false,
+          "pending": true
+        }
+      }
+    }
+  },
+  "direct_sha256": "c7cebcbda1ec1a6b19770b1456f4d45323c6ce9a8a70d8d4b3eb5faff1911c40",
+  "elapsed_seconds": 0.2880578749900451,
+  "footprint": {
+    "candidate": {
+      "bytes": 829,
+      "physical_lines": 17
+    },
+    "embedded_projection_assignment": {
+      "bytes": 13741,
+      "physical_lines": 145
+    },
+    "loader": {
+      "bytes": 832,
+      "physical_lines": 12
+    },
+    "projection_payload_bytes": 12574,
+    "runtime": {
+      "bytes": 6017,
+      "physical_lines": 143
+    }
+  },
+  "pins": {
+    "warrant_mcp.py": "caaaf1ce56c4caac39fe7107575955d7e1d32819f6992a2367be80be254ea1a4",
+    "warrant_mcp_table.py": "4ab9224fac3605bd150cb12764424e9b5c7147c72a0e5259c2d0861f94746b1a"
+  },
+  "projection_sha256": "6235a212057f2ef360d30cb767f170a363311f20bfa18f00dbf4143c8d7ac321",
+  "scenarios": [
+    "duplicate",
+    "eof",
+    "idless",
+    "ordinary",
+    "reverse_request",
+    "two_ids"
+  ],
+  "scope": "valid Boolean inputs; actual adapter with effect spy; not loader parity or signing",
+  "status": "equivalent_on_boolean_domain_and_six_scenarios",
+  "transitions": 64
+}
