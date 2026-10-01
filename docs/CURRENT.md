@@ -150,3 +150,10 @@ prerequisites. No baseline/model/comparator run occurred; overall INCONCLUSIVE.
 Generic agent infrastructure expansion is paused pending independently arising
 maintenance work with an executable baseline. Existing consumers and regression
 checks remain in use. This is not evidence of either superiority or uselessness.
+
+The [Warrant maintenance comparison](../research/warrant-maintenance/README.md) finds
+that a 17-line Python alternative matches the pinned consumer table on all 64 Boolean
+inputs and six existing adapter scenarios. This is retrospective equivalence, not a
+new defect discovery or measured labour saving. Warrant already runs without installing
+Stargate. Its production consumer stays unchanged; future fixed-policy consumers should
+prefer ordinary code unless checked projection provenance is a concrete requirement.
