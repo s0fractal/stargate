@@ -42,6 +42,10 @@ bytes and describe what was measured then; they are not silently rewritten as ne
   exhausts. Existing sigma/semantic-seal successes and Warrant live-goal refusal remain
   the acceptance set. No new solver, domain size, runtime or trust authority was added.
 
+The [2026-10-01 publisher review](PUBLISHER_BINDING_REVIEW.md) reproduces and repairs
+stale binding publication and event-subset ambiguity, with actual gate/API scenarios
+and a bounded observed-binding model. Final API reads and status POST are not atomic.
+
 ## Review and acceptance
 
 Admission is controlled by the repository's required executable checks; a human GitHub
