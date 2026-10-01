@@ -8,6 +8,7 @@ permissions:
   contents: read
 jobs:
   check:
+    timeout-minutes: 20
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -33,9 +34,14 @@ jobs:
           TAG: ${{ github.ref_name }}
         run: python tools/anchors.py --check-tag "$TAG"
       - name: Installed wheel tests outside checkout
+        timeout-minutes: 11
         run: |
           cd "$RUNNER_TEMP"
-          python -I -m unittest discover -s "$GITHUB_WORKSPACE/tests" -v
+          # Preserve unittest exit status; a hang fails with timeout's nonzero status.
+          # Stack dumps help only while the runner can still transmit its logs.
+          timeout --signal=TERM --kill-after=30s 10m python -I -c \
+            'import faulthandler, runpy; faulthandler.dump_traceback_later(120, repeat=True); runpy.run_module("unittest", run_name="__main__")' \
+            discover -s "$GITHUB_WORKSPACE/tests" -v
       - name: Installation integration
         run: python integration/test_release_gate.py --with-install
       - name: MCP proxy vertical (registered outcomes, results.json byte-for-byte)
@@ -51,6 +57,7 @@ jobs:
       - name: Semantic-seal vertical (registered outcomes, results.json byte-for-byte)
         run: python integration/semantic_seal_vertical.py
   pr-gate-action:
+    timeout-minutes: 10
     # The composite action (action.yml) run end to end against a fixture repository:
     # outcome 13 of docs/PR_GATE_REGISTRY.md. The fixture's heads are local commits,
     # so nothing is fetched; everything else is the action a consumer runs.
