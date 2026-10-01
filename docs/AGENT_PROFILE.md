@@ -121,6 +121,9 @@ execution. The [local intent journal](RETAINED_INTENTS.md) now retains inputs,
 attempt budgets and cancellation across process loss in the shared SQLite scope.
 The [retained Sokol sender](../examples/sokol-intents/README.md) now reconstructs the
 actual outbox for one reserved flush and recovers across sender process exits. Its
-next boundary is a production task adapter with explicit endpoint and receipt trust.
+possible next boundary is a production task adapter with explicit endpoint and receipt
+trust, but expansion is paused pending a concrete task and evidence of incremental
+utility. The [first utility screening](../research/utility/RESULTS.md) found no
+eligible execution in its three-item sample; this is INCONCLUSIVE, not proof of value.
 Operator cancellation, resource limits and the supported storage lifetime must remain
 explicit when moving from this experiment to an agent task adapter.

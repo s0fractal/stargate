@@ -141,3 +141,12 @@ changed the outcome; count repeated fixtures as regressions, not adoption. Indep
 use remains optional evidence, not a development gate. Wider semantics still need a
 named contract that cannot be expressed today; new synthesis needs repeated failures
 and a registered comparison. Preserve portable evidence and historical checker IDs.
+
+## Utility before further expansion
+
+The [bounded utility pilot](../research/utility/RESULTS.md) screened three existing
+Sokol roadmap obligations and excluded all three for explicit hardware/owner/pilot
+prerequisites. No baseline/model/comparator run occurred; overall INCONCLUSIVE.
+Generic agent infrastructure expansion is paused pending independently arising
+maintenance work with an executable baseline. Existing consumers and regression
+checks remain in use. This is not evidence of either superiority or uselessness.
