@@ -1,0 +1,19 @@
+{
+  "base": "9fee980612ca9fdd581049ed2f767dd3ea7a5570",
+  "findings": [
+    {
+      "claim": "The frozen results include source/adapter/driver digests, but they can only be reproduced with the private Sokol source, and public CI does not compare them. The README says this openly. Still, nothing in the repository detects whether `results.json` matches the adapter at head. I could not confirm that `adapter_sha256` (7c349c0a\u2026) and `intent_sha256` (cc0f6273\u2026) match the committed files.",
+      "location": "examples/sokol-intents/results.json; integration/sokol_intents.py:420-428",
+      "severity": "minor"
+    },
+    {
+      "claim": "The receiver-side `dispatch` does not check the retained intent's status (cancelled/completed/conflict) before calling `receipts.dispatch`. It relies only on the actuator's revision CAS and the existing receipt lookup. The `cancelled` case shows this is safe today, but an explicit refusal of non-pending intents would make the fence less dependent on `cancel()` always revising the resource.",
+      "location": "integration/sokol_intents.py:275-283 (dispatch)",
+      "severity": "minor"
+    }
+  ],
+  "head": "0720319379d9295912aa92a5cb2f14cb1c7dc024",
+  "pull_request": 108,
+  "summary": "The change adds `integration/sokol_intents.py`, which links the retained intent journal to a compiled one-flush Sokol Outbox. It adds public fake-transport tests, a frozen `results.json` with six process-exit cases, and updates three docs. Reservation always happens before launch, and only the receipt lookup in `reconcile` can complete an intent. Exit codes and ACKs never do, and the wire input cannot replace the retained payload or revision. The new tests are picked up by CI's existing `unittest discover`, and the docs describe what the code does, including that public CI does not run the six Rust/socket cases, so I found no blocker or major issue.",
+  "verdict": "pass"
+}
