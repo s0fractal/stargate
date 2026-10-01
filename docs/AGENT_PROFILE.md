@@ -115,7 +115,8 @@ The [local actuator](../examples/shared-action/ACTUATOR.md) now retains an atomi
 operation receipt. A later session retries the exact operation and learns whether it
 already committed, without repeating its effect or confusing historical success with
 current permission. This is implemented for one toy SQLite resource, not arbitrary
-tools. The next integration boundary is Sokol delivery: bind request identity, actual
-effect and acknowledgement without treating transport success as durable execution.
+tools. The [Sokol transport experiment](../examples/sokol-receipts/README.md) connects
+actual delivery to that receiver without treating all transport success as durable
+execution. Its next boundary is retained sender intent across process loss.
 Operator cancellation, resource limits and the supported storage lifetime must remain
 explicit when moving from this experiment to an agent task adapter.

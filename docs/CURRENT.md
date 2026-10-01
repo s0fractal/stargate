@@ -107,8 +107,12 @@ The optional operation receipt now commits with the local effect and lets anothe
 agent session reconcile a lost response without repeating the effect. Exact request
 replays return a historical observation; conflicting reuse refuses. Tests terminate
 processes before/after commit, deny receipt storage and race identical operations.
-This closes a local propose/check/apply/reconcile loop, not a Sokol transport adapter
-or a power-loss guarantee.
+This closes a local propose/check/apply/reconcile loop, not a power-loss guarantee.
+The [Sokol receipt experiment](../examples/sokol-receipts/README.md) now connects
+the actual Rust outbox to this toy receiver. Six socket scenarios check retained
+requests, acknowledged local effects, conflicting reuse and changed conditions;
+two semantic mutants must fail by observed mismatches. The sender remains an
+in-memory queue, and the fixture is not the production Sokol node endpoint.
 
 ## Current development criteria
 

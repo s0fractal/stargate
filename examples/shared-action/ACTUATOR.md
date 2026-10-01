@@ -124,10 +124,10 @@ receipt-storage error cannot leave a committed effect without its receipt.
 This is the local part of an agent/membrane loop: propose, verify, apply, reconcile.
 Sokol's delivery outbox already retains unknown/incomplete acknowledgements and
 retries, but its `Applied`, `Pending`, `Recorded` and `Duplicate` outcomes remain
-distinct and do not establish durable storage. No Sokol runtime is connected to
-this SQLite experiment yet. A future transport adapter must bind its operation
-identity to the actual effect and acknowledgement, retain uncertainty on missing
-responses, and preserve operator-selected permissions and revocation checks.
+distinct and do not establish durable storage. The [Sokol receipt experiment](../sokol-receipts/README.md) now connects the
+actual outbox to this SQLite receiver and exercises those distinctions. This
+fixture is not a production node endpoint. A production adapter still needs
+retained sender intent, authentication and explicit cancellation/resource limits.
 
 Receipts are kept indefinitely; ordinary SQL updates/deletes are refused. There
 is no receipt garbage collection, cross-database recovery, schema migration or
