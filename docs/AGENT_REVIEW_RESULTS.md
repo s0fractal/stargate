@@ -2,7 +2,7 @@
 
 Results under the unchanged [shadow registration](AGENT_REVIEW.md). These are
 observations and maintainer assessments, not certificates or an estimate of the
-reviewer's general accuracy. Keep the raw verdict; later assessments do not rewrite it.
+reviewer's general accuracy. Keep the published verdict; later assessments do not rewrite it.
 
 ## Run 1: Stargate #108 — 2026-10-01
 
@@ -11,8 +11,11 @@ reviewer's general accuracy. Keep the raw verdict; later assessments do not rewr
 - Base: `9fee980612ca9fdd581049ed2f767dd3ea7a5570`.
 - Reviewer: pinned Claude CLI/model from the trusted base workflow, separate from
   the implementation session. [Run 36871458847](https://github.com/s0fractal/stargate/actions/runs/36871458847).
-- [Raw published verdict](agent-review-results/108.json): `pass`, two `minor`
-  findings, no `major` or `blocker`. The head was not changed after review.
+- [Published verdict copy](agent-review-results/108.json): `pass`, two `minor`
+  findings, no `major` or `blocker`. This is a parsed/reformatted copy of the JSON
+  printed by `tools/agent_review.py` in the linked run, including metadata added by
+  that publisher. It is not raw Claude CLI output or a signed attestation.
+  The head was not changed after review.
 - Merge: `d512620994fd1f063b2a2c68f8ce137bf9fe714f`; its tree equals the reviewed head.
 - Timing from GitHub's second-resolution timestamps: review/publish step
   `13:48:54–13:49:30 UTC` (36 s); job `13:48:43–13:49:32 UTC` (49 s).
@@ -36,7 +39,7 @@ reviewer's general accuracy. Keep the raw verdict; later assessments do not rewr
 
 Both findings give line ranges beyond the 218-line adapter at this head. The named
 file and `dispatch` symbol allow inspection, but those numerical locations are wrong.
-They remain in the raw record rather than being silently repaired.
+They remain in the copied record rather than being silently repaired.
 
 ### What this run establishes
 
@@ -48,3 +51,27 @@ This run found no confirmed code defect requiring a patch. It does not estimate 
 bugs, independence of model errors, false-block rates or economic value. Five to ten
 runs remain the registered pilot scale; one `pass` is insufficient to make this check
 required. Publication still uses the shadow status mechanism.
+
+## Rechecking the public observations
+
+From a Stargate clone containing the named commits:
+
+```sh
+git diff --exit-code 0720319379d9295912aa92a5cb2f14cb1c7dc024 d512620994fd1f063b2a2c68f8ce137bf9fe714f
+git show 0720319379d9295912aa92a5cb2f14cb1c7dc024:integration/sokol_intents.py | wc -l
+gh run view 36871458847 --repo s0fractal/stargate --log
+gh run view 36871458847 --repo s0fractal/stargate --json jobs
+```
+
+The last two commands retrieve the publisher JSON and timestamps; compare parsed
+JSON values with `agent-review-results/108.json`, not whitespace. Availability and
+trust of GitHub's retained logs remain dependencies; the copied JSON alone cannot
+authenticate its origin. The original CLI output was not retained.
+
+For the runtime experiment and source digests, use the command in the
+[retained sender README](../examples/sokol-intents/README.md) from the exact reviewed
+head, supplying the private source. That command compares the full report bytes,
+including component digests. This observation log does not itself rerun the private
+experiment. The 709 local-test result is a maintainer-reported observation; the
+separate public [Python CI run](https://github.com/s0fractal/stargate/actions/runs/36871436198)
+retains the installed-package checks at the same candidate.
